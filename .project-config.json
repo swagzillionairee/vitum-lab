@@ -1,0 +1,35 @@
+{
+  "build_command": "pnpm run build",
+  "capabilities": [],
+  "dev_command": "pnpm run dev",
+  "env_vars": {},
+  "experiments": null,
+  "git_remote": {
+    "repo_url": "s3://vida-prod-gitrepo/webdev-git/310519663597202914/4xrQFz8nT3yxiEvF2GGaU3",
+    "access_key_id": "ASIAZV3A2ECZES3P7CNT",
+    "secret_access_key": "ggEic22HI/cvNF29aP8bNvUDRJi7eQqkoBBzdpGk",
+    "session_token": "IQoJb3JpZ2luX2VjEK7//////////wEaCXVzLWVhc3QtMSJHMEUCIHcP1DqV1dIUJ8JdEj7sHmCoT5PfV9qE9fBfUWzZdXCPAiEAmMCAsmKN1baX97mmYEVNIt++i0mnHSmVYjS+iqJG4VMq9gMIdxAEGgw2NjUzODYwOTg4NjYiDI/GOzkspFGQ9FjG1irTA4+4gKAFclnvfJmLI+HOJexRpl6dbKJrfcEswom8KNKwUio/yMV7e5rQb0wpTkhQIdIcwJ1CmKPET4nFmv8wFsLDuVOJImuZzSzgmr1mm4ktAVtu6NOW3RgmgU/9whTkCoyGVCK8C6ohiJNWkSXcXVIEfYpwWRpULL+qXYzA1DR8Xo1innIV5Lpz+fvVJfMEECCMHavW4wLhbfFB+HlmdfYBXfUT4ir13yc3VJlTzozWne2bWmRVRPKD6SkChPmCSLfjpSWfGCds3EZfFrNBK1TomhOWeQCP3Z0cTxFJLKCPVVb9h4hkKgV5G86NnFzTXaUg3Umssls9+kPVtxC6tpNa7L72Ke3i5w/U81rQrbmPVBEF5mm+ebgTKbd7nqK14UkG/BHICWn0ooQkrg+LB2ZzALMDjsk8Q81rqx9gvqWizDrU/y0iXpLMkdZW9NFZpRT+UfRvn5jqLXLMClcimB8NH7Z8n6Ga6hYnKJvcKzM0ba3gqrYktm5GuwyRHDSBMxAT+PsmeNburYcRtzcgoi1r/CtkMrERpmtLCGJYjsu/aaAmZA60W8yM14UBbgXrHK+F/q1DfJsrX7C8GJ8PvyIMoxYdUgg8phgda9z7+6o8B7OBMMm+nNAGOp0BpQ3CJHA/f52MnlhTeMYDazN2vsHBu+aPq4Tgv6Akl+LaZMOXDDNVkfmAPVeRkwDfCxe9RmvLYpg178YS7Wu0c+sYkSvpv9kSVJMI5h3tY8Dxs59+jGW6U2r888GFaWlOBxBJ92PNaWSFYFfkHKSpwsXxoko7Mn4pDPox+19+lKWLT5DqiEadBtlATQh0c3F8bVHgxFqLGebGSYULQQ==",
+    "expiration": "2026-05-16T01:27:37.000Z"
+  },
+  "name": "vitum-lab",
+  "path": "/home/ubuntu/vitum-lab",
+  "port": 3000,
+  "secrets": {
+    "BUILT_IN_FORGE_API_KEY": "9L9gkwnSDQ5vXgaJCPPEgc",
+    "BUILT_IN_FORGE_API_URL": "https://forge.manus.ai",
+    "JWT_SECRET": "PBTYLynjDBrN2gqBxCZX89",
+    "OAUTH_SERVER_URL": "https://api.manus.im",
+    "OWNER_NAME": "Huy Dao",
+    "OWNER_OPEN_ID": "BarnVKNmuichianCDTye47",
+    "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
+    "VITE_ANALYTICS_WEBSITE_ID": "8651d3a0-8497-48a2-af34-200a9f055f64",
+    "VITE_APP_ID": "4xrQFz8nT3yxiEvF2GGaU3",
+    "VITE_APP_LOGO": "https://files.manuscdn.com/user_upload_by_module/web_dev_logo/310519663597202914/SRZTiSuBpTODklyJ.png",
+    "VITE_APP_TITLE": "Vitum Lab — Research Grade Peptides",
+    "VITE_FRONTEND_FORGE_API_KEY": "YqFpmYKrCrihC4WEvLUzK9",
+    "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",
+    "VITE_OAUTH_PORTAL_URL": "https://manus.im"
+  },
+  "template_id": "web-static",
+  "test_command": "pnpm test"
+}
