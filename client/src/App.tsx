@@ -1,38 +1,94 @@
+/*
+ * App.tsx — Vitum Lab
+ * Design: Contemporary Clinical
+ * Routes, layout wrapper, age gate logic
+ */
+
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { useEffect, useState } from "react";
+import AgeGate from "./components/AgeGate";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 import Home from "./pages/Home";
 
+// ─── Age gate cookie check ────────────────────────────────────────────────────
+function isAgeVerified(): boolean {
+  return document.cookie.split(";").some((c) => c.trim().startsWith("vitum_age_verified=true"));
+}
+
+// ─── Placeholder page for unbuilt routes ─────────────────────────────────────
+function PlaceholderPage({ title }: { title: string }) {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="text-center">
+        <p className="section-label mb-3">Coming Soon</p>
+        <h1 className="text-2xl font-bold text-[oklch(0.18_0.04_255)] mb-2">{title}</h1>
+        <p className="text-sm text-[oklch(0.55_0.02_255)]">
+          This page is under construction. Check back soon.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function Router() {
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
+      <Route path="/" component={Home} />
+      <Route path="/shop">{() => <PlaceholderPage title="Shop — All Products" />}</Route>
+      <Route path="/coa-library">{() => <PlaceholderPage title="COA Library" />}</Route>
+      <Route path="/about">{() => <PlaceholderPage title="About Vitum Lab" />}</Route>
+      <Route path="/contact">{() => <PlaceholderPage title="Contact Us" />}</Route>
+      <Route path="/faq">{() => <PlaceholderPage title="Frequently Asked Questions" />}</Route>
+      <Route path="/shipping-policy">{() => <PlaceholderPage title="Shipping Policy" />}</Route>
+      <Route path="/return-policy">{() => <PlaceholderPage title="Return Policy" />}</Route>
+      <Route path="/terms-of-service">{() => <PlaceholderPage title="Terms of Service" />}</Route>
+      <Route path="/privacy-policy">{() => <PlaceholderPage title="Privacy Policy" />}</Route>
+      <Route path="/research-disclaimer">{() => <PlaceholderPage title="Research Disclaimer" />}</Route>
+      <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
+function AppLayout() {
+  const [verified, setVerified] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setVerified(isAgeVerified());
+  }, []);
+
+  // Show nothing until we've checked the cookie (avoids flash)
+  if (verified === null) return null;
+
+  return (
+    <>
+      {!verified && (
+        <AgeGate onVerified={() => setVerified(true)} />
+      )}
+      <div className={!verified ? "pointer-events-none select-none blur-sm" : ""}>
+        <Navbar />
+        <main>
+          <Router />
+        </main>
+        <Footer />
+      </div>
+    </>
+  );
+}
 
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <AppLayout />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
