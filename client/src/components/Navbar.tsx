@@ -1,16 +1,18 @@
 /*
  * Navbar.tsx — Vitum Lab
  * Design: Contemporary Clinical
- * White background, navy text, cobalt accent on active, cart icon with Foxy.io integration
- * Includes: dismissible promotional announcement banner + persistent compliance bar
+ * Features:
+ *   - Continuous marquee promotional banner (no dismiss — always visible)
+ *   - Live countdown timer to 1pm EST same-day shipping cutoff
+ *   - Persistent compliance bar
+ *   - Sticky navbar with cart, nav links, mobile menu
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { ShoppingCart, Menu, X, Tag, Truck } from "lucide-react";
+import { ShoppingCart, Menu, X, Clock } from "lucide-react";
 
 const FOXY_STORE = "vitum-lab.foxycart.com";
-const PROMO_DISMISSED_KEY = "vitum_promo_dismissed_v1";
 
 const navLinks = [
   { label: "Shop", href: "/shop" },
@@ -20,60 +22,96 @@ const navLinks = [
   { label: "Contact", href: "/contact" },
 ];
 
-function isPromoDismissed(): boolean {
-  try {
-    return localStorage.getItem(PROMO_DISMISSED_KEY) === "true";
-  } catch {
-    return false;
+// ─── Countdown to 1pm EST ─────────────────────────────────────────────────────
+function getTimeUntilCutoff(): { hours: number; minutes: number; seconds: number; expired: boolean } {
+  const now = new Date();
+  // Get current time in US/Eastern (handles DST automatically)
+  const estNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+
+  const cutoff = new Date(estNow);
+  cutoff.setHours(13, 0, 0, 0); // 1:00:00 PM
+
+  // If we've already passed 1pm today, target tomorrow's 1pm
+  if (estNow >= cutoff) {
+    cutoff.setDate(cutoff.getDate() + 1);
   }
+
+  const diffMs = cutoff.getTime() - estNow.getTime();
+  const totalSeconds = Math.floor(diffMs / 1000);
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return { hours, minutes, seconds, expired: diffMs <= 0 };
 }
+
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function CountdownTimer() {
+  const [time, setTime] = useState(getTimeUntilCutoff);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTime(getTimeUntilCutoff());
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (time.expired) return null;
+
+  return (
+    <div className="flex items-center gap-1.5 flex-shrink-0 bg-white/10 rounded-sm px-2.5 py-1">
+      <Clock className="w-3 h-3 opacity-80" />
+      <span className="text-[0.6875rem] font-semibold tabular-nums tracking-wide">
+        {pad(time.hours)}:{pad(time.minutes)}:{pad(time.seconds)}
+      </span>
+      <span className="text-[0.625rem] opacity-75 hidden sm:inline">until cutoff</span>
+    </div>
+  );
+}
+
+// ─── Marquee message ──────────────────────────────────────────────────────────
+const PROMO_MESSAGE =
+  "Free shipping and 10mL BAC Water for orders over $150  ·  Orders placed before 1pm EST ships next day!  ·  Free shipping and 10mL BAC Water for orders over $150  ·  Orders placed before 1pm EST ships next day!  ·";
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [promoDismissed, setPromoDismissed] = useState(isPromoDismissed);
   const [location] = useLocation();
-
-  const dismissPromo = () => {
-    try {
-      localStorage.setItem(PROMO_DISMISSED_KEY, "true");
-    } catch {}
-    setPromoDismissed(true);
-  };
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[oklch(0.90_0.006_255)] shadow-[0_1px_0_oklch(0.18_0.04_255/0.06)]">
 
-      {/* ── Promotional announcement banner (dismissible) ─────────────── */}
-      {!promoDismissed && (
-        <div className="relative bg-[oklch(0.35_0.15_260)] text-white overflow-hidden">
-          {/* Subtle shimmer stripe */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
+      {/* ── Promotional marquee banner ────────────────────────────────── */}
+      <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden">
+        <div className="flex items-center">
+          {/* Countdown timer — left-pinned, doesn't scroll */}
+          <div className="flex-shrink-0 flex items-center gap-2 pl-3 pr-4 py-2 border-r border-white/20 bg-[oklch(0.28_0.14_260)]">
+            <CountdownTimer />
+          </div>
 
-          <div className="relative flex items-center justify-center gap-3 py-2.5 px-10 text-center">
-            {/* Icon */}
-            <Truck className="hidden sm:block w-3.5 h-3.5 flex-shrink-0 opacity-80" />
+          {/* Scrolling marquee */}
+          <div className="flex-1 overflow-hidden relative py-2">
+            {/* Fade edges */}
+            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[oklch(0.35_0.15_260)] to-transparent z-10 pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[oklch(0.35_0.15_260)] to-transparent z-10 pointer-events-none" />
 
-            {/* Message */}
-            <p className="text-[0.75rem] font-semibold leading-snug tracking-wide">
-              Free shipping and 10mL BAC Water for orders over $150.{" "}
-              <span className="opacity-90 font-normal">
-                Orders placed before 1pm EST ships next day!
+            <div className="marquee-track whitespace-nowrap">
+              <span className="marquee-content text-[0.75rem] font-semibold tracking-wide">
+                {PROMO_MESSAGE}
               </span>
-            </p>
-
-            {/* Dismiss button */}
-            <button
-              onClick={dismissPromo}
-              aria-label="Dismiss announcement"
-              className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 rounded-sm text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+              {/* Duplicate for seamless loop */}
+              <span className="marquee-content text-[0.75rem] font-semibold tracking-wide" aria-hidden>
+                {PROMO_MESSAGE}
+              </span>
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* ── Compliance bar (always visible) ──────────────────────────── */}
+      {/* ── Compliance bar ────────────────────────────────────────────── */}
       <div className="bg-[oklch(0.18_0.04_255)] text-white text-center py-1.5 px-4">
         <p className="text-[0.625rem] font-medium tracking-widest uppercase text-white/70">
           Research Use Only — Not for Human Consumption &nbsp;|&nbsp; Free COA with Every Order
@@ -111,7 +149,6 @@ export default function Navbar() {
 
           {/* Right actions */}
           <div className="flex items-center gap-3">
-            {/* Foxy.io cart */}
             <a
               href={`https://${FOXY_STORE}/cart`}
               className="relative flex items-center justify-center w-9 h-9 rounded-sm hover:bg-[oklch(0.96_0.004_255)] transition-colors"
@@ -120,12 +157,10 @@ export default function Navbar() {
               <ShoppingCart className="w-5 h-5 text-[oklch(0.35_0.05_255)]" />
             </a>
 
-            {/* Shop CTA (desktop) */}
             <Link href="/shop" className="hidden md:block btn-cobalt text-sm py-2 px-4">
               Shop Now
             </Link>
 
-            {/* Mobile menu toggle */}
             <button
               className="md:hidden flex items-center justify-center w-9 h-9 rounded-sm hover:bg-[oklch(0.96_0.004_255)] transition-colors"
               onClick={() => setMobileOpen(!mobileOpen)}

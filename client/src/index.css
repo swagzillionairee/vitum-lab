@@ -211,6 +211,30 @@
     color: white;
   }
 
+  /* Marquee banner */
+  .marquee-track {
+    display: inline-flex;
+    animation: marquee-scroll 28s linear infinite;
+  }
+  .marquee-track:hover {
+    animation-play-state: paused;
+  }
+  .marquee-content {
+    display: inline-block;
+    padding-right: 3rem;
+  }
+
+  @keyframes marquee-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track {
+      animation: none;
+    }
+  }
+
   /* Scroll reveal animation */
   .reveal {
     opacity: 0;
