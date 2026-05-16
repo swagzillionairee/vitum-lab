@@ -126,7 +126,7 @@ const faqs = [
   },
   {
     q: "How fast do you ship and is cold shipping required?",
-    a: "Orders placed before 1pm EST ship the same business day via next-day delivery. Lyophilized peptides are stable at ambient temperature for short transit periods; cold-chain packaging is available on request.",
+    a: "Orders placed before 1pm EST ship the same business day via USPS Priority Mail\u00ae Padded Flat Rate Envelope. Lyophilized peptides are stable at ambient temperature for short transit periods.",
   },
   {
     q: "Are these peptides for human use?",
@@ -247,10 +247,10 @@ export default function Home() {
         </div>
 
         {/* Right: product vials on light background — overflow into section below */}
-        <div className="relative order-1 lg:order-2 flex items-end justify-center pb-0 pt-12 overflow-visible z-10" style={{backgroundColor: '#f0f4f0'}}>
+        <div className="relative order-1 lg:order-2 flex items-end justify-center pb-0 pt-4 overflow-visible z-10" style={{backgroundColor: '#f0f4f0'}}>
 
           {/* Three vials — enlarged, tilted, floating independently, overlapping below */}
-          <div className="relative flex items-end justify-center px-2 w-full max-w-[780px] mb-[-100px]">
+          <div className="relative flex items-end justify-center px-2 w-full max-w-[780px] mb-[-60px]">
             {/* GHK-Cu — left, tilted left, float-a */}
             <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-a mr-[-40px]" style={{transform: 'rotate(-8deg)', transformOrigin: 'bottom center'}}>
               <img
