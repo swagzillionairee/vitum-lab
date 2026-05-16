@@ -296,7 +296,7 @@ export default function Home() {
             {products.map((p) => (
               <div key={p.id} className="rounded-2xl overflow-hidden group">
                 {/* Image area — dark bg matches product photo backgrounds */}
-                <div className="relative flex items-center justify-center pt-10 pb-8 px-8 bg-[oklch(0.08_0.02_260)]" style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 60%, oklch(0.20 0.07 260), oklch(0.07 0.02 260))' }}>
+                <div className="relative flex items-center justify-center pt-10 pb-8 px-8" style={{ backgroundColor: '#a8c0a0' }}>
                   <img
                     src={p.img}
                     alt={`${p.name} ${p.dose} research peptide vial`}
