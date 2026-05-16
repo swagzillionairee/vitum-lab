@@ -108,9 +108,9 @@ export default function Footer() {
                 { label: "Research Disclaimer", href: "/research-disclaimer" },
                 { label: "Terms of Service", href: "/terms-of-service" },
                 { label: "Privacy Policy", href: "/privacy-policy" },
-                { label: "Research Use Only", href: "/research-disclaimer" },
+                { label: "Shipping Policy", href: "/shipping-policy" },
               ].map((link) => (
-                <li key={link.href}>
+                <li key={link.label}>
                   <Link
                     href={link.href}
                     className="text-sm text-white/60 hover:text-white transition-colors"
