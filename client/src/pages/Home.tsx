@@ -246,33 +246,33 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Right: product vials on sage green background */}
-        <div className="relative order-1 lg:order-2 flex items-center justify-center py-16 lg:py-20 overflow-hidden" style={{backgroundColor: '#f0f4f0'}}>
+        {/* Right: product vials on light background — overflow into section below */}
+        <div className="relative order-1 lg:order-2 flex items-end justify-center pb-0 pt-12 overflow-visible z-10" style={{backgroundColor: '#f0f4f0'}}>
 
-          {/* Three vials arranged side by side, bottoms aligned */}
-          <div className="relative flex items-end justify-center gap-4 sm:gap-8 px-6 w-full max-w-[560px]">
-            {/* GHK-Cu — left, slightly lower */}
-            <div className="relative flex-shrink-0 w-[30%] translate-y-8 z-10">
+          {/* Three vials — enlarged, tilted, floating independently, overlapping below */}
+          <div className="relative flex items-end justify-center gap-2 sm:gap-4 px-4 w-full max-w-[640px] mb-[-80px]">
+            {/* GHK-Cu — left, tilted left, float-a */}
+            <div className="relative flex-shrink-0 w-[33%] z-10 vial-float-a" style={{transform: 'rotate(-8deg)', transformOrigin: 'bottom center'}}>
               <img
                 src="/manus-storage/product-ghkcu-v2_82e289e5.png"
                 alt="GHK-Cu 100mg research peptide vial"
-                className="w-full object-contain drop-shadow-xl"
+                className="w-full object-contain drop-shadow-2xl"
               />
             </div>
-            {/* Retatrutide — center, tallest */}
-            <div className="relative flex-shrink-0 w-[36%] z-20">
+            {/* Retatrutide — center, upright, float-b */}
+            <div className="relative flex-shrink-0 w-[40%] z-20 vial-float-b">
               <img
                 src="/manus-storage/product-retatrutide-v2_2f631ecf.png"
                 alt="Retatrutide GLP-3 20mg research peptide vial"
                 className="w-full object-contain drop-shadow-2xl"
               />
             </div>
-            {/* NAD+ — right, slightly lower */}
-            <div className="relative flex-shrink-0 w-[30%] translate-y-8 z-10">
+            {/* NAD+ — right, tilted right, float-c */}
+            <div className="relative flex-shrink-0 w-[33%] z-10 vial-float-c" style={{transform: 'rotate(8deg)', transformOrigin: 'bottom center'}}>
               <img
                 src="/manus-storage/product-nad-v2_a8e29cc7.png"
                 alt="NAD+ 500mg research peptide vial"
-                className="w-full object-contain drop-shadow-xl"
+                className="w-full object-contain drop-shadow-2xl"
               />
             </div>
           </div>

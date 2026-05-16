@@ -10,6 +10,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─── Hero vial float keyframes ─────────────────────────────────────────── */
+@keyframes vial-float-a {
+  0%, 100% { transform: rotate(-8deg) translateY(0px); }
+  50%       { transform: rotate(-8deg) translateY(-18px); }
+}
+@keyframes vial-float-b {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-22px); }
+}
+@keyframes vial-float-c {
+  0%, 100% { transform: rotate(8deg) translateY(0px); }
+  50%       { transform: rotate(8deg) translateY(-14px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vial-float-a, .vial-float-b, .vial-float-c { animation: none !important; }
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -217,7 +234,20 @@
     display: inline-block;
     padding-right: 3rem;
   }
-  @keyframes marquee-scroll {
+  /* ─── Hero vial floating animations ─────────────────────────────────────── */
+  .vial-float-a {
+    animation: vial-float-a 5.2s ease-in-out infinite;
+  }
+  .vial-float-b {
+    animation: vial-float-b 4.6s ease-in-out infinite;
+    animation-delay: -1.4s;
+  }
+  .vial-float-c {
+    animation: vial-float-c 5.8s ease-in-out infinite;
+    animation-delay: -2.8s;
+  }
+
+@keyframes marquee-scroll {
     0%   { transform: translateX(0); }
     100% { transform: translateX(-50%); }
   }
