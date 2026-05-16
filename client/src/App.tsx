@@ -15,6 +15,10 @@ import AgeGate from "./components/AgeGate";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import Home from "./pages/Home";
+import ResearchDisclaimer from "./pages/ResearchDisclaimer";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
+import ShippingPolicy from "./pages/ShippingPolicy";
 
 // ─── Age gate cookie check ────────────────────────────────────────────────────
 function isAgeVerified(): boolean {
@@ -45,11 +49,11 @@ function Router() {
       <Route path="/about">{() => <PlaceholderPage title="About Vitum Lab" />}</Route>
       <Route path="/contact">{() => <PlaceholderPage title="Contact Us" />}</Route>
       <Route path="/faq">{() => <PlaceholderPage title="Frequently Asked Questions" />}</Route>
-      <Route path="/shipping-policy">{() => <PlaceholderPage title="Shipping Policy" />}</Route>
+      <Route path="/shipping-policy" component={ShippingPolicy} />
       <Route path="/return-policy">{() => <PlaceholderPage title="Return Policy" />}</Route>
-      <Route path="/terms-of-service">{() => <PlaceholderPage title="Terms of Service" />}</Route>
-      <Route path="/privacy-policy">{() => <PlaceholderPage title="Privacy Policy" />}</Route>
-      <Route path="/research-disclaimer">{() => <PlaceholderPage title="Research Disclaimer" />}</Route>
+      <Route path="/terms-of-service" component={TermsOfService} />
+      <Route path="/privacy-policy" component={PrivacyPolicy} />
+      <Route path="/research-disclaimer" component={ResearchDisclaimer} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
