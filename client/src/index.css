@@ -254,4 +254,24 @@
     box-shadow: 0 8px 32px oklch(0.18 0.04 255 / 0.10);
     transform: translateY(-2px);
   }
+
+  /* Floating vial animation */
+  @keyframes vial-float {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-20px); }
+  }
+  .vial-float {
+    animation: vial-float 3.8s ease-in-out infinite;
+  }
+  .vial-float-delayed {
+    animation: vial-float 3.8s ease-in-out infinite;
+    animation-delay: 0.9s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vial-float,
+    .vial-float-delayed {
+      animation: none;
+    }
+  }
 }

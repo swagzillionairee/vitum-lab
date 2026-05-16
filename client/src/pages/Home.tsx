@@ -1,30 +1,20 @@
-/*
- * Home.tsx — Vitum Lab Homepage
- * Design: Contemporary Clinical — Med Spa Precision meets Research Credibility
- * Sections: Hero, Trust Badges, Featured Products, Category Preview, About/Mission, Newsletter
- * Colors: White canvas, Deep Navy authority, Cobalt action, Silver metadata
- * Typography: Sora (display + body), IBM Plex Mono (batch numbers, COA codes)
- */
-
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
-  FlaskConical,
   ShieldCheck,
   Truck,
   FileCheck,
-  ChevronRight,
-  Star,
-  Download,
   ArrowRight,
+  ChevronRight,
+  Download,
+  FlaskConical,
   Microscope,
   Award,
-  Globe,
 } from "lucide-react";
 
 const FOXY_STORE = "vitum-lab.foxycart.com";
 
-// ─── Product data ────────────────────────────────────────────────────────────
+// ─── Product data ─────────────────────────────────────────────────────────────
 const products = [
   {
     id: "ghk-cu-50mg",
@@ -67,52 +57,26 @@ const products = [
   },
 ];
 
-// ─── Trust badges ─────────────────────────────────────────────────────────────
-const trustBadges = [
+const guarantees = [
   {
-    icon: <ShieldCheck className="w-6 h-6" />,
-    title: "≥99% Purity Verified",
-    sub: "Third-party HPLC tested",
+    icon: <ShieldCheck className="w-7 h-7" />,
+    title: "≥99% Purity Guaranteed",
+    sub: "Every batch verified by third-party HPLC analysis.",
   },
   {
-    icon: <FileCheck className="w-6 h-6" />,
-    title: "COA with Every Batch",
-    sub: "Downloadable certificate",
+    icon: <FileCheck className="w-7 h-7" />,
+    title: "COA with Every Order",
+    sub: "Downloadable Certificate of Analysis — no request needed.",
   },
   {
-    icon: <Globe className="w-6 h-6" />,
+    icon: <FlaskConical className="w-7 h-7" />,
     title: "US-Sourced & Tested",
-    sub: "Domestic accredited labs",
+    sub: "Synthesized and verified by domestic accredited labs.",
   },
   {
-    icon: <Truck className="w-6 h-6" />,
-    title: "Discreet Secure Shipping",
-    sub: "Cold-chain packaging",
-  },
-];
-
-// ─── Categories ───────────────────────────────────────────────────────────────
-const categories = [
-  {
-    name: "Cosmetic / Tissue Research",
-    slug: "cosmetic",
-    description: "Copper peptides and tissue remodeling compounds for dermal research applications.",
-    count: 1,
-    icon: <Microscope className="w-5 h-5" />,
-  },
-  {
-    name: "Metabolic Research",
-    slug: "metabolic",
-    description: "Receptor agonists and metabolic pathway modulators for preclinical research.",
-    count: 1,
-    icon: <FlaskConical className="w-5 h-5" />,
-  },
-  {
-    name: "Lab Supplies",
-    slug: "lab-supplies",
-    description: "Bacteriostatic water, reconstitution supplies, and laboratory consumables.",
-    count: 1,
-    icon: <Award className="w-5 h-5" />,
+    icon: <Truck className="w-7 h-7" />,
+    title: "Discreet Cold-Chain Shipping",
+    sub: "Temperature-controlled packaging on every shipment.",
   },
 ];
 
@@ -129,7 +93,7 @@ function useReveal() {
           observer.disconnect();
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.08 }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -142,20 +106,18 @@ function ProductCard({ product }: { product: (typeof products)[0] }) {
   const foxyUrl = `https://${FOXY_STORE}/cart?name=${encodeURIComponent(product.name + " " + product.size)}&price=${product.price}&code=${product.id}&quantity=1`;
 
   return (
-    <div className="product-card bg-white border border-[oklch(0.90_0.006_255)] rounded-sm overflow-hidden flex flex-col">
-      {/* Product image */}
+    <div className="product-card bg-white border border-[oklch(0.90_0.006_255)] rounded-lg overflow-hidden flex flex-col">
       <div className="relative bg-[oklch(0.97_0.003_255)] flex items-center justify-center p-8 aspect-square">
         <img
           src={product.image}
           alt={`${product.name} ${product.size} research peptide vial`}
           className="w-full h-full object-contain max-h-52"
         />
-        <span className="absolute top-3 left-3 bg-[oklch(0.35_0.15_260)] text-white text-[0.625rem] font-semibold tracking-widest uppercase px-2 py-1 rounded-sm">
+        <span className="absolute top-3 left-3 bg-[oklch(0.18_0.04_255)] text-white text-[0.625rem] font-semibold tracking-widest uppercase px-2 py-1 rounded-full">
           {product.badge}
         </span>
       </div>
 
-      {/* Card body */}
       <div className="p-5 flex flex-col flex-1">
         <div className="mb-1">
           <span className="section-label text-[0.625rem]">{product.category}</span>
@@ -171,12 +133,10 @@ function ProductCard({ product }: { product: (typeof products)[0] }) {
           {product.description}
         </p>
 
-        {/* Research disclaimer */}
         <div className="research-disclaimer mb-4 text-[0.625rem]">
           Research Use Only — Not for Human Consumption
         </div>
 
-        {/* Price + actions */}
         <div className="flex items-center justify-between gap-3">
           <span className="text-xl font-bold text-[oklch(0.18_0.04_255)]">
             ${product.price}
@@ -192,10 +152,7 @@ function ProductCard({ product }: { product: (typeof products)[0] }) {
                 COA
               </a>
             )}
-            <a
-              href={foxyUrl}
-              className="btn-cobalt text-xs py-2 px-4"
-            >
+            <a href={foxyUrl} className="btn-cobalt text-xs py-2 px-4">
               Add to Cart
             </a>
           </div>
@@ -210,75 +167,141 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
 
-  const heroRef = useReveal();
-  const badgesRef = useReveal();
-  const productsRef = useReveal();
-  const categoriesRef = useReveal();
-  const aboutRef = useReveal();
-  const newsletterRef = useReveal();
+  const heroRef    = useReveal();
+  const guaranteeRef = useReveal();
+  const productsRef  = useReveal();
+  const featureRef   = useReveal();
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      setSubscribed(true);
-      setEmail("");
-    }
+    if (email) { setSubscribed(true); setEmail(""); }
   };
 
   return (
     <div className="min-h-screen bg-white">
 
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-[oklch(0.18_0.04_255)] min-h-[580px] flex items-center">
-        {/* Background image */}
-        <div
-          className="absolute inset-0 bg-cover bg-right opacity-30"
-          style={{ backgroundImage: "url('/manus-storage/hero-bg_ae48f329.png')" }}
-        />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[oklch(0.18_0.04_255)] via-[oklch(0.18_0.04_255)]/90 to-[oklch(0.18_0.04_255)]/40" />
+      {/* ── SECTION 1: HERO (split, Amino Club style) ──────────────────────── */}
+      <section className="min-h-[calc(100vh-120px)] grid grid-cols-1 lg:grid-cols-2">
 
-        <div className="relative z-10 container py-20">
-          <div
-            ref={heroRef}
-            className="reveal max-w-2xl"
-          >
-            <span className="inline-block section-label text-[oklch(0.60_0.10_260)] mb-5">
-              Research Grade Peptides
-            </span>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight mb-6">
-              Precision-Synthesized.
+        {/* LEFT — text panel */}
+        <div className="flex flex-col justify-center px-8 sm:px-12 lg:px-16 xl:px-24 py-20 bg-white order-2 lg:order-1">
+          <div ref={heroRef} className="reveal max-w-lg">
+            <span className="section-label block mb-5">Research Grade Peptides</span>
+
+            <h1 className="text-4xl sm:text-5xl xl:text-6xl font-bold text-[oklch(0.12_0.04_255)] leading-[1.05] tracking-tight mb-6">
+              Research Peptides
               <br />
-              <span className="text-[oklch(0.65_0.12_260)]">Independently Tested.</span>
+              You Can Trust.
             </h1>
-            <p className="text-lg text-white/70 leading-relaxed mb-8 max-w-xl">
-              Vitum Lab supplies research-grade peptides verified for purity and
-              identity by accredited US laboratories. Every batch ships with a
-              Certificate of Analysis.
+
+            <p className="text-base sm:text-lg text-[oklch(0.45_0.02_255)] leading-relaxed mb-8">
+              Research-grade peptides with Certificate of Analysis on every
+              batch. ≥99% identity purity, independently third-party tested.
             </p>
 
-            {/* Hero CTAs */}
-            <div className="flex flex-wrap gap-4 mb-10">
-              <Link href="/shop" className="btn-cobalt inline-flex items-center gap-2">
-                Browse Products <ArrowRight className="w-4 h-4" />
+            <div className="flex flex-wrap gap-4 mb-12">
+              <Link
+                href="/shop"
+                className="btn-primary inline-flex items-center gap-2 rounded-full"
+              >
+                Browse Catalog <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link href="/coa-library" className="btn-outline border-white/40 text-white hover:bg-white hover:text-[oklch(0.18_0.04_255)] inline-flex items-center gap-2">
+              <Link
+                href="/coa-library"
+                className="btn-outline inline-flex items-center gap-2 rounded-full"
+              >
                 <FileCheck className="w-4 h-4" />
                 COA Library
               </Link>
             </div>
 
-            {/* Hero stats */}
-            <div className="flex flex-wrap gap-8">
+            <div className="flex gap-10">
               {[
-                { value: "≥99%", label: "Purity Guaranteed" },
+                { value: "≥99%", label: "Identity Purity" },
                 { value: "3rd Party", label: "Independently Tested" },
                 { value: "US-Based", label: "Domestic Sourcing" },
-              ].map((stat) => (
-                <div key={stat.label}>
-                  <div className="text-2xl font-bold text-white">{stat.value}</div>
-                  <div className="text-xs text-white/50 font-medium tracking-wide uppercase mt-0.5">
-                    {stat.label}
+              ].map((s) => (
+                <div key={s.label}>
+                  <div className="text-2xl font-bold text-[oklch(0.12_0.04_255)]">{s.value}</div>
+                  <div className="text-xs text-[oklch(0.55_0.02_255)] font-medium tracking-wide uppercase mt-0.5">
+                    {s.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT — floating vials panel */}
+        <div
+          className="relative flex items-center justify-center order-1 lg:order-2 py-16 lg:py-0 min-h-[420px]"
+          style={{ background: "oklch(0.96 0.006 255)" }}
+        >
+          {/* Subtle radial glow */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background:
+                "radial-gradient(ellipse 70% 60% at 60% 50%, oklch(0.88 0.03 260 / 0.35) 0%, transparent 80%)",
+            }}
+          />
+
+          {/* Two floating vials */}
+          <div className="relative z-10 flex items-end gap-6 sm:gap-10">
+            {/* Vial 1 — Retatrutide GLP-3 */}
+            <div className="vial-float w-40 sm:w-52 xl:w-60 drop-shadow-2xl">
+              <img
+                src="/manus-storage/product-retatrutide_5afcd50b.png"
+                alt="Retatrutide GLP-3 research peptide"
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            {/* Vial 2 — GHK-Cu (offset lower) */}
+            <div className="vial-float-delayed w-32 sm:w-44 xl:w-52 drop-shadow-2xl mb-[-2rem]">
+              <img
+                src="/manus-storage/product-ghk-cu_4239b927.png"
+                alt="GHK-Cu research peptide"
+                className="w-full h-full object-contain"
+              />
+            </div>
+          </div>
+
+          {/* Research disclaimer badge */}
+          <div className="absolute bottom-6 right-6 bg-white/80 backdrop-blur-sm border border-white rounded-xl px-4 py-2 shadow-md text-[0.65rem] font-semibold text-[oklch(0.40_0.02_255)] uppercase tracking-widest">
+            Research Use Only
+          </div>
+        </div>
+      </section>
+
+      {/* ── SECTION 2: THE VITUM LAB GUARANTEE ─────────────────────────────── */}
+      <section className="py-20 bg-white border-t border-[oklch(0.92_0.006_255)]">
+        <div className="container">
+          <div ref={guaranteeRef} className="reveal">
+            <div className="text-center mb-14">
+              <span className="section-label block mb-3">Our Promise</span>
+              <h2 className="text-3xl sm:text-4xl font-bold text-[oklch(0.12_0.04_255)]">
+                The Vitum Lab Guarantee
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              {guarantees.map((g, i) => (
+                <div
+                  key={g.title}
+                  className="flex flex-col items-start gap-4"
+                  style={{ transitionDelay: `${i * 70}ms` }}
+                >
+                  <div className="p-3 rounded-xl bg-[oklch(0.95_0.01_260)] text-[oklch(0.30_0.15_260)]">
+                    {g.icon}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[oklch(0.12_0.04_255)] mb-1 text-base leading-snug">
+                      {g.title}
+                    </h3>
+                    <p className="text-sm text-[oklch(0.50_0.02_255)] leading-relaxed">
+                      {g.sub}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -287,47 +310,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── TRUST BADGES ─────────────────────────────────────────────────── */}
-      <section className="border-b border-[oklch(0.90_0.006_255)]">
-        <div
-          ref={badgesRef}
-          className="reveal container"
-        >
-          <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-[oklch(0.90_0.006_255)]">
-            {trustBadges.map((badge, i) => (
-              <div
-                key={badge.title}
-                className="flex items-center gap-3 py-5 px-4 sm:px-6"
-                style={{ transitionDelay: `${i * 60}ms` }}
-              >
-                <div className="flex-shrink-0 text-[oklch(0.35_0.15_260)]">
-                  {badge.icon}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[oklch(0.18_0.04_255)] leading-tight">
-                    {badge.title}
-                  </p>
-                  <p className="text-xs text-[oklch(0.55_0.02_255)] mt-0.5">
-                    {badge.sub}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── FEATURED PRODUCTS ─────────────────────────────────────────────── */}
-      <section className="py-20">
+      {/* ── SECTION 3: FEATURED PRODUCTS ────────────────────────────────────── */}
+      <section className="py-20 bg-[oklch(0.97_0.003_255)]">
         <div className="container">
-          <div
-            ref={productsRef}
-            className="reveal"
-          >
-            <div className="flex items-end justify-between mb-10">
+          <div ref={productsRef} className="reveal">
+            <div className="flex items-end justify-between mb-12">
               <div>
-                <span className="section-label block mb-2">Launch Catalog</span>
-                <h2 className="text-3xl font-bold text-[oklch(0.18_0.04_255)]">
+                <span className="section-label block mb-2">Our Catalog</span>
+                <h2 className="text-3xl sm:text-4xl font-bold text-[oklch(0.12_0.04_255)]">
                   Featured Products
                 </h2>
               </div>
@@ -346,7 +336,7 @@ export default function Home() {
             </div>
 
             <div className="mt-8 sm:hidden text-center">
-              <Link href="/shop" className="btn-outline inline-flex items-center gap-2">
+              <Link href="/shop" className="btn-outline inline-flex items-center gap-2 rounded-full">
                 View All Products <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
@@ -354,196 +344,129 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── CATEGORY PREVIEW ─────────────────────────────────────────────── */}
-      <section className="py-20 bg-[oklch(0.97_0.003_255)]">
-        <div className="container">
+      {/* ── SECTION 4: GHK-CU FEATURE (left vial, right text) ──────────────── */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 min-h-[560px]">
+
+        {/* LEFT — large GHK-Cu vial */}
+        <div
+          className="relative flex items-center justify-center py-20 lg:py-0 min-h-[400px]"
+          style={{ background: "oklch(0.96 0.006 255)" }}
+        >
           <div
-            ref={categoriesRef}
-            className="reveal"
-          >
-            <div className="mb-10">
-              <span className="section-label block mb-2">Research Categories</span>
-              <h2 className="text-3xl font-bold text-[oklch(0.18_0.04_255)]">
-                Browse by Category
-              </h2>
-            </div>
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background:
+                "radial-gradient(ellipse 70% 60% at 40% 55%, oklch(0.85 0.04 220 / 0.30) 0%, transparent 75%)",
+            }}
+          />
+          <div className="relative z-10 w-56 sm:w-72 xl:w-80 drop-shadow-2xl">
+            <img
+              src="/manus-storage/product-ghk-cu_4239b927.png"
+              alt="GHK-Cu 100mg copper peptide research vial"
+              className="w-full h-full object-contain"
+            />
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {categories.map((cat, i) => (
-                <Link
-                  key={cat.slug}
-                  href={`/shop?category=${cat.slug}`}
-                  className="group block bg-white border border-[oklch(0.90_0.006_255)] rounded-sm p-6 hover:border-[oklch(0.35_0.15_260)] hover:shadow-md transition-all duration-200"
-                  style={{ transitionDelay: `${i * 60}ms` }}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="text-[oklch(0.35_0.15_260)]">{cat.icon}</div>
-                    <span className="text-xs font-semibold text-[oklch(0.55_0.02_255)] uppercase tracking-widest">
-                      {cat.count} product{cat.count !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                  <h3 className="text-base font-bold text-[oklch(0.18_0.04_255)] mb-2 group-hover:text-[oklch(0.35_0.15_260)] transition-colors">
-                    {cat.name}
-                  </h3>
-                  <p className="text-sm text-[oklch(0.55_0.02_255)] leading-relaxed">
-                    {cat.description}
-                  </p>
-                  <div className="mt-4 flex items-center gap-1 text-xs font-semibold text-[oklch(0.35_0.15_260)]">
-                    Explore <ChevronRight className="w-3.5 h-3.5" />
-                  </div>
-                </Link>
-              ))}
-            </div>
-
-            {/* Placeholder categories */}
-            <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-5">
-              {["Healing & Recovery", "Growth Factors", "Peptide Blends"].map((name) => (
-                <div
-                  key={name}
-                  className="bg-white border border-dashed border-[oklch(0.85_0.006_255)] rounded-sm p-5 flex items-center gap-3 opacity-60"
-                >
-                  <FlaskConical className="w-4 h-4 text-[oklch(0.65_0.01_255)]" />
-                  <div>
-                    <p className="text-sm font-semibold text-[oklch(0.55_0.02_255)]">{name}</p>
-                    <p className="text-xs text-[oklch(0.65_0.01_255)]">Coming soon</p>
-                  </div>
-                </div>
-              ))}
+          {/* COA badge */}
+          <div className="absolute bottom-8 left-8 bg-white border border-[oklch(0.90_0.006_255)] rounded-xl px-5 py-3 shadow-lg flex items-center gap-3">
+            <ShieldCheck className="w-5 h-5 text-[oklch(0.35_0.15_260)] flex-shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-[oklch(0.12_0.04_255)]">COA Verified</p>
+              <p className="text-[0.625rem] text-[oklch(0.55_0.02_255)] font-mono">
+                Third-party tested · Lot: B002
+              </p>
             </div>
           </div>
         </div>
-      </section>
 
-      {/* ── ABOUT / MISSION ──────────────────────────────────────────────── */}
-      <section className="py-20">
-        <div className="container">
-          <div
-            ref={aboutRef}
-            className="reveal"
-          >
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-              {/* Text */}
-              <div>
-                <span className="section-label block mb-3">Our Mission</span>
-                <h2 className="text-3xl font-bold text-[oklch(0.18_0.04_255)] mb-5 leading-tight">
-                  Research-grade supply you can verify, not just trust.
-                </h2>
-                <p className="text-base text-[oklch(0.40_0.02_255)] leading-relaxed mb-5">
-                  Vitum Lab was founded on a straightforward principle: researchers
-                  deserve transparent documentation for every compound they work
-                  with. We source, synthesize, and independently verify each
-                  product through accredited US laboratories before it ships.
-                </p>
-                <p className="text-base text-[oklch(0.40_0.02_255)] leading-relaxed mb-8">
-                  Every vial ships with a Certificate of Analysis confirming
-                  identity and purity. No ambiguity. No guesswork. Just
-                  documented quality for serious research.
-                </p>
-
-                <div className="grid grid-cols-2 gap-5 mb-8">
-                  {[
-                    { value: "≥99%", label: "Identity Purity" },
-                    { value: "HPLC", label: "Verification Method" },
-                    { value: "US Labs", label: "Third-Party Testing" },
-                    { value: "Batch COA", label: "Every Shipment" },
-                  ].map((stat) => (
-                    <div key={stat.label} className="border-l-2 border-[oklch(0.35_0.15_260)] pl-4">
-                      <div className="text-xl font-bold text-[oklch(0.18_0.04_255)]">
-                        {stat.value}
-                      </div>
-                      <div className="text-xs text-[oklch(0.55_0.02_255)] font-medium tracking-wide uppercase mt-0.5">
-                        {stat.label}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <Link href="/about" className="btn-primary inline-flex items-center gap-2">
-                  Learn About Vitum Lab <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-
-              {/* Visual: vials arranged */}
-              <div className="relative">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="aspect-square bg-[oklch(0.97_0.003_255)] rounded-sm overflow-hidden flex items-center justify-center p-6">
-                    <img
-                      src="/manus-storage/product-ghk-cu_4239b927.png"
-                      alt="GHK-Cu research peptide"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                  <div className="aspect-square bg-[oklch(0.94_0.01_255)] rounded-sm overflow-hidden flex items-center justify-center p-6 mt-8">
-                    <img
-                      src="/manus-storage/product-retatrutide_5afcd50b.png"
-                      alt="Retatrutide research peptide"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                </div>
-                {/* COA badge overlay */}
-                <div className="absolute bottom-4 left-4 bg-white border border-[oklch(0.90_0.006_255)] rounded-sm px-4 py-3 shadow-lg">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
-                    <div>
-                      <p className="text-xs font-bold text-[oklch(0.18_0.04_255)]">
-                        COA Verified
-                      </p>
-                      <p className="text-[0.625rem] text-[oklch(0.55_0.02_255)] font-mono">
-                        Third-party tested
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── NEWSLETTER ───────────────────────────────────────────────────── */}
-      <section className="py-16 bg-[oklch(0.18_0.04_255)]">
-        <div className="container">
-          <div
-            ref={newsletterRef}
-            className="reveal max-w-2xl mx-auto text-center"
-          >
-            <span className="section-label text-[oklch(0.60_0.10_260)] block mb-3">
-              Research Updates
-            </span>
-            <h2 className="text-2xl font-bold text-white mb-3">
-              Stay current with new compounds and COA releases.
+        {/* RIGHT — mission text */}
+        <div className="flex flex-col justify-center px-8 sm:px-12 lg:px-16 xl:px-24 py-20 bg-white">
+          <div ref={featureRef} className="reveal max-w-lg">
+            <span className="section-label block mb-4">Quality You Can Verify</span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-[oklch(0.12_0.04_255)] leading-tight mb-5">
+              Documented quality for research and laboratory use.
             </h2>
-            <p className="text-sm text-white/60 mb-8">
-              New product announcements, batch COA releases, and research
-              literature updates. No spam — unsubscribe anytime.
+            <p className="text-base text-[oklch(0.45_0.02_255)] leading-relaxed mb-5">
+              Vitum Lab was founded on a straightforward principle: researchers
+              deserve transparent documentation for every compound they work with.
+              We source, synthesize, and independently verify each product through
+              accredited US laboratories before it ships.
+            </p>
+            <p className="text-base text-[oklch(0.45_0.02_255)] leading-relaxed mb-8">
+              Every vial ships with a Certificate of Analysis confirming identity
+              and purity. No ambiguity — just documented quality for serious
+              research.
             </p>
 
-            {subscribed ? (
-              <div className="flex items-center justify-center gap-2 text-[oklch(0.65_0.12_260)] font-semibold">
-                <ShieldCheck className="w-5 h-5" />
-                You're subscribed. Thank you.
-              </div>
-            ) : (
-              <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  required
-                  className="flex-1 bg-white/10 border border-white/20 text-white placeholder:text-white/40 text-sm px-4 py-3 rounded-sm focus:outline-none focus:border-[oklch(0.50_0.15_260)] transition-colors"
-                />
-                <button type="submit" className="btn-cobalt whitespace-nowrap">
-                  Subscribe
-                </button>
-              </form>
-            )}
+            <div className="grid grid-cols-2 gap-5 mb-10">
+              {[
+                { value: "≥99%", label: "Identity Purity" },
+                { value: "HPLC", label: "Verification Method" },
+                { value: "US Labs", label: "Third-Party Testing" },
+                { value: "Batch COA", label: "Every Shipment" },
+              ].map((stat) => (
+                <div key={stat.label} className="border-l-2 border-[oklch(0.35_0.15_260)] pl-4">
+                  <div className="text-xl font-bold text-[oklch(0.12_0.04_255)]">{stat.value}</div>
+                  <div className="text-xs text-[oklch(0.55_0.02_255)] font-medium tracking-wide uppercase mt-0.5">
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </div>
 
-            <p className="mt-4 text-[0.6875rem] text-white/30">
-              By subscribing you confirm you are a researcher. Research use only.
-            </p>
+            <div className="flex flex-wrap gap-4">
+              <Link href="/shop" className="btn-primary inline-flex items-center gap-2 rounded-full">
+                Browse Products <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link href="/about" className="btn-outline inline-flex items-center gap-2 rounded-full">
+                About Vitum Lab
+              </Link>
+            </div>
           </div>
+        </div>
+      </section>
+
+      {/* ── NEWSLETTER ───────────────────────────────────────────────────────── */}
+      <section className="py-16 bg-[oklch(0.18_0.04_255)]">
+        <div className="container max-w-2xl mx-auto text-center">
+          <span className="section-label text-[oklch(0.60_0.10_260)] block mb-3">
+            Research Updates
+          </span>
+          <h2 className="text-2xl font-bold text-white mb-3">
+            Stay current with new compounds and COA releases.
+          </h2>
+          <p className="text-sm text-white/60 mb-8">
+            New product announcements, batch COA releases, and research literature
+            updates. No spam — unsubscribe anytime.
+          </p>
+
+          {subscribed ? (
+            <div className="flex items-center justify-center gap-2 text-[oklch(0.65_0.12_260)] font-semibold">
+              <ShieldCheck className="w-5 h-5" />
+              You're subscribed. Thank you.
+            </div>
+          ) : (
+            <form
+              onSubmit={handleSubscribe}
+              className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
+            >
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                required
+                className="flex-1 bg-white/10 border border-white/20 text-white placeholder:text-white/40 text-sm px-4 py-3 rounded-full focus:outline-none focus:border-[oklch(0.50_0.15_260)] transition-colors"
+              />
+              <button type="submit" className="btn-cobalt whitespace-nowrap rounded-full">
+                Subscribe
+              </button>
+            </form>
+          )}
+
+          <p className="mt-4 text-[0.6875rem] text-white/30">
+            By subscribing you confirm you are a researcher. Research use only.
+          </p>
         </div>
       </section>
 
