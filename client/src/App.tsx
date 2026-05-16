@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import AgeGate from "./components/AgeGate";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import CookieConsent from "./components/CookieConsent";
 import Home from "./pages/Home";
 import ResearchDisclaimer from "./pages/ResearchDisclaimer";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -81,6 +82,7 @@ function AppLayout() {
           <Router />
         </main>
         <Footer />
+        <CookieConsent />
       </div>
     </>
   );
