@@ -82,7 +82,7 @@ export default function Navbar() {
   const [location] = useLocation();
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-[oklch(0.90_0.006_255)] shadow-[0_1px_0_oklch(0.18_0.04_255/0.06)]">
+    <header className="sticky top-0 z-50 bg-white border-b border-[oklch(0.91_0.004_260)] shadow-[0_1px_4px_oklch(0.13_0.01_260/0.06)]">
 
       {/* ── Promotional marquee banner ────────────────────────────────── */}
       <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden">
@@ -112,7 +112,7 @@ export default function Navbar() {
       </div>
 
       {/* ── Compliance bar ────────────────────────────────────────────── */}
-      <div className="bg-[oklch(0.18_0.04_255)] text-white text-center py-1.5 px-4">
+      <div className="bg-[oklch(0.14_0.03_260)] text-white text-center py-1.5 px-4">
         <p className="text-[0.625rem] font-medium tracking-widest uppercase text-white/70">
           Research Use Only — Not for Human Consumption &nbsp;|&nbsp; Free COA with Every Order
         </p>
@@ -138,8 +138,8 @@ export default function Navbar() {
                 href={link.href}
                 className={`text-sm font-medium transition-colors duration-150 ${
                   location === link.href
-                    ? "text-[oklch(0.35_0.15_260)] border-b-2 border-[oklch(0.35_0.15_260)] pb-0.5"
-                    : "text-[oklch(0.35_0.05_255)] hover:text-[oklch(0.18_0.04_255)]"
+                    ? "text-[oklch(0.13_0.01_260)] border-b-2 border-[oklch(0.13_0.01_260)] pb-0.5"
+                    : "text-[oklch(0.40_0.01_260)] hover:text-[oklch(0.13_0.01_260)]"
                 }`}
               >
                 {link.label}
@@ -151,25 +151,25 @@ export default function Navbar() {
           <div className="flex items-center gap-3">
             <a
               href={`https://${FOXY_STORE}/cart`}
-              className="relative flex items-center justify-center w-9 h-9 rounded-sm hover:bg-[oklch(0.96_0.004_255)] transition-colors"
+              className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] transition-colors"
               aria-label="Shopping cart"
             >
-              <ShoppingCart className="w-5 h-5 text-[oklch(0.35_0.05_255)]" />
+              <ShoppingCart className="w-5 h-5 text-[oklch(0.40_0.01_260)]" />
             </a>
 
-            <Link href="/shop" className="hidden md:block btn-cobalt text-sm py-2 px-4">
+            <Link href="/shop" className="hidden md:block btn-primary text-sm py-2.5 px-5">
               Shop Now
             </Link>
 
             <button
-              className="md:hidden flex items-center justify-center w-9 h-9 rounded-sm hover:bg-[oklch(0.96_0.004_255)] transition-colors"
+              className="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] transition-colors"
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Toggle menu"
             >
               {mobileOpen ? (
-                <X className="w-5 h-5 text-[oklch(0.35_0.05_255)]" />
+                <X className="w-5 h-5 text-[oklch(0.40_0.01_260)]" />
               ) : (
-                <Menu className="w-5 h-5 text-[oklch(0.35_0.05_255)]" />
+                <Menu className="w-5 h-5 text-[oklch(0.40_0.01_260)]" />
               )}
             </button>
           </div>
@@ -178,24 +178,24 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-[oklch(0.90_0.006_255)] bg-white">
+        <div className="md:hidden border-t border-[oklch(0.91_0.004_260)] bg-white">
           <nav className="container py-4 flex flex-col gap-1">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileOpen(false)}
-                className={`text-sm font-medium py-2.5 px-3 rounded-sm transition-colors ${
+                className={`text-sm font-medium py-2.5 px-3 rounded-xl transition-colors ${
                   location === link.href
-                    ? "bg-[oklch(0.94_0.01_255)] text-[oklch(0.35_0.15_260)]"
-                    : "text-[oklch(0.35_0.05_255)] hover:bg-[oklch(0.96_0.004_255)]"
+                    ? "bg-[oklch(0.96_0.003_260)] text-[oklch(0.13_0.01_260)]"
+                    : "text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)]"
                 }`}
               >
                 {link.label}
               </Link>
             ))}
-            <div className="pt-3 border-t border-[oklch(0.90_0.006_255)] mt-2">
-              <Link href="/shop" onClick={() => setMobileOpen(false)} className="btn-cobalt block text-center text-sm">
+            <div className="pt-3 border-t border-[oklch(0.91_0.004_260)] mt-2">
+              <Link href="/shop" onClick={() => setMobileOpen(false)} className="btn-primary block text-center text-sm">
                 Shop Now
               </Link>
             </div>
