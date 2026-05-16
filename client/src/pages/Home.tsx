@@ -243,23 +243,21 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Right: product vials on dark bg — matches product image backgrounds */}
-        <div className="relative bg-[oklch(0.08_0.02_260)] order-1 lg:order-2 flex items-center justify-center py-16 lg:py-20 overflow-hidden">
-          {/* Soft radial glow */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_55%,oklch(0.22_0.08_260),transparent)] pointer-events-none" />
+        {/* Right: product vials on sage green background */}
+        <div className="relative order-1 lg:order-2 flex items-center justify-center py-16 lg:py-20 overflow-hidden" style={{backgroundColor: '#a8c0a0'}}>
 
           {/* Three vials arranged side by side, bottoms aligned */}
           <div className="relative flex items-end justify-center gap-4 sm:gap-8 px-6 w-full max-w-[560px]">
             {/* GHK-Cu — left, slightly lower */}
-            <div className="relative flex-shrink-0 w-[30%] translate-y-8 z-10">
+            <div className="relative flex-shrink-0 w-[30%] translate-y-8 z-10 rounded-2xl overflow-hidden shadow-xl">
               <img
                 src="/manus-storage/product-ghkcu-real_d3796cde.png"
                 alt="GHK-Cu 100mg research peptide vial"
-                className="w-full object-contain opacity-85"
+                className="w-full object-contain opacity-90"
               />
             </div>
             {/* Retatrutide — center, tallest */}
-            <div className="relative flex-shrink-0 w-[36%] z-20">
+            <div className="relative flex-shrink-0 w-[36%] z-20 rounded-2xl overflow-hidden shadow-2xl">
               <img
                 src="/manus-storage/product-retatrutide-real_16ee84fc.png"
                 alt="Retatrutide GLP-3 20mg research peptide vial"
@@ -267,11 +265,11 @@ export default function Home() {
               />
             </div>
             {/* NAD+ — right, slightly lower */}
-            <div className="relative flex-shrink-0 w-[30%] translate-y-8 z-10">
+            <div className="relative flex-shrink-0 w-[30%] translate-y-8 z-10 rounded-2xl overflow-hidden shadow-xl">
               <img
                 src="/manus-storage/product-nad-real_3da66624.png"
                 alt="NAD+ 500mg research peptide vial"
-                className="w-full object-contain opacity-85"
+                className="w-full object-contain opacity-90"
               />
             </div>
           </div>
