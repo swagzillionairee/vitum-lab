@@ -28,7 +28,7 @@ const products = [
     category: "Metabolic Research",
     tagline: "Triple Receptor Agonist",
     description: "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models.",
-    img: "/manus-storage/product-retatrutide-real_16ee84fc.png",
+    img: "/manus-storage/product-retatrutide-v2_2f631ecf.png",
     accentColor: "oklch(0.55 0.10 155)",
     bgTint: "bg-tint-green",
     cartCode: "retatrutide-20mg",
@@ -42,7 +42,7 @@ const products = [
     category: "Cosmetic / Tissue Research",
     tagline: "Copper Tripeptide Complex",
     description: "Glycyl-L-histidyl-L-lysine copper(II) complex studied for tissue remodeling and extracellular matrix research.",
-    img: "/manus-storage/product-ghkcu-real_d3796cde.png",
+    img: "/manus-storage/product-ghkcu-v2_82e289e5.png",
     accentColor: "oklch(0.40 0.16 260)",
     bgTint: "bg-tint-blue",
     cartCode: "ghk-cu-100mg",
@@ -56,7 +56,7 @@ const products = [
     category: "Cellular Research",
     tagline: "Nicotinamide Adenine Dinucleotide",
     description: "Research-grade NAD+ for cellular energy metabolism and longevity pathway studies in laboratory settings.",
-    img: "/manus-storage/product-nad-real_3da66624.png",
+    img: "/manus-storage/product-nad-v2_a8e29cc7.png",
     accentColor: "oklch(0.55 0.10 70)",
     bgTint: "bg-tint-warm",
     cartCode: "nad-500mg",
@@ -244,32 +244,32 @@ export default function Home() {
         </div>
 
         {/* Right: product vials on sage green background */}
-        <div className="relative order-1 lg:order-2 flex items-center justify-center py-16 lg:py-20 overflow-hidden" style={{backgroundColor: '#a8c0a0'}}>
+        <div className="relative order-1 lg:order-2 flex items-center justify-center py-16 lg:py-20 overflow-hidden" style={{backgroundColor: '#f0f4f0'}}>
 
           {/* Three vials arranged side by side, bottoms aligned */}
           <div className="relative flex items-end justify-center gap-4 sm:gap-8 px-6 w-full max-w-[560px]">
             {/* GHK-Cu — left, slightly lower */}
-            <div className="relative flex-shrink-0 w-[30%] translate-y-8 z-10 rounded-2xl overflow-hidden shadow-xl">
+            <div className="relative flex-shrink-0 w-[30%] translate-y-8 z-10">
               <img
-                src="/manus-storage/product-ghkcu-real_d3796cde.png"
+                src="/manus-storage/product-ghkcu-v2_82e289e5.png"
                 alt="GHK-Cu 100mg research peptide vial"
-                className="w-full object-contain opacity-90"
+                className="w-full object-contain drop-shadow-xl"
               />
             </div>
             {/* Retatrutide — center, tallest */}
-            <div className="relative flex-shrink-0 w-[36%] z-20 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="relative flex-shrink-0 w-[36%] z-20">
               <img
-                src="/manus-storage/product-retatrutide-real_16ee84fc.png"
+                src="/manus-storage/product-retatrutide-v2_2f631ecf.png"
                 alt="Retatrutide GLP-3 20mg research peptide vial"
-                className="w-full object-contain"
+                className="w-full object-contain drop-shadow-2xl"
               />
             </div>
             {/* NAD+ — right, slightly lower */}
-            <div className="relative flex-shrink-0 w-[30%] translate-y-8 z-10 rounded-2xl overflow-hidden shadow-xl">
+            <div className="relative flex-shrink-0 w-[30%] translate-y-8 z-10">
               <img
-                src="/manus-storage/product-nad-real_3da66624.png"
+                src="/manus-storage/product-nad-v2_a8e29cc7.png"
                 alt="NAD+ 500mg research peptide vial"
-                className="w-full object-contain opacity-90"
+                className="w-full object-contain drop-shadow-xl"
               />
             </div>
           </div>
@@ -296,11 +296,11 @@ export default function Home() {
             {products.map((p) => (
               <div key={p.id} className="rounded-2xl overflow-hidden group">
                 {/* Image area — dark bg matches product photo backgrounds */}
-                <div className="relative flex items-center justify-center pt-10 pb-8 px-8" style={{ backgroundColor: '#a8c0a0' }}>
+                <div className="relative flex items-center justify-center pt-10 pb-8 px-8" style={{ backgroundColor: '#f0f4f0' }}>
                   <img
-                    src={p.img}
-                    alt={`${p.name} ${p.dose} research peptide vial`}
-                    className="h-52 object-contain transition-transform duration-300 group-hover:scale-105"
+                src={p.img}
+                alt={`${p.name} ${p.dose} research peptide vial`}
+                className="h-52 object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md"
                   />
                 </div>
 
@@ -462,7 +462,7 @@ export default function Home() {
             {/* Right: product vial */}
             <div className="flex items-center justify-center">
               <img
-                src="/manus-storage/product-ghkcu-real_d3796cde.png"
+                src="/manus-storage/product-ghkcu-v2_82e289e5.png"
                 alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested"
                 className="max-h-80 object-contain drop-shadow-2xl"
               />
