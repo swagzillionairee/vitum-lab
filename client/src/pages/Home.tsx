@@ -300,6 +300,11 @@ export default function Home() {
               <div key={p.id} className="rounded-2xl overflow-hidden group">
                 {/* Image area — dark bg matches product photo backgrounds */}
                 <div className="relative flex items-center justify-center pt-10 pb-8 px-8" style={{ backgroundColor: p.cardBg }}>
+                  {p.id === 'retatrutide' && (
+                    <span className="absolute top-3 left-3 z-10 bg-[#1a3a2a] text-white text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md">
+                      ★ Best Seller
+                    </span>
+                  )}
                   <img
                 src={p.img}
                 alt={`${p.name} ${p.dose} research peptide vial`}
