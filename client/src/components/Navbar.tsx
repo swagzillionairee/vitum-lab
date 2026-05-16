@@ -23,7 +23,7 @@ const navLinks = [
 ];
 
 // ─── Countdown to 1pm EST ─────────────────────────────────────────────────────
-function getTimeUntilCutoff(): { hours: number; minutes: number; seconds: number; expired: boolean } {
+function getTimeUntilCutoff(): { hours: number; minutes: number; seconds: number; pastCutoff: boolean } {
   const now = new Date();
   // Get current time in US/Eastern (handles DST automatically)
   const estNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
@@ -31,9 +31,9 @@ function getTimeUntilCutoff(): { hours: number; minutes: number; seconds: number
   const cutoff = new Date(estNow);
   cutoff.setHours(13, 0, 0, 0); // 1:00:00 PM
 
-  // If we've already passed 1pm today, target tomorrow's 1pm
+  // If we've already passed 1pm today, mark as past cutoff
   if (estNow >= cutoff) {
-    cutoff.setDate(cutoff.getDate() + 1);
+    return { hours: 0, minutes: 0, seconds: 0, pastCutoff: true };
   }
 
   const diffMs = cutoff.getTime() - estNow.getTime();
@@ -43,7 +43,7 @@ function getTimeUntilCutoff(): { hours: number; minutes: number; seconds: number
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  return { hours, minutes, seconds, expired: diffMs <= 0 };
+  return { hours, minutes, seconds, pastCutoff: false };
 }
 
 function pad(n: number) {
@@ -60,7 +60,19 @@ function CountdownTimer() {
     return () => clearInterval(id);
   }, []);
 
-  if (time.expired) return null;
+  if (time.pastCutoff) {
+    return (
+      <div className="flex items-center gap-1.5 flex-shrink-0 bg-white/10 rounded-sm px-2.5 py-1">
+        <Clock className="w-3 h-3 opacity-80" />
+        <span className="text-[0.6875rem] font-semibold tracking-wide hidden sm:inline">
+          Orders placed will ship within next two days
+        </span>
+        <span className="text-[0.6875rem] font-semibold tracking-wide sm:hidden">
+          Ships in 2 days
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-1.5 flex-shrink-0 bg-white/10 rounded-sm px-2.5 py-1">
@@ -114,7 +126,7 @@ export default function Navbar() {
       {/* ── Compliance bar ────────────────────────────────────────────── */}
       <div className="bg-[oklch(0.14_0.03_260)] text-white text-center py-1.5 px-4">
         <p className="text-[0.625rem] font-medium tracking-widest uppercase text-white/70">
-          Research Use Only — Not for Human Consumption &nbsp;|&nbsp; Free COA with Every Order
+          Research Use Only — Not for Human Consumption
         </p>
       </div>
 

@@ -232,7 +232,7 @@ export default function Home() {
                 "≥99% Purity Verified",
                 "COA with Every Batch",
                 "US-Based & Tested",
-                "Next-Day Shipping",
+                "Next-Day Shipping*",
               ].map((t) => (
                 <span key={t} className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.01_260)]">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[oklch(0.40_0.16_260)] flex-shrink-0" />
@@ -276,40 +276,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          2. GUARANTEE STRIP
-      ═══════════════════════════════════════════════════════════════ */}
-      <section ref={guaranteeRef} className="reveal border-y border-[oklch(0.91_0.004_260)] bg-white">
-        <div className="container">
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-[oklch(0.91_0.004_260)]">
-            {[
-              {
-                icon: <CheckCircle2 className="w-8 h-8" />,
-                title: "99% Purity Guaranteed",
-                sub: "Every batch independently verified",
-              },
-              {
-                icon: <Shield className="w-8 h-8" />,
-                title: "Shipment Protection",
-                sub: "Every order fully covered",
-              },
-              {
-                icon: <FileText className="w-8 h-8" />,
-                title: "COA with Every Batch",
-                sub: "Third-party tested in the US",
-              },
-            ].map((item) => (
-              <div key={item.title} className="flex items-center gap-4 px-6 py-7">
-                <div className="text-[oklch(0.40_0.16_260)] flex-shrink-0">{item.icon}</div>
-                <div>
-                  <p className="font-bold text-[0.9375rem] text-[oklch(0.13_0.01_260)]">{item.title}</p>
-                  <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mt-0.5">{item.sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+
 
       {/* ═══════════════════════════════════════════════════════════════
           3. PRODUCT SHOWCASE — 3 cards
@@ -318,7 +285,6 @@ export default function Home() {
         <div className="container">
           <div className="flex items-end justify-between mb-10">
             <div>
-              <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-2">Launch Catalog</p>
               <h2 className="text-[2.25rem] font-bold tracking-tight text-[oklch(0.13_0.01_260)]">Featured Products</h2>
             </div>
             <Link href="/shop" className="hidden sm:flex items-center gap-1.5 text-[0.875rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">
@@ -525,22 +491,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          7. FINAL CTA
-      ═══════════════════════════════════════════════════════════════ */}
-      <section className="py-20 bg-[oklch(0.975_0.003_260)]">
-        <div className="container text-center">
-          <h2 className="text-[2.5rem] font-bold tracking-tight text-[oklch(0.13_0.01_260)] mb-4">
-            Ready to start your research?
-          </h2>
-          <p className="text-[1rem] text-[oklch(0.40_0.01_260)] mb-8 max-w-md mx-auto">
-            Browse our full catalog of independently tested research peptides. Every order ships with a Certificate of Analysis.
-          </p>
-          <Link href="/shop" className="btn-primary text-[1rem] px-8 py-4">
-            Shop Now <ArrowRight className="w-5 h-5" />
-          </Link>
-        </div>
-      </section>
+
 
       {/* ═══════════════════════════════════════════════════════════════
           8. NEWSLETTER
@@ -580,12 +531,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Persistent disclaimer bar */}
-      <div className="bg-[oklch(0.10_0.01_260)] text-white/50 text-center py-3 px-4">
-        <p className="text-[0.6875rem] tracking-wide">
-          ⚠ Research Use Only — Not for Human Consumption — Not Evaluated by the FDA — Not for Veterinary Use
-        </p>
-      </div>
+
 
     </div>
   );
