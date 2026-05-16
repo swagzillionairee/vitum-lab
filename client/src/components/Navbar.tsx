@@ -23,18 +23,21 @@ const navLinks = [
 ];
 
 // ─── Countdown to 1pm EST ─────────────────────────────────────────────────────
-function getTimeUntilCutoff(): { hours: number; minutes: number; seconds: number; pastCutoff: boolean } {
+function getTimeUntilCutoff(): { hours: number; minutes: number; seconds: number; showCountdown: boolean } {
   const now = new Date();
   // Get current time in US/Eastern (handles DST automatically)
   const estNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const currentHour = estNow.getHours();
+
+  // Only show countdown between 6am and 1pm EST
+  const inCountdownWindow = currentHour >= 6 && currentHour < 13;
+
+  if (!inCountdownWindow) {
+    return { hours: 0, minutes: 0, seconds: 0, showCountdown: false };
+  }
 
   const cutoff = new Date(estNow);
   cutoff.setHours(13, 0, 0, 0); // 1:00:00 PM
-
-  // If we've already passed 1pm today, mark as past cutoff
-  if (estNow >= cutoff) {
-    return { hours: 0, minutes: 0, seconds: 0, pastCutoff: true };
-  }
 
   const diffMs = cutoff.getTime() - estNow.getTime();
   const totalSeconds = Math.floor(diffMs / 1000);
@@ -43,7 +46,7 @@ function getTimeUntilCutoff(): { hours: number; minutes: number; seconds: number
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  return { hours, minutes, seconds, pastCutoff: false };
+  return { hours, minutes, seconds, showCountdown: true };
 }
 
 function pad(n: number) {
@@ -60,12 +63,12 @@ function CountdownTimer() {
     return () => clearInterval(id);
   }, []);
 
-  if (time.pastCutoff) {
+  if (!time.showCountdown) {
     return (
       <div className="flex items-center gap-1.5 flex-shrink-0 bg-white/10 rounded-sm px-2.5 py-1">
         <Clock className="w-3 h-3 opacity-80" />
         <span className="text-[0.6875rem] font-semibold tracking-wide hidden sm:inline">
-          Orders placed will ship within next two days
+          Orders placed now will ship within 2 days
         </span>
         <span className="text-[0.6875rem] font-semibold tracking-wide sm:hidden">
           Ships in 2 days

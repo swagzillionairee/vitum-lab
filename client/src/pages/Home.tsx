@@ -31,6 +31,7 @@ const products = [
     img: "/manus-storage/product-retatrutide-v2_2f631ecf.png",
     accentColor: "oklch(0.55 0.10 155)",
     bgTint: "bg-tint-green",
+    cardBg: "#d0ecd0",
     cartCode: "retatrutide-20mg",
   },
   {
@@ -45,6 +46,7 @@ const products = [
     img: "/manus-storage/product-ghkcu-v2_82e289e5.png",
     accentColor: "oklch(0.40 0.16 260)",
     bgTint: "bg-tint-blue",
+    cardBg: "#c6def0",
     cartCode: "ghk-cu-100mg",
   },
   {
@@ -59,6 +61,7 @@ const products = [
     img: "/manus-storage/product-nad-v2_a8e29cc7.png",
     accentColor: "oklch(0.55 0.10 70)",
     bgTint: "bg-tint-warm",
+    cardBg: "#ffd9ad",
     cartCode: "nad-500mg",
   },
 ];
@@ -296,7 +299,7 @@ export default function Home() {
             {products.map((p) => (
               <div key={p.id} className="rounded-2xl overflow-hidden group">
                 {/* Image area — dark bg matches product photo backgrounds */}
-                <div className="relative flex items-center justify-center pt-10 pb-8 px-8" style={{ backgroundColor: '#f0f4f0' }}>
+                <div className="relative flex items-center justify-center pt-10 pb-8 px-8" style={{ backgroundColor: p.cardBg }}>
                   <img
                 src={p.img}
                 alt={`${p.name} ${p.dose} research peptide vial`}
