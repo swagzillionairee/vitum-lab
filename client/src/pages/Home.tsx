@@ -251,6 +251,8 @@ export default function Home() {
 
           {/* Three vials — enlarged, tilted, floating independently, overlapping below */}
           <div className="relative flex items-end justify-center px-2 w-full max-w-[780px] mb-[-60px]">
+            {/* Faint shadow blob behind vials */}
+            <div className="absolute bottom-[10%] left-1/2 -translate-x-1/2 w-[75%] h-[40%] rounded-full bg-black/10 blur-2xl pointer-events-none" />
             {/* GHK-Cu — left, tilted left, float-a */}
             <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-a mr-[-40px]" style={{transform: 'rotate(-8deg)', transformOrigin: 'bottom center'}}>
               <img
