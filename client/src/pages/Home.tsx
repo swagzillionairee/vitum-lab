@@ -256,7 +256,7 @@ export default function Home() {
             {/* GHK-Cu — left, tilted left, float-a */}
             <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-a mr-[-40px]" style={{transform: 'rotate(-8deg)', transformOrigin: 'bottom center'}}>
               <img
-                src="/manus-storage/studio-ghkcu-50mg_83686b23.png"
+                src="/manus-storage/ghkcu-50mg_e2f27368.png"
                 alt="GHK-Cu 50mg research peptide vial"
                 className="w-full object-contain drop-shadow-2xl"
               />
@@ -301,7 +301,7 @@ export default function Home() {
             {products.map((p) => (
               <div key={p.id} className="rounded-2xl overflow-hidden group">
                 {/* Image area — dark bg matches product photo backgrounds */}
-                <div className="relative flex items-center justify-center pt-10 pb-8 px-8" style={{ backgroundColor: p.cardBg }}>
+                <div className="relative overflow-hidden" style={{ backgroundColor: p.cardBg, height: '260px' }}>
                   {p.id === 'retatrutide' && (
                     <span className="absolute top-3 left-3 z-10 bg-[#1a3a2a] text-white text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md">
                       ★ Best Seller
@@ -310,7 +310,7 @@ export default function Home() {
                   <img
                 src={p.img}
                 alt={`${p.name} ${p.dose} research peptide vial`}
-                className="h-52 object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md"
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>
 
