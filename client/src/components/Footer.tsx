@@ -35,11 +35,11 @@ export default function Footer() {
             </p>
             <div className="space-y-2">
               <a
-                href="mailto:support@vitumlab.com"
+                href="mailto:hello@vitumlab.com"
                 className="flex items-center gap-2 text-sm text-white/60 hover:text-white transition-colors"
               >
                 <Mail className="w-4 h-4 flex-shrink-0" />
-                support@vitumlab.com
+                hello@vitumlab.com
               </a>
               <div className="flex items-start gap-2 text-sm text-white/60">
                 <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />

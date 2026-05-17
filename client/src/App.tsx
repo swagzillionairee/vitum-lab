@@ -23,6 +23,10 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import ShippingPolicy from "./pages/ShippingPolicy";
 import Shop from "./pages/Shop";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
+import FAQ from "./pages/FAQ";
+import ProductDetail from "./pages/ProductDetail";
 
 // ─── Age gate cookie check ────────────────────────────────────────────────────
 function isAgeVerified(): boolean {
@@ -49,10 +53,11 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/shop" component={Shop} />
+      <Route path="/shop/:slug" component={ProductDetail} />
       <Route path="/coa-library">{() => <PlaceholderPage title="COA Library" />}</Route>
-      <Route path="/about">{() => <PlaceholderPage title="About Vitum Lab" />}</Route>
-      <Route path="/contact">{() => <PlaceholderPage title="Contact Us" />}</Route>
-      <Route path="/faq">{() => <PlaceholderPage title="Frequently Asked Questions" />}</Route>
+      <Route path="/about" component={About} />
+      <Route path="/contact" component={Contact} />
+      <Route path="/faq" component={FAQ} />
       <Route path="/shipping-policy" component={ShippingPolicy} />
       <Route path="/return-policy">{() => <PlaceholderPage title="Return Policy" />}</Route>
       <Route path="/terms-of-service" component={TermsOfService} />

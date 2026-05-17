@@ -82,7 +82,7 @@ export default function CartDrawer() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 340, damping: 36, mass: 0.9 }}
-            className="fixed top-0 right-0 bottom-0 z-[9999] w-full max-w-[420px] bg-white shadow-2xl flex flex-col"
+            className="fixed top-0 right-0 bottom-0 z-[9999] w-full sm:max-w-[420px] bg-white shadow-2xl flex flex-col"
             role="dialog"
             aria-label="Shopping cart"
             aria-modal="true"

@@ -3,20 +3,21 @@
  * Design: Contemporary Clinical
  * Full product catalog with all variants:
  *   - Retatrutide GLP-3 (R): 10mg, 20mg, 30mg
- *   - GHK-Cu: 50mg
+ *   - GHK-Cu: 50mg, 100mg
  *   - NAD+: 500mg
  *   - BAC Water: 10mL
- * Features: category filter tabs, product cards with Add to Cart
+ * Features: category filter tabs, product cards with Added✓ feedback,
+ *   floating View Cart button, product detail page links
  */
 
 import { useState } from "react";
 import { Link } from "wouter";
-import { FileText, ShieldCheck, Truck, ArrowLeft } from "lucide-react";
+import { FileText, ShieldCheck, Truck, ArrowLeft, ShoppingCart, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { AnimatePresence, motion } from "framer-motion";
 
 // ─── Full product catalog ─────────────────────────────────────────────────────
 const allProducts = [
-  // ── Retatrutide GLP-3 (R) ──────────────────────────────────────────────────
   {
     id: "retatrutide-10mg",
     name: "Retatrutide GLP-3 (R)",
@@ -26,13 +27,12 @@ const allProducts = [
     category: "Metabolic Research",
     categorySlug: "metabolic",
     tagline: "Triple Receptor Agonist",
-    description:
-      "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models. Entry-level dose for initial research protocols.",
+    description: "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models. Entry-level dose for initial research protocols.",
     img: "/manus-storage/studio-glp3-10mg_e3947ee3.png",
     cardBg: "#f5e8e8",
-    accentColor: "oklch(0.35 0.12 20)",
     cartCode: "retatrutide-10mg",
-    badge: null,
+    badge: null as string | null,
+    detailSlug: "retatrutide",
   },
   {
     id: "retatrutide-20mg",
@@ -43,13 +43,12 @@ const allProducts = [
     category: "Metabolic Research",
     categorySlug: "metabolic",
     tagline: "Triple Receptor Agonist",
-    description:
-      "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models. Most popular dose for established research protocols.",
+    description: "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models. Most popular dose for established research protocols.",
     img: "/manus-storage/studio-glp3-20mg_f5105426.png",
     cardBg: "#f5e8e8",
-    accentColor: "oklch(0.35 0.12 20)",
     cartCode: "retatrutide-20mg",
-    badge: "Best Seller",
+    badge: "Best Seller" as string | null,
+    detailSlug: "retatrutide",
   },
   {
     id: "retatrutide-30mg",
@@ -60,15 +59,13 @@ const allProducts = [
     category: "Metabolic Research",
     categorySlug: "metabolic",
     tagline: "Triple Receptor Agonist",
-    description:
-      "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models. High-dose format for advanced research applications.",
+    description: "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models. High-dose vial for advanced study designs.",
     img: "/manus-storage/studio-glp3-30mg_192ac78d.png",
     cardBg: "#f5e8e8",
-    accentColor: "oklch(0.35 0.12 20)",
     cartCode: "retatrutide-30mg",
-    badge: null,
+    badge: null as string | null,
+    detailSlug: "retatrutide",
   },
-  // ── GHK-Cu ─────────────────────────────────────────────────────────────────
   {
     id: "ghkcu-50mg",
     name: "GHK-Cu",
@@ -77,16 +74,30 @@ const allProducts = [
     price: 69,
     category: "Cosmetic / Tissue Research",
     categorySlug: "tissue",
-    tagline: "Copper Tripeptide Complex",
-    description:
-      "Glycyl-L-histidyl-L-lysine copper(II) complex studied for tissue remodeling and extracellular matrix research in laboratory settings.",
+    tagline: "Copper Peptide Complex",
+    description: "Glycyl-L-histidyl-L-lysine copper(II) complex studied for tissue remodeling and extracellular matrix research in vitro.",
     img: "/manus-storage/studio-ghkcu-50mg_83686b23.png",
     cardBg: "#e0f0ec",
-    accentColor: "oklch(0.35 0.10 170)",
     cartCode: "ghk-cu-50mg",
-    badge: null,
+    badge: null as string | null,
+    detailSlug: "ghkcu",
   },
-  // ── NAD+ ───────────────────────────────────────────────────────────────────
+  {
+    id: "ghkcu-100mg",
+    name: "GHK-Cu",
+    dose: "100 MG",
+    lot: "B045",
+    price: 109,
+    category: "Cosmetic / Tissue Research",
+    categorySlug: "tissue",
+    tagline: "Copper Peptide Complex",
+    description: "Glycyl-L-histidyl-L-lysine copper(II) complex studied for tissue remodeling and extracellular matrix research in vitro. High-dose vial for extended studies.",
+    img: "/manus-storage/studio-ghkcu-100mg_180c2bfb.png",
+    cardBg: "#e0f0ec",
+    cartCode: "ghk-cu-100mg",
+    badge: null as string | null,
+    detailSlug: "ghkcu",
+  },
   {
     id: "nad-500mg",
     name: "NAD+",
@@ -96,17 +107,15 @@ const allProducts = [
     category: "Cellular Research",
     categorySlug: "cellular",
     tagline: "Nicotinamide Adenine Dinucleotide",
-    description:
-      "Research-grade NAD+ for cellular energy metabolism and longevity pathway studies. Lyophilized powder, ≥99% purity by HPLC.",
+    description: "Research-grade NAD+ for cellular energy metabolism and longevity pathway studies in laboratory settings.",
     img: "/manus-storage/studio-nad-500mg_fca1b8a4.png",
     cardBg: "#faeae0",
-    accentColor: "oklch(0.50 0.14 50)",
     cartCode: "nad-500mg",
-    badge: "New",
+    badge: "New" as string | null,
+    detailSlug: "nad",
   },
-  // ── BAC Water ──────────────────────────────────────────────────────────────
   {
-    id: "bac-water-10ml",
+    id: "bacwater-10ml",
     name: "BAC Water",
     dose: "10 ML",
     lot: "E025",
@@ -114,13 +123,12 @@ const allProducts = [
     category: "Reconstitution",
     categorySlug: "reconstitution",
     tagline: "Bacteriostatic Water 0.9% Benzyl Alcohol",
-    description:
-      "USP-grade bacteriostatic water with 0.9% benzyl alcohol for safe multi-dose reconstitution of lyophilized research peptides.",
+    description: "USP-grade bacteriostatic water with 0.9% benzyl alcohol for safe multi-dose reconstitution of lyophilized research peptides.",
     img: "/manus-storage/studio-bac-water-10ml_21faee3c.png",
     cardBg: "#e0eaf5",
-    accentColor: "oklch(0.35 0.10 220)",
     cartCode: "bac-water-10ml",
-    badge: null,
+    badge: null as string | null,
+    detailSlug: "bacwater",
   },
 ];
 
@@ -137,8 +145,76 @@ const BADGE_STYLES: Record<string, string> = {
   "New": "bg-[oklch(0.35_0.15_260)] text-white",
 };
 
-export default function Shop() {
+// ─── Product card with Added✓ feedback ───────────────────────────────────────
+function ProductCard({ p }: { p: typeof allProducts[0] }) {
   const { addItem } = useCart();
+  const [added, setAdded] = useState(false);
+
+  const handleAdd = () => {
+    addItem({ id: p.id, name: p.name, dose: p.dose, price: p.price, img: p.img, cartCode: p.cartCode });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1500);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] group hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200">
+      {/* Image area — links to product detail */}
+      <Link href={`/shop/${p.detailSlug}`}>
+        <div className="relative overflow-hidden cursor-pointer" style={{ backgroundColor: p.cardBg, height: "280px" }}>
+          {p.badge && (
+            <span className={`absolute top-3 left-3 z-10 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md ${BADGE_STYLES[p.badge] ?? "bg-gray-800 text-white"}`}>
+              {p.badge === "Best Seller" ? "★ " : ""}{p.badge}
+            </span>
+          )}
+          <img
+            src={p.img}
+            alt={`${p.name} ${p.dose} research peptide vial`}
+            className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
+          />
+        </div>
+      </Link>
+
+      {/* Info area */}
+      <div className="px-5 pt-4 pb-5">
+        <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-1">{p.category}</p>
+        <div className="flex items-baseline gap-2 mb-0.5">
+          <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight">{p.name}</h3>
+          <span className="text-[0.8125rem] font-semibold text-[oklch(0.52_0.01_260)] flex-shrink-0">{p.dose}</span>
+        </div>
+        <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-2">LOT: {p.lot}</p>
+        <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{p.description}</p>
+
+        <div className="flex items-center justify-between">
+          <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${p.price}</span>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/coa-library#${p.cartCode}`}
+              className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5" /> COA
+            </a>
+            <button
+              onClick={handleAdd}
+              className={`text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
+                added ? "bg-[oklch(0.40_0.14_155)] text-white" : "btn-primary"
+              }`}
+            >
+              {added ? (
+                <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Added</span>
+              ) : (
+                "Add to Cart"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Shop page ───────────────────────────────────────────────────────────
+export default function Shop() {
+  const { totalItems, openCart } = useCart();
   const [activeCategory, setActiveCategory] = useState("all");
 
   const filtered =
@@ -218,68 +294,7 @@ export default function Shop() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filtered.map((p) => (
-            <div key={p.id} className="bg-white rounded-2xl overflow-hidden shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] group hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200">
-
-              {/* Image area */}
-              <div
-                className="relative overflow-hidden"
-                style={{ backgroundColor: p.cardBg, height: "280px" }}
-              >
-                {p.badge && (
-                  <span
-                    className={`absolute top-3 left-3 z-10 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md ${BADGE_STYLES[p.badge] ?? "bg-gray-800 text-white"}`}
-                  >
-                    {p.badge === "Best Seller" ? "★ " : ""}{p.badge}
-                  </span>
-                )}
-                <img
-                  src={p.img}
-                  alt={`${p.name} ${p.dose} research peptide vial`}
-                  className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
-                />
-              </div>
-
-              {/* Info area */}
-              <div className="px-5 pt-4 pb-5">
-                <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-1">
-                  {p.category}
-                </p>
-                <div className="flex items-baseline gap-2 mb-0.5">
-                  <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight">
-                    {p.name}
-                  </h3>
-                  <span className="text-[0.8125rem] font-semibold text-[oklch(0.52_0.01_260)] flex-shrink-0">
-                    {p.dose}
-                  </span>
-                </div>
-                <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-2">
-                  LOT: {p.lot}
-                </p>
-                <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">
-                  {p.description}
-                </p>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">
-                    ${p.price}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={`/coa-library#${p.cartCode}`}
-                      className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors"
-                    >
-                      <FileText className="w-3.5 h-3.5" /> COA
-                    </a>
-                    <button
-                      onClick={() => addItem({ id: p.id, name: p.name, dose: p.dose, price: p.price, img: p.img, cartCode: p.cartCode })}
-                      className="btn-primary text-[0.8125rem] py-2 px-4 active:scale-95 transition-transform"
-                    >
-                      Add to Cart
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ProductCard key={p.id} p={p} />
           ))}
         </div>
 
@@ -315,6 +330,30 @@ export default function Shop() {
           .
         </p>
       </div>
+
+      {/* ── Floating View Cart button ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {totalItems > 0 && (
+          <motion.button
+            key="floating-cart"
+            initial={{ opacity: 0, y: 24, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 380, damping: 30 }}
+            onClick={openCart}
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[oklch(0.13_0.01_260)] text-white pl-4 pr-5 py-3.5 rounded-full shadow-[0_4px_20px_oklch(0.13_0.01_260/0.35)] hover:bg-[oklch(0.20_0.02_260)] active:scale-95 transition-all duration-150 font-semibold text-[0.9375rem]"
+            aria-label={`View cart — ${totalItems} item${totalItems !== 1 ? "s" : ""}`}
+          >
+            <div className="relative">
+              <ShoppingCart className="w-5 h-5" />
+              <span className="absolute -top-2 -right-2 w-4.5 h-4.5 bg-[oklch(0.40_0.16_260)] text-white text-[0.625rem] font-bold rounded-full flex items-center justify-center leading-none">
+                {totalItems}
+              </span>
+            </div>
+            View Cart
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
