@@ -378,6 +378,43 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
+          2. GUARANTEE STRIP — 3 trust pillars
+      ═══════════════════════════════════════════════════════════════ */}
+      <section className="bg-[oklch(0.13_0.02_260)] text-white">
+        <div className="container">
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-white/10">
+            {[
+              {
+                icon: <Shield className="w-5 h-5" />,
+                title: "≥99% Purity Guaranteed",
+                body: "Every batch independently verified by HPLC and mass spectrometry at accredited US labs.",
+              },
+              {
+                icon: <FileText className="w-5 h-5" />,
+                title: "COA with Every Order",
+                body: "Full Certificate of Analysis included with every shipment. Download anytime from our public library.",
+              },
+              {
+                icon: <Truck className="w-5 h-5" />,
+                title: "Next-Day US Shipping",
+                body: "Orders placed before 1pm EST ship same business day. Free shipping + BAC Water over $150.",
+              },
+            ].map((pillar) => (
+              <div key={pillar.title} className="flex items-start gap-4 px-8 py-7">
+                <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center text-[oklch(0.75_0.12_260)]">
+                  {pillar.icon}
+                </div>
+                <div>
+                  <p className="text-[0.9375rem] font-bold mb-1 leading-snug">{pillar.title}</p>
+                  <p className="text-[0.8125rem] text-white/55 leading-relaxed">{pillar.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════
           3. PRODUCT SHOWCASE — featured products with dose selectors
       ═══════════════════════════════════════════════════════════════ */}
       <section className="py-20 bg-white">
