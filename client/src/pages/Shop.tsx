@@ -23,7 +23,7 @@ const allProducts = [
     id: "retatrutide-10mg",
     name: "Retatrutide GLP-3 (R)",
     dose: "10 MG",
-    lot: "A001",
+    lot: "A003",
     price: 129,
     category: "Metabolic Research",
     categorySlug: "metabolic",
@@ -55,7 +55,7 @@ const allProducts = [
     id: "retatrutide-30mg",
     name: "Retatrutide GLP-3 (R)",
     dose: "30 MG",
-    lot: "A007",
+    lot: "A003",
     price: 249,
     category: "Metabolic Research",
     categorySlug: "metabolic",
@@ -87,7 +87,7 @@ const allProducts = [
     id: "ghkcu-100mg",
     name: "GHK-Cu",
     dose: "100 MG",
-    lot: "B045",
+    lot: "B031",
     price: 109,
     category: "Cosmetic / Tissue Research",
     categorySlug: "tissue",
@@ -266,36 +266,14 @@ export default function Shop() {
         </div>
       </div>
 
-      {/* ── Category filter tabs ─────────────────────────────────────────── */}
-      <div className="bg-white border-b border-[oklch(0.91_0.004_260)] sticky top-[var(--navbar-height,0px)] z-10">
-        <div className="container">
-          <div className="flex items-center gap-1 overflow-x-auto py-3 scrollbar-none">
-            {categories.map((cat) => (
-              <button
-                key={cat.slug}
-                onClick={() => setActiveCategory(cat.slug)}
-                className={`flex-shrink-0 text-[0.8125rem] font-semibold px-4 py-2 rounded-full transition-colors duration-150 ${
-                  activeCategory === cat.slug
-                    ? "bg-[oklch(0.13_0.01_260)] text-white"
-                    : "text-[oklch(0.52_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] hover:text-[oklch(0.13_0.01_260)]"
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* ── Product grid ─────────────────────────────────────────────────── */}
       <div className="container py-12">
         <p className="text-[0.8125rem] text-[oklch(0.60_0.01_260)] mb-6">
-          Showing {filtered.length} product{filtered.length !== 1 ? "s" : ""}
-          {activeCategory !== "all" ? ` in ${categories.find(c => c.slug === activeCategory)?.label}` : ""}
+          Showing {allProducts.length} products
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filtered.map((p) => (
+          {allProducts.map((p) => (
             <ProductCard key={p.id} p={p} />
           ))}
         </div>
