@@ -47,7 +47,7 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
             <img
               src="/manus-storage/vitumlablogoblack_3bc5cca3.png"
               alt="Vitum Lab"
-              className="h-16 w-auto"
+              className="h-48 w-auto"
             />
           </div>
 
