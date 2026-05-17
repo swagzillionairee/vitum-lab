@@ -145,9 +145,10 @@ interface DoseSelectorCardProps {
   variants: { dose: string; lot: string; price: number; img: string; cartCode: string; id: string }[];
   badge?: string;
   detailHref: string;
+  fixedLot?: string;
 }
 
-function DoseSelectorCard({ name, category, description, cardBg, variants, badge, detailHref }: DoseSelectorCardProps) {
+function DoseSelectorCard({ name, category, description, cardBg, variants, badge, detailHref, fixedLot }: DoseSelectorCardProps) {
   const { addItem } = useCart();
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [added, setAdded] = useState(false);
@@ -183,7 +184,7 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
         <div className="flex items-baseline gap-2 mb-1">
           <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">{name}</h3>
         </div>
-        <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-3">LOT: {selected.lot}</p>
+        <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-3">LOT: {fixedLot ?? selected.lot}</p>
 
         {/* Dose selector pills */}
         <div className="flex flex-wrap gap-1.5 mb-3">
@@ -435,6 +436,7 @@ export default function Home() {
               variants={retatrutideVariants}
               badge="Best Seller"
               detailHref="/shop/retatrutide"
+              fixedLot="A003"
             />
             {/* GHK-Cu — dose selector */}
             <DoseSelectorCard
@@ -444,6 +446,7 @@ export default function Home() {
               cardBg="#e0f0ec"
               variants={ghkcuVariants}
               detailHref="/shop/ghkcu"
+              fixedLot="B031"
             />
             {/* NAD+ and BAC Water — static cards */}
             {staticProducts.map((p) => (
