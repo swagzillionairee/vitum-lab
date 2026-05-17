@@ -64,6 +64,21 @@ const products = [
     cardBg: "#faeae0",
     cartCode: "nad-500mg",
   },
+  {
+    id: "bacwater",
+    name: "BAC Water",
+    dose: "10 ML",
+    lot: "E025",
+    price: 12,
+    category: "Reconstitution",
+    tagline: "Bacteriostatic Water 0.9% Benzyl Alcohol",
+    description: "USP-grade bacteriostatic water with 0.9% benzyl alcohol for safe multi-dose reconstitution of lyophilized research peptides.",
+    img: "/manus-storage/studio-bac-water-10ml_21faee3c.png",
+    accentColor: "oklch(0.35 0.10 220)",
+    bgTint: "bg-tint-blue",
+    cardBg: "#e0eaf5",
+    cartCode: "bac-water-10ml",
+  },
 ];
 
 // ─── Quality tabs ─────────────────────────────────────────────────────────────
@@ -297,7 +312,7 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {products.map((p) => (
               <div key={p.id} className="rounded-2xl overflow-hidden group">
                 {/* Image area — dark bg matches product photo backgrounds */}
