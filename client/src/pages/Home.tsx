@@ -38,7 +38,7 @@ const products = [
     id: "ghkcu",
     name: "GHK-Cu",
     dose: "50 MG",
-    lot: "B003",
+    lot: "B031",
     price: 69,
     category: "Cosmetic / Tissue Research",
     tagline: "Copper Tripeptide Complex",

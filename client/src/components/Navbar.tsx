@@ -64,17 +64,7 @@ function CountdownTimer() {
   }, []);
 
   if (!time.showCountdown) {
-    return (
-      <div className="flex items-center gap-1.5 flex-shrink-0 bg-white/10 rounded-sm px-2.5 py-1">
-        <Clock className="w-3 h-3 opacity-80" />
-        <span className="text-[0.6875rem] font-semibold tracking-wide hidden sm:inline">
-          Orders placed now will ship within 2 days
-        </span>
-        <span className="text-[0.6875rem] font-semibold tracking-wide sm:hidden">
-          Ships in 2 days
-        </span>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -90,7 +80,7 @@ function CountdownTimer() {
 
 // ─── Marquee message ──────────────────────────────────────────────────────────
 const PROMO_MESSAGE =
-  "Free shipping and 10mL BAC Water for orders over $150  ·  Orders placed before 1pm EST ships next day!  ·  Free shipping and 10mL BAC Water for orders over $150  ·  Orders placed before 1pm EST ships next day!  ·";
+  "Free shipping and 10mL BAC Water for orders over $150  ·  Orders ships next day!  ·  Free shipping and 10mL BAC Water for orders over $150  ·  Orders placed ships next day!  ·";
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -102,10 +92,15 @@ export default function Navbar() {
       {/* ── Promotional marquee banner ────────────────────────────────── */}
       <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden">
         <div className="flex items-center">
-          {/* Countdown timer — left-pinned, doesn't scroll */}
-          <div className="flex-shrink-0 flex items-center gap-2 pl-3 pr-4 py-2 border-r border-white/20 bg-[oklch(0.28_0.14_260)]">
-            <CountdownTimer />
-          </div>
+          {/* Countdown timer — left-pinned, only shown during 6am–1pm EST window */}
+          {(() => {
+            const t = getTimeUntilCutoff();
+            return t.showCountdown ? (
+              <div className="flex-shrink-0 flex items-center gap-2 pl-3 pr-4 py-2 border-r border-white/20 bg-[oklch(0.28_0.14_260)]">
+                <CountdownTimer />
+              </div>
+            ) : null;
+          })()}
 
           {/* Scrolling marquee */}
           <div className="flex-1 overflow-hidden relative py-2">
