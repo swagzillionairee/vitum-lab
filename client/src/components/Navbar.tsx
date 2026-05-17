@@ -11,6 +11,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { ShoppingCart, Menu, X, Clock } from "lucide-react";
+import { useCart } from "@/contexts/CartContext";
 
 const FOXY_STORE = "vitum-lab.foxycart.com";
 
@@ -85,6 +86,7 @@ const PROMO_MESSAGE =
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
+  const { totalItems, openCart } = useCart();
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[oklch(0.91_0.004_260)] shadow-[0_1px_4px_oklch(0.13_0.01_260/0.06)]">
@@ -159,13 +161,18 @@ export default function Navbar() {
 
           {/* Right actions */}
           <div className="flex items-center gap-3">
-            <a
-              href={`https://${FOXY_STORE}/cart`}
+            <button
+              onClick={openCart}
               className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] transition-colors"
               aria-label="Shopping cart"
             >
               <ShoppingCart className="w-5 h-5 text-[oklch(0.40_0.01_260)]" />
-            </a>
+              {totalItems > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-[oklch(0.35_0.15_260)] text-white text-[10px] font-bold rounded-full px-1">
+                  {totalItems > 99 ? "99+" : totalItems}
+                </span>
+              )}
+            </button>
 
             <Link href="/shop" className="hidden md:block btn-primary text-sm py-2.5 px-5">
               Shop Now

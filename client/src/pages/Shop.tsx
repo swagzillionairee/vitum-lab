@@ -12,8 +12,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { FileText, ShieldCheck, Truck, ArrowLeft } from "lucide-react";
-
-const FOXY = "https://vitum-lab.foxycart.com/cart";
+import { useCart } from "@/contexts/CartContext";
 
 // ─── Full product catalog ─────────────────────────────────────────────────────
 const allProducts = [
@@ -139,6 +138,7 @@ const BADGE_STYLES: Record<string, string> = {
 };
 
 export default function Shop() {
+  const { addItem } = useCart();
   const [activeCategory, setActiveCategory] = useState("all");
 
   const filtered =
@@ -270,12 +270,12 @@ export default function Shop() {
                     >
                       <FileText className="w-3.5 h-3.5" /> COA
                     </a>
-                    <a
-                      href={`${FOXY}?name=${encodeURIComponent(p.name + " " + p.dose)}&price=${p.price}&code=${p.cartCode}&quantity=1`}
-                      className="btn-primary text-[0.8125rem] py-2 px-4"
+                    <button
+                      onClick={() => addItem({ id: p.id, name: p.name, dose: p.dose, price: p.price, img: p.img, cartCode: p.cartCode })}
+                      className="btn-primary text-[0.8125rem] py-2 px-4 active:scale-95 transition-transform"
                     >
                       Add to Cart
-                    </a>
+                    </button>
                   </div>
                 </div>
               </div>

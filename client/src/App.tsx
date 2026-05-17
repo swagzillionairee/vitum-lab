@@ -15,6 +15,8 @@ import AgeGate from "./components/AgeGate";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import CookieConsent from "./components/CookieConsent";
+import CartDrawer from "./components/CartDrawer";
+import { CartProvider } from "./contexts/CartContext";
 import Home from "./pages/Home";
 import ResearchDisclaimer from "./pages/ResearchDisclaimer";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -94,8 +96,11 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
-          <Toaster />
-          <AppLayout />
+          <CartProvider>
+            <Toaster />
+            <AppLayout />
+            <CartDrawer />
+          </CartProvider>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
