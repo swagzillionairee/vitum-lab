@@ -301,7 +301,7 @@ export default function Home() {
             {products.map((p) => (
               <div key={p.id} className="rounded-2xl overflow-hidden group">
                 {/* Image area — dark bg matches product photo backgrounds */}
-                <div className="relative overflow-hidden" style={{ backgroundColor: p.cardBg, height: '260px' }}>
+                <div className="relative overflow-hidden" style={{ backgroundColor: p.cardBg, height: '320px' }}>
                   {p.id === 'retatrutide' && (
                     <span className="absolute top-3 left-3 z-10 bg-[#1a3a2a] text-white text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md">
                       ★ Best Seller
@@ -310,7 +310,7 @@ export default function Home() {
                   <img
                 src={p.img}
                 alt={`${p.name} ${p.dose} research peptide vial`}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
                   />
                 </div>
 
