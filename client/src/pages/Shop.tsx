@@ -118,7 +118,7 @@ const allProducts = [
     id: "bacwater-10ml",
     name: "BAC Water",
     dose: "10 ML",
-    lot: "E025",
+    lot: "C025",
     price: 12,
     category: "Reconstitution",
     categorySlug: "reconstitution",

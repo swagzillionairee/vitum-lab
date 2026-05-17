@@ -191,7 +191,7 @@ export const products: Product[] = [
       {
         id: "bacwater-10ml",
         dose: "10 ML",
-        lot: "E025",
+        lot: "C025",
         price: 12,
         img: "/manus-storage/studio-bac-water-10ml_21faee3c.png",
         cartCode: "bac-water-10ml",

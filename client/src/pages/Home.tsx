@@ -50,7 +50,7 @@ const staticProducts = [
     id: "bacwater",
     name: "BAC Water",
     dose: "10 ML",
-    lot: "E025",
+    lot: "C025",
     price: 12,
     category: "Reconstitution",
     tagline: "Bacteriostatic Water 0.9% Benzyl Alcohol",
