@@ -75,7 +75,8 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
                     setAgeChecked(e.target.checked);
                     setError(false);
                   }}
-                  className="w-4 h-4 rounded-none border-[oklch(0.55_0.02_255)] accent-[oklch(0.35_0.15_260)]"
+                  className="w-5 h-5 rounded-none border-[oklch(0.55_0.02_255)] accent-[oklch(0.35_0.15_260)] cursor-pointer"
+                  style={{ minWidth: '1.25rem', minHeight: '1.25rem' }}
                 />
               </div>
               <span className="text-sm text-[oklch(0.35_0.05_255)] leading-relaxed group-hover:text-[oklch(0.18_0.04_255)] transition-colors">
@@ -92,7 +93,8 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
                     setResearchChecked(e.target.checked);
                     setError(false);
                   }}
-                  className="w-4 h-4 rounded-none border-[oklch(0.55_0.02_255)] accent-[oklch(0.35_0.15_260)]"
+                  className="w-5 h-5 rounded-none border-[oklch(0.55_0.02_255)] accent-[oklch(0.35_0.15_260)] cursor-pointer"
+                  style={{ minWidth: '1.25rem', minHeight: '1.25rem' }}
                 />
               </div>
               <span className="text-sm text-[oklch(0.35_0.05_255)] leading-relaxed group-hover:text-[oklch(0.18_0.04_255)] transition-colors">
