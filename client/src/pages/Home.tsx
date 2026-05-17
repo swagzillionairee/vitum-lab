@@ -28,7 +28,7 @@ const products = [
     category: "Metabolic Research",
     tagline: "Triple Receptor Agonist",
     description: "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models.",
-    img: "/manus-storage/product-retatrutide-v2_2f631ecf.png",
+    img: "/manus-storage/glp3-20mg_781f3c53.png",
     accentColor: "oklch(0.55 0.10 155)",
     bgTint: "bg-tint-green",
     cardBg: "#d0ecd0",
@@ -43,7 +43,7 @@ const products = [
     category: "Cosmetic / Tissue Research",
     tagline: "Copper Tripeptide Complex",
     description: "Glycyl-L-histidyl-L-lysine copper(II) complex studied for tissue remodeling and extracellular matrix research.",
-    img: "/manus-storage/product-ghkcu-v2_82e289e5.png",
+    img: "/manus-storage/ghkcu-50mg_e2f27368.png",
     accentColor: "oklch(0.40 0.16 260)",
     bgTint: "bg-tint-blue",
     cardBg: "#c6def0",
@@ -58,7 +58,7 @@ const products = [
     category: "Cellular Research",
     tagline: "Nicotinamide Adenine Dinucleotide",
     description: "Research-grade NAD+ for cellular energy metabolism and longevity pathway studies in laboratory settings.",
-    img: "/manus-storage/product-nad-v2_a8e29cc7.png",
+    img: "/manus-storage/nad-500mg_06819761.png",
     accentColor: "oklch(0.55 0.10 70)",
     bgTint: "bg-tint-warm",
     cardBg: "#ffd9ad",
@@ -256,23 +256,23 @@ export default function Home() {
             {/* GHK-Cu — left, tilted left, float-a */}
             <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-a mr-[-40px]" style={{transform: 'rotate(-8deg)', transformOrigin: 'bottom center'}}>
               <img
-                src="/manus-storage/product-ghkcu-v2_82e289e5.png"
-                alt="GHK-Cu 100mg research peptide vial"
+                src="/manus-storage/ghkcu-50mg_e2f27368.png"
+                alt="GHK-Cu 50mg research peptide vial"
                 className="w-full object-contain drop-shadow-2xl"
               />
             </div>
             {/* Retatrutide — center, upright, float-b */}
             <div className="relative flex-shrink-0 w-[46%] z-20 vial-float-b">
               <img
-                src="/manus-storage/product-retatrutide-v2_2f631ecf.png"
-                alt="Retatrutide GLP-3 20mg research peptide vial"
+                src="/manus-storage/glp3-20mg_781f3c53.png"
+                alt="GLP-3 (R) 20mg research peptide vial"
                 className="w-full object-contain drop-shadow-2xl"
               />
             </div>
             {/* NAD+ — right, tilted right, float-c */}
             <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-c ml-[-40px]" style={{transform: 'rotate(8deg)', transformOrigin: 'bottom center'}}>
               <img
-                src="/manus-storage/product-nad-v2_a8e29cc7.png"
+                src="/manus-storage/nad-500mg_06819761.png"
                 alt="NAD+ 500mg research peptide vial"
                 className="w-full object-contain drop-shadow-2xl"
               />
@@ -472,7 +472,7 @@ export default function Home() {
             {/* Right: product vial */}
             <div className="flex items-center justify-center">
               <img
-                src="/manus-storage/product-ghkcu-v2_82e289e5.png"
+                src="/manus-storage/ghkcu-50mg_e2f27368.png"
                 alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested"
                 className="max-h-80 object-contain drop-shadow-2xl"
               />
