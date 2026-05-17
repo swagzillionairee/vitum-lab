@@ -80,7 +80,7 @@ function CountdownTimer() {
 
 // ─── Marquee message ──────────────────────────────────────────────────────────
 const PROMO_MESSAGE =
-  "Free shipping and 10mL BAC Water for orders over $150  ·  Orders ships next day!  ·  Free shipping and 10mL BAC Water for orders over $150  ·  Orders placed ships next day!  ·";
+  "Free shipping and 10mL BAC Water for orders over $150                      ·                       Orders ships next day!                       ·                       Free shipping and 10mL BAC Water for orders over $150                       ·                       Orders placed ships next day!  ·                     ";
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
