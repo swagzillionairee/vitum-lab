@@ -28,25 +28,25 @@ const products = [
     category: "Metabolic Research",
     tagline: "Triple Receptor Agonist",
     description: "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models.",
-    img: "/manus-storage/glp3-20mg_781f3c53.png",
-    accentColor: "oklch(0.55 0.10 155)",
-    bgTint: "bg-tint-green",
-    cardBg: "#d0ecd0",
+    img: "/manus-storage/studio-glp3-20mg_f5105426.png",
+    accentColor: "oklch(0.35 0.12 20)",
+    bgTint: "bg-tint-red",
+    cardBg: "#f5e8e8",
     cartCode: "retatrutide-20mg",
   },
   {
     id: "ghkcu",
     name: "GHK-Cu",
-    dose: "100 MG",
-    lot: "B002",
+    dose: "50 MG",
+    lot: "B003",
     price: 69,
     category: "Cosmetic / Tissue Research",
     tagline: "Copper Tripeptide Complex",
     description: "Glycyl-L-histidyl-L-lysine copper(II) complex studied for tissue remodeling and extracellular matrix research.",
-    img: "/manus-storage/ghkcu-50mg_e2f27368.png",
-    accentColor: "oklch(0.40 0.16 260)",
-    bgTint: "bg-tint-blue",
-    cardBg: "#c6def0",
+    img: "/manus-storage/studio-ghkcu-50mg_83686b23.png",
+    accentColor: "oklch(0.35 0.10 170)",
+    bgTint: "bg-tint-teal",
+    cardBg: "#e0f0ec",
     cartCode: "ghk-cu-100mg",
   },
   {
@@ -58,10 +58,10 @@ const products = [
     category: "Cellular Research",
     tagline: "Nicotinamide Adenine Dinucleotide",
     description: "Research-grade NAD+ for cellular energy metabolism and longevity pathway studies in laboratory settings.",
-    img: "/manus-storage/nad-500mg_06819761.png",
-    accentColor: "oklch(0.55 0.10 70)",
-    bgTint: "bg-tint-warm",
-    cardBg: "#ffd9ad",
+    img: "/manus-storage/studio-nad-500mg_fca1b8a4.png",
+    accentColor: "oklch(0.50 0.14 50)",
+    bgTint: "bg-tint-orange",
+    cardBg: "#faeae0",
     cartCode: "nad-500mg",
   },
 ];
@@ -256,7 +256,7 @@ export default function Home() {
             {/* GHK-Cu — left, tilted left, float-a */}
             <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-a mr-[-40px]" style={{transform: 'rotate(-8deg)', transformOrigin: 'bottom center'}}>
               <img
-                src="/manus-storage/ghkcu-50mg_e2f27368.png"
+                src="/manus-storage/studio-ghkcu-50mg_83686b23.png"
                 alt="GHK-Cu 50mg research peptide vial"
                 className="w-full object-contain drop-shadow-2xl"
               />
@@ -472,7 +472,7 @@ export default function Home() {
             {/* Right: product vial */}
             <div className="flex items-center justify-center">
               <img
-                src="/manus-storage/ghkcu-50mg_e2f27368.png"
+                src="/manus-storage/studio-ghkcu-50mg_83686b23.png"
                 alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested"
                 className="max-h-80 object-contain drop-shadow-2xl"
               />
