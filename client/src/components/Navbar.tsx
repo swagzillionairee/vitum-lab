@@ -101,16 +101,6 @@ export default function Navbar() {
       {/* ── Promotional marquee banner ────────────────────────────────── */}
       <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden">
         <div className="flex items-center">
-          {/* Countdown timer — left-pinned, only shown during 6am–1pm EST window */}
-          {(() => {
-            const t = getTimeUntilCutoff();
-            return t.showCountdown ? (
-              <div className="flex-shrink-0 flex items-center gap-2 pl-3 pr-4 py-2 border-r border-white/20 bg-[oklch(0.28_0.14_260)]">
-                <CountdownTimer />
-              </div>
-            ) : null;
-          })()}
-
           {/* Scrolling marquee */}
           <div className="flex-1 overflow-hidden relative py-2">
             {/* Fade edges */}
