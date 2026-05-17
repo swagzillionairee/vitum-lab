@@ -1,7 +1,10 @@
 import LegalPage from "@/components/LegalPage";
+import SEO from "@/components/SEO";
 
 export default function TermsOfService() {
   return (
+    <>
+    <SEO title="Terms of Service" description="Vitum Lab terms of service — research use only, ordering conditions, and legal disclaimers." />
     <LegalPage title="Terms of Service" lastUpdated="May 2025">
       <h2>Agreement to Terms</h2>
       <p>
@@ -31,7 +34,7 @@ export default function TermsOfService() {
       <h2>Returns and Refunds</h2>
       <p>
         Due to the nature of research compounds, all sales are final. We do not accept returns. If you receive a damaged, incorrect, or missing item, please contact us within 7 days of delivery at{" "}
-        <a href="mailto:support@vitumlab.com">support@vitumlab.com</a> with your order number and photos of the issue. We will work with you to resolve the matter on a case-by-case basis.
+        <a href="mailto:hello@vitumlab.com">hello@vitumlab.com</a> with your order number and photos of the issue. We will work with you to resolve the matter on a case-by-case basis.
       </p>
 
       <h2>Intellectual Property</h2>
@@ -62,8 +65,9 @@ export default function TermsOfService() {
       <h2>Contact</h2>
       <p>
         Questions about these Terms may be directed to{" "}
-        <a href="mailto:support@vitumlab.com">support@vitumlab.com</a>.
+        <a href="mailto:hello@vitumlab.com">hello@vitumlab.com</a>.
       </p>
     </LegalPage>
+  </>
   );
 }

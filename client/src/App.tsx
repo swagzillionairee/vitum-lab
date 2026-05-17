@@ -16,6 +16,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import CookieConsent from "./components/CookieConsent";
 import CartDrawer from "./components/CartDrawer";
+import BackToTop from "./components/BackToTop";
 import { CartProvider } from "./contexts/CartContext";
 import Home from "./pages/Home";
 import ResearchDisclaimer from "./pages/ResearchDisclaimer";
@@ -91,6 +92,7 @@ function AppLayout() {
         </main>
         <Footer />
         <CookieConsent />
+        <BackToTop />
       </div>
     </>
   );

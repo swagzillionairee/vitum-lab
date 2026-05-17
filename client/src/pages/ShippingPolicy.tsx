@@ -1,7 +1,10 @@
 import LegalPage from "@/components/LegalPage";
+import SEO from "@/components/SEO";
 
 export default function ShippingPolicy() {
   return (
+    <>
+    <SEO title="Shipping & Returns" description="Vitum Lab shipping policy: same-day processing before 1pm EST, USPS Priority Mail, free shipping on orders over $150. US domestic only." />
     <LegalPage title="Shipping Policy" lastUpdated="May 2025">
       <h2>Shipping Method</h2>
       <p>
@@ -49,14 +52,15 @@ export default function ShippingPolicy() {
       <h2>Lost or Damaged Shipments</h2>
       <p>
         If your order arrives damaged or does not arrive within the expected timeframe, please contact us at{" "}
-        <a href="mailto:support@vitumlab.com">support@vitumlab.com</a> within <strong>7 days of the expected delivery date</strong>. Include your order number and, where applicable, photos of the damaged packaging. We will work with you to resolve the issue promptly.
+        <a href="mailto:hello@vitumlab.com">hello@vitumlab.com</a> within <strong>7 days of the expected delivery date</strong>. Include your order number and, where applicable, photos of the damaged packaging. We will work with you to resolve the issue promptly.
       </p>
 
       <h2>Contact</h2>
       <p>
         For shipping-related questions, reach us at{" "}
-        <a href="mailto:support@vitumlab.com">support@vitumlab.com</a>.
+        <a href="mailto:hello@vitumlab.com">hello@vitumlab.com</a>.
       </p>
     </LegalPage>
+  </>
   );
 }

@@ -87,9 +87,16 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
   const { totalItems, openCart } = useCart();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-[oklch(0.91_0.004_260)] shadow-[0_1px_4px_oklch(0.13_0.01_260/0.06)]">
+    <header className={`sticky top-0 z-50 bg-white border-b border-[oklch(0.91_0.004_260)] transition-shadow duration-200 ${scrolled ? "shadow-[0_2px_16px_oklch(0.13_0.01_260/0.12)]" : "shadow-[0_1px_4px_oklch(0.13_0.01_260/0.06)]"}`}>
 
       {/* ── Promotional marquee banner ────────────────────────────────── */}
       <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden">

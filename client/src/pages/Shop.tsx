@@ -15,6 +15,7 @@ import { Link } from "wouter";
 import { FileText, ShieldCheck, Truck, ArrowLeft, ShoppingCart, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { AnimatePresence, motion } from "framer-motion";
+import SEO from "@/components/SEO";
 
 // ─── Full product catalog ─────────────────────────────────────────────────────
 const allProducts = [
@@ -224,6 +225,7 @@ export default function Shop() {
 
   return (
     <div className="min-h-screen bg-[oklch(0.98_0.002_260)]">
+      <SEO title="Shop" description="Browse Vitum Lab's full catalog of research peptides: Retatrutide GLP-3 (R) 10/20/30mg, GHK-Cu 50/100mg, NAD+ 500mg, and BAC Water 10mL. ≥99% purity guaranteed." />
 
       {/* ── Page header ──────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-[oklch(0.91_0.004_260)]">

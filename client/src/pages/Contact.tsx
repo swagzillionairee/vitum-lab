@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { Mail, Clock, ShieldCheck, CheckCircle2 } from "lucide-react";
+import SEO from "@/components/SEO";
 
 export default function Contact() {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
@@ -28,6 +29,8 @@ export default function Contact() {
   };
 
   return (
+    <>
+    <SEO title="Contact" description="Get in touch with the Vitum Lab team. Email us at hello@vitumlab.com for order support, research inquiries, or wholesale questions." />
     <div className="min-h-screen bg-white">
 
       {/* ── Page header ──────────────────────────────────────────────── */}
@@ -186,5 +189,6 @@ export default function Contact() {
         </div>
       </div>
     </div>
+  </>
   );
 }

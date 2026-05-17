@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
+import SEO from "@/components/SEO";
 
 const faqCategories = [
   {
@@ -141,6 +142,7 @@ export default function FAQ() {
 
   return (
     <div className="min-h-screen bg-white">
+      <SEO title="FAQ" description="Frequently asked questions about Vitum Lab peptides, ordering, shipping, reconstitution, and storage." />
 
       {/* ── Page header ──────────────────────────────────────────────── */}
       <div className="bg-[oklch(0.14_0.03_260)] text-white">

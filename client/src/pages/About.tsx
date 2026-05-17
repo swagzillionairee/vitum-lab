@@ -6,6 +6,7 @@
 
 import { Link } from "wouter";
 import { ArrowRight, ShieldCheck, FlaskConical, Truck, Award } from "lucide-react";
+import SEO from "@/components/SEO";
 
 const values = [
   {
@@ -39,6 +40,8 @@ const stats = [
 
 export default function About() {
   return (
+    <>
+    <SEO title="About" description="Learn about Vitum Lab's mission to supply research-grade peptides with verified purity, transparent COAs, and next-day US shipping." />
     <div className="min-h-screen bg-white">
 
       {/* ── Page header ──────────────────────────────────────────────── */}
@@ -150,5 +153,6 @@ export default function About() {
         </div>
       </div>
     </div>
+  </>
   );
 }

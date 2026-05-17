@@ -9,6 +9,8 @@ import { Link, useRoute } from "wouter";
 import { ArrowLeft, FileText, Check, ChevronDown, ChevronUp, ShieldCheck, Truck, FlaskConical } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { getProductBySlug } from "@/lib/products";
+import ReconstitutionCalculator from "@/components/ReconstitutionCalculator";
+import SEO from "@/components/SEO";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/shop/:slug");
@@ -49,6 +51,10 @@ export default function ProductDetail() {
 
   return (
     <div className="min-h-screen bg-white">
+      <SEO
+        title={product.name}
+        description={`${product.fullName} — ${product.tagline}. ≥99% purity, third-party COA tested. For research use only.`}
+      />
 
       {/* ── Breadcrumb ───────────────────────────────────────────────── */}
       <div className="border-b border-[oklch(0.93_0.004_260)]">
@@ -250,6 +256,17 @@ export default function ProductDetail() {
           </div>
         </div>
       </div>
+
+      {/* ── Reconstitution Calculator ─────────────────────────────────── */}
+      {product.reconstitutionNote && (
+        <section className="py-12 bg-[oklch(0.975_0.003_260)]">
+          <div className="container max-w-3xl">
+            <ReconstitutionCalculator
+              peptideMg={parseFloat(selected.dose.replace(/[^0-9.]/g, "")) || 10}
+            />
+          </div>
+        </section>
+      )}
     </div>
   );
 }

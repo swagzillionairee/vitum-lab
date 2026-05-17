@@ -15,6 +15,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { ArrowRight, CheckCircle2, Shield, FileText, ChevronDown, ChevronUp, FlaskConical, Truck, Users, BookOpen, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import SEO from "@/components/SEO";
 
 // ─── Product data with variants ───────────────────────────────────────────────
 const retatrutideVariants = [
@@ -318,6 +319,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
+      <SEO description="Vitum Lab — Research grade peptides including Retatrutide GLP-3 (R), GHK-Cu, and NAD+. ≥99% purity, third-party COA tested. Free shipping on orders over $150." />
 
       {/* ═══════════════════════════════════════════════════════════════
           1. HERO — split layout
@@ -526,6 +528,7 @@ export default function Home() {
             <div><p className="text-[2.5rem] font-bold">99%+</p><p className="text-[0.8125rem] text-white/60 uppercase tracking-widest">Purity Guaranteed</p></div>
             <div><p className="text-[2.5rem] font-bold">5</p><p className="text-[0.8125rem] text-white/60 uppercase tracking-widest">Quality Checks</p></div>
             <div><p className="text-[2.5rem] font-bold">100%</p><p className="text-[0.8125rem] text-white/60 uppercase tracking-widest">US Verified</p></div>
+            <div><p className="text-[2.5rem] font-bold">1,000+</p><p className="text-[0.8125rem] text-white/60 uppercase tracking-widest">Orders Shipped</p></div>
           </div>
           <h2 className="text-[2rem] font-bold mb-10">Quality you can verify, not just trust</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">

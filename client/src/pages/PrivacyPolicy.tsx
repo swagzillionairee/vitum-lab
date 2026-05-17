@@ -1,7 +1,10 @@
 import LegalPage from "@/components/LegalPage";
+import SEO from "@/components/SEO";
 
 export default function PrivacyPolicy() {
   return (
+    <>
+    <SEO title="Privacy Policy" description="Vitum Lab privacy policy — how we collect, use, and protect your personal information." />
     <LegalPage title="Privacy Policy" lastUpdated="May 2025">
       <h2>Overview</h2>
       <p>
@@ -45,7 +48,7 @@ export default function PrivacyPolicy() {
       <h2>Your Rights</h2>
       <p>
         Depending on your location, you may have the right to access, correct, or delete the personal data we hold about you, or to object to or restrict certain processing. To exercise these rights, please contact us at{" "}
-        <a href="mailto:support@vitumlab.com">support@vitumlab.com</a>.
+        <a href="mailto:hello@vitumlab.com">hello@vitumlab.com</a>.
       </p>
 
       <h2>Security</h2>
@@ -66,8 +69,9 @@ export default function PrivacyPolicy() {
       <h2>Contact</h2>
       <p>
         For privacy-related questions or requests, contact us at{" "}
-        <a href="mailto:support@vitumlab.com">support@vitumlab.com</a>.
+        <a href="mailto:hello@vitumlab.com">hello@vitumlab.com</a>.
       </p>
     </LegalPage>
+  </>
   );
 }

@@ -8,9 +8,9 @@
  * - Checkout via Foxy.io multi-item cart URL
  */
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
+import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, ChevronDown, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 
 const FOXY_STORE = "vitum-lab.foxycart.com";
@@ -34,6 +34,18 @@ function buildFoxyUrl(items: { name: string; dose: string; price: number; cartCo
 export default function CartDrawer() {
   const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, totalItems } = useCart();
   const drawerRef = useRef<HTMLDivElement>(null);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoApplied, setPromoApplied] = useState(false);
+  const [promoError, setPromoError] = useState(false);
+
+  const handleApplyPromo = () => {
+    if (!promoCode.trim()) return;
+    // Placeholder: in production this would validate against the backend/Foxy
+    setPromoApplied(false);
+    setPromoError(true);
+    setTimeout(() => setPromoError(false), 2500);
+  };
 
   // Close on Escape
   useEffect(() => {
@@ -248,6 +260,45 @@ export default function CartDrawer() {
                 <p className="text-[0.6875rem] text-[oklch(0.65_0.01_260)]">
                   Taxes and final shipping calculated at checkout.
                 </p>
+
+                {/* Promo code */}
+                <div>
+                  <button
+                    onClick={() => setPromoOpen(!promoOpen)}
+                    className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline"
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    Have a promo code?
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${promoOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {promoOpen && (
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        type="text"
+                        value={promoCode}
+                        onChange={(e) => { setPromoCode(e.target.value); setPromoError(false); setPromoApplied(false); }}
+                        placeholder="Enter code"
+                        className="flex-1 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2 text-[0.8125rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                      />
+                      <button
+                        onClick={handleApplyPromo}
+                        className="flex-shrink-0 px-4 py-2 rounded-lg bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors active:scale-95"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                  {promoApplied && (
+                    <p className="mt-1.5 text-[0.75rem] text-[oklch(0.35_0.14_155)] flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Promo code applied!
+                    </p>
+                  )}
+                  {promoError && (
+                    <p className="mt-1.5 text-[0.75rem] text-red-500">
+                      Invalid or expired promo code.
+                    </p>
+                  )}
+                </div>
 
                 {/* Checkout button */}
                 <a
