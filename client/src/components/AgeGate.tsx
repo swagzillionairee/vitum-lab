@@ -32,7 +32,7 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
       {/* Background: hero image with dark overlay */}
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url('/manus-storage/agegate-background_67b76add.png')" }}
+        style={{ backgroundImage: "url(/Researcher%20verification%20background%20image.png)");
       />
       <div className="absolute inset-0 bg-[oklch(0.18_0.04_255)]/80" />
 
@@ -45,7 +45,7 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
           {/* Logo */}
           <div className="mb-8 flex justify-center">
             <img
-              src="/manus-storage/vitumlablogoblack_3bc5cca3.png"
+              src="/vitum%20lab%20logo%20black.png"
               alt="Vitum Lab"
               className="h-48 w-auto"
             />

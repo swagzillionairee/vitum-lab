@@ -19,14 +19,14 @@ import SEO from "@/components/SEO";
 
 // ─── Product data with variants ───────────────────────────────────────────────
 const retatrutideVariants = [
-  { dose: "10 MG", lot: "A001", price: 129, img: "/manus-storage/studio-glp3-10mg_e3947ee3.png", cartCode: "retatrutide-10mg", id: "retatrutide-10mg" },
-  { dose: "20 MG", lot: "A003", price: 189, img: "/manus-storage/studio-glp3-20mg_f5105426.png", cartCode: "retatrutide-20mg", id: "retatrutide-20mg" },
-  { dose: "30 MG", lot: "A007", price: 249, img: "/manus-storage/studio-glp3-30mg_192ac78d.png", cartCode: "retatrutide-30mg", id: "retatrutide-30mg" },
+  { dose: "10 MG", lot: "A001", price: 129, img: "/GLP-3%20(R)%2010MG%20PRODUCT%20PIC.png.png", cartCode: "retatrutide-10mg", id: "retatrutide-10mg" },
+  { dose: "20 MG", lot: "A003", price: 189, img: "/GLP-3%20(R)%2020MG%20PRODUCT%20PIC.png", cartCode: "retatrutide-20mg", id: "retatrutide-20mg" },
+  { dose: "30 MG", lot: "A007", price: 249, img: "/GLP-3%20(R)%2030MG%20PRODUCT%20PIC.png.png", cartCode: "retatrutide-30mg", id: "retatrutide-30mg" },
 ];
 
 const ghkcuVariants = [
-  { dose: "50 MG", lot: "B031", price: 69, img: "/manus-storage/studio-ghkcu-50mg_83686b23.png", cartCode: "ghk-cu-50mg", id: "ghkcu-50mg" },
-  { dose: "100 MG", lot: "B045", price: 109, img: "/manus-storage/studio-ghkcu-100mg_180c2bfb.png", cartCode: "ghk-cu-100mg", id: "ghkcu-100mg" },
+  { dose: "50 MG", lot: "B031", price: 69, img: "/GHKCU%2050%20MG%20PRODUCT%20PIC.png", cartCode: "ghk-cu-50mg", id: "ghkcu-50mg" },
+  { dose: "100 MG", lot: "B045", price: 109, img: "/GHKCU%20100%20MG%20PRODUCT%20PIC.png", cartCode: "ghk-cu-100mg", id: "ghkcu-100mg" },
 ];
 
 // Static products (no variant selector needed)
@@ -40,7 +40,7 @@ const staticProducts = [
     category: "Cellular Research",
     tagline: "Nicotinamide Adenine Dinucleotide",
     description: "Research-grade NAD+ for cellular energy metabolism and longevity pathway studies in laboratory settings.",
-    img: "/manus-storage/studio-nad-500mg_fca1b8a4.png",
+    img: "/NAD%2B%20500MG%20PRODUCT%20PIC.png",
     accentColor: "oklch(0.50 0.14 50)",
     bgTint: "bg-tint-orange",
     cardBg: "#faeae0",
@@ -56,7 +56,7 @@ const staticProducts = [
     category: "Reconstitution",
     tagline: "Bacteriostatic Water 0.9% Benzyl Alcohol",
     description: "USP-grade bacteriostatic water with 0.9% benzyl alcohol for safe multi-dose reconstitution of lyophilized research peptides.",
-    img: "/manus-storage/studio-bac-water-10ml_21faee3c.png",
+    img: "/BAC%20WATER%2010ML%20PRODUCT%20PIC.png",
     accentColor: "oklch(0.35 0.10 220)",
     bgTint: "bg-tint-blue",
     cardBg: "#e0eaf5",
@@ -368,17 +368,17 @@ export default function Home() {
           <div className="relative flex items-end justify-center px-2 w-full max-w-[780px] mb-[-60px]">
             {/* Left vial */}
             <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-a mr-[-40px]" style={{transform: 'rotate(-8deg)', transformOrigin: 'bottom center'}}>
-              <img src="/manus-storage/ghkcu-50mg_e2f27368.png" alt="GHK-Cu 50mg research peptide vial" className="w-full object-contain" />
+              <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu 50mg research peptide vial" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/18 blur-md pointer-events-none" />
             </div>
             {/* Centre vial */}
             <div className="relative flex-shrink-0 w-[46%] z-20 vial-float-b">
-              <img src="/manus-storage/glp3-20mg_781f3c53.png" alt="GLP-3 (R) 20mg research peptide vial" className="w-full object-contain" />
+              <img src="/GLP3%2020mg%20vial%20only.png" alt="GLP-3 (R) 20mg research peptide vial" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/20 blur-md pointer-events-none" />
             </div>
             {/* Right vial */}
             <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-c ml-[-40px]" style={{transform: 'rotate(8deg)', transformOrigin: 'bottom center'}}>
-              <img src="/manus-storage/nad-500mg_06819761.png" alt="NAD+ 500mg research peptide vial" className="w-full object-contain" />
+              <img src="/nad%2B%20500mg%20vial%20only.png" alt="NAD+ 500mg research peptide vial" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/18 blur-md pointer-events-none" />
             </div>
           </div>
@@ -559,7 +559,7 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center justify-center">
-              <img src="/manus-storage/studio-ghkcu-50mg_83686b23.png" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" className="max-h-80 object-contain drop-shadow-2xl" />
+              <img src="/GHKCU%2050%20MG%20PRODUCT%20PIC.png" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" className="max-h-80 object-contain drop-shadow-2xl" />
             </div>
           </div>
         </div>

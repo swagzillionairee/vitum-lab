@@ -25,7 +25,7 @@ export default function Footer() {
           {/* Brand column */}
           <div className="lg:col-span-1">
             <img
-              src="/manus-storage/vitum-lab-logo_e66f6f91.png"
+              src="/vitum%20lab%20logo%20black.png"
               alt="Vitum Lab"
               className="h-8 w-auto mb-4 brightness-0 invert"
             />

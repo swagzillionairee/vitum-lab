@@ -133,7 +133,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 flex-shrink-0">
             <img
-              src="/manus-storage/vitumlablogoblack_3bc5cca3.png"
+              src="/vitum%20lab%20logo%20black.png"
               alt="Vitum Lab"
               className="h-14 w-auto"
             />
