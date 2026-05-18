@@ -319,7 +319,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
-      <SEO description="Vitum Lab — Research grade peptides including Retatrutide GLP-3 (R), GHK-Cu, and NAD+. ≥99% purity, third-party COA tested. Free shipping on orders over $150." />
+      <SEO description="Vitum Lab — Research grade peptides including GLP-3 (R), GHK-Cu, and NAD+. ≥99% purity, third-party COA tested. Free shipping on orders over $150." />
 
       {/* ═══════════════════════════════════════════════════════════════
           1. HERO — split layout
@@ -436,7 +436,7 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {/* Retatrutide — dose selector */}
             <DoseSelectorCard
-              name="Retatrutide GLP-3 (R)"
+              name="GLP-3 (R)"
               category="Metabolic Research"
               description="GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models."
               cardBg="#f5e8e8"

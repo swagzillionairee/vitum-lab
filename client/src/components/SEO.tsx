@@ -14,7 +14,7 @@ interface SEOProps {
 
 const SITE_NAME = "Vitum Lab";
 const DEFAULT_DESCRIPTION =
-  "Vitum Lab — Research grade peptides including Retatrutide GLP-3, GHK-Cu, and NAD+. ≥99% purity, third-party tested, COA with every order. For research use only.";
+  "Vitum Lab — Research grade peptides including GLP-3 (R), GHK-Cu, and NAD+. ≥99% purity, third-party tested, COA with every order. For research use only.";
 
 export default function SEO({ title, description, canonical }: SEOProps) {
   const fullTitle = title ? `${title} | ${SITE_NAME}` : `${SITE_NAME} — Research Grade Peptides`;
