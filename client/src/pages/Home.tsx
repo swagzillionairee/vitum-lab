@@ -365,19 +365,19 @@ export default function Home() {
         </div>
         {/* Right: product vials on light background */}
         <div className="relative order-1 lg:order-2 flex items-center justify-center overflow-hidden z-0" style={{backgroundColor: '#f0f4f0'}}>
-          <div className="relative flex items-end justify-center w-full" style={{marginBottom: '-8%'}}>
+          <div className="relative flex items-end justify-center w-full px-6" style={{marginBottom: '-5%'}}>
             {/* Left vial */}
-            <div className="relative flex-shrink-0 w-[76%] z-10 vial-float-a mr-[-180px]" style={{transform: 'rotate(-6deg)', transformOrigin: 'bottom center'}}>
+            <div className="relative flex-shrink-0 w-[48%] z-10 vial-float-a mr-[-110px]" style={{transform: 'rotate(-6deg)', transformOrigin: 'bottom center'}}>
               <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu 50mg research peptide vial" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/18 blur-lg pointer-events-none" />
             </div>
             {/* Centre vial */}
-            <div className="relative flex-shrink-0 w-[100%] z-20 vial-float-b">
+            <div className="relative flex-shrink-0 w-[62%] z-20 vial-float-b">
               <img src="/GLP3%2020mg%20vial%20only.png" alt="GLP-3 (R) 20mg research peptide vial" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/20 blur-lg pointer-events-none" />
             </div>
             {/* Right vial */}
-            <div className="relative flex-shrink-0 w-[76%] z-10 vial-float-c ml-[-180px]" style={{transform: 'rotate(6deg)', transformOrigin: 'bottom center'}}>
+            <div className="relative flex-shrink-0 w-[48%] z-10 vial-float-c ml-[-110px]" style={{transform: 'rotate(6deg)', transformOrigin: 'bottom center'}}>
               <img src="/nad%2B%20500mg%20vial%20only.png" alt="NAD+ 500mg research peptide vial" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/18 blur-lg pointer-events-none" />
             </div>
@@ -531,7 +531,7 @@ export default function Home() {
             <div><p className="text-[2.5rem] font-bold">1,000+</p><p className="text-[0.8125rem] text-white/60 uppercase tracking-widest">Orders Shipped</p></div>
           </div>
           <h2 className="text-[2rem] font-bold mb-10">Quality you can verify, not just trust</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-stretch">
             <div>
               <div className="flex flex-wrap gap-2 mb-8">
                 {qualityTabs.map((t, i) => (
@@ -558,8 +558,8 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-center">
-              <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" className="max-h-[640px] object-contain drop-shadow-2xl" />
+            <div className="flex items-center justify-center h-full">
+              <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" className="h-full max-h-full w-auto object-contain drop-shadow-2xl" />
             </div>
           </div>
         </div>
