@@ -522,7 +522,11 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════════════════
           5. QUALITY PROOF — dark section, tabbed
       ═══════════════════════════════════════════════════════════════ */}
-      <section ref={qualityRef} className="reveal py-20 bg-dark-navy text-white">
+      <section ref={qualityRef} className="reveal relative py-20 bg-dark-navy text-white overflow-hidden">
+        {/* Vial: absolutely spans full section height, top-aligned with section padding */}
+        <div className="hidden lg:flex absolute right-0 top-0 bottom-0 w-[45%] items-start justify-center py-20 pointer-events-none">
+          <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" className="h-full w-auto object-contain drop-shadow-2xl" />
+        </div>
         <div className="container">
           <div className="flex flex-wrap gap-8 mb-12">
             <div><p className="text-[2.5rem] font-bold">99%+</p><p className="text-[0.8125rem] text-white/60 uppercase tracking-widest">Purity Guaranteed</p></div>
@@ -531,35 +535,30 @@ export default function Home() {
             <div><p className="text-[2.5rem] font-bold">1,000+</p><p className="text-[0.8125rem] text-white/60 uppercase tracking-widest">Orders Shipped</p></div>
           </div>
           <h2 className="text-[2rem] font-bold mb-10">Quality you can verify, not just trust</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-stretch">
-            <div>
-              <div className="flex flex-wrap gap-2 mb-8">
-                {qualityTabs.map((t, i) => (
-                  <button key={t.label} onClick={() => setActiveTab(i)}
-                    className={`px-4 py-2 rounded-full text-[0.8125rem] font-semibold transition-colors ${activeTab === i ? "bg-white text-[oklch(0.13_0.01_260)]" : "bg-white/10 text-white/70 hover:bg-white/20"}`}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              <div key={activeTab} className="space-y-3">
-                <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-white/50">{qualityTabs[activeTab].method}</p>
-                <h3 className="text-[1.5rem] font-bold">{qualityTabs[activeTab].headline}</h3>
-                <p className="text-[0.9375rem] text-white/75 leading-relaxed">{qualityTabs[activeTab].body}</p>
-                <div className="flex items-center gap-3 pt-2">
-                  <div className="bg-white/10 rounded-lg px-4 py-2.5">
-                    <p className="text-[0.875rem] font-bold">{qualityTabs[activeTab].badge}</p>
-                    <p className="text-[0.6875rem] text-white/60">{qualityTabs[activeTab].badgeSub}</p>
-                  </div>
-                </div>
-                <div className="pt-4">
-                  <Link href="/shop" className="btn-primary bg-white text-[oklch(0.13_0.01_260)] hover:bg-white/90">
-                    Shop Now <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              </div>
+          <div className="lg:w-[55%]">
+            <div className="flex flex-wrap gap-2 mb-8">
+              {qualityTabs.map((t, i) => (
+                <button key={t.label} onClick={() => setActiveTab(i)}
+                  className={`px-4 py-2 rounded-full text-[0.8125rem] font-semibold transition-colors ${activeTab === i ? "bg-white text-[oklch(0.13_0.01_260)]" : "bg-white/10 text-white/70 hover:bg-white/20"}`}>
+                  {t.label}
+                </button>
+              ))}
             </div>
-            <div className="flex items-start justify-center h-full">
-              <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" className="h-full max-h-full w-auto object-contain drop-shadow-2xl" />
+            <div key={activeTab} className="space-y-3">
+              <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-white/50">{qualityTabs[activeTab].method}</p>
+              <h3 className="text-[1.5rem] font-bold">{qualityTabs[activeTab].headline}</h3>
+              <p className="text-[0.9375rem] text-white/75 leading-relaxed">{qualityTabs[activeTab].body}</p>
+              <div className="flex items-center gap-3 pt-2">
+                <div className="bg-white/10 rounded-lg px-4 py-2.5">
+                  <p className="text-[0.875rem] font-bold">{qualityTabs[activeTab].badge}</p>
+                  <p className="text-[0.6875rem] text-white/60">{qualityTabs[activeTab].badgeSub}</p>
+                </div>
+              </div>
+              <div className="pt-4">
+                <Link href="/shop" className="btn-primary bg-white text-[oklch(0.13_0.01_260)] hover:bg-white/90">
+                  Shop Now <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
             </div>
           </div>
         </div>
