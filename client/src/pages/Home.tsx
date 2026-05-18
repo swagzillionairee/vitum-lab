@@ -324,7 +324,7 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════════════════
           1. HERO — split layout
       ═══════════════════════════════════════════════════════════════ */}
-      <section className="min-h-[88vh] grid grid-cols-1 lg:grid-cols-2">
+      <section className="min-h-[88vh] grid grid-cols-1 lg:grid-cols-2 overflow-x-clip">
         {/* Left: text + CTAs */}
         <div ref={heroRef} className="reveal flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-20 py-20 lg:py-0 order-2 lg:order-1">
           <div className="max-w-[520px]">
@@ -364,7 +364,7 @@ export default function Home() {
           </div>
         </div>
         {/* Right: product vials on light background */}
-        <div className="relative order-1 lg:order-2 flex items-center justify-center overflow-hidden z-0" style={{backgroundColor: '#f0f4f0'}}>
+        <div className="relative order-1 lg:order-2 flex items-center justify-center overflow-visible lg:overflow-hidden z-0" style={{backgroundColor: '#f0f4f0'}}>
           <div className="relative flex items-end justify-center w-full px-6" style={{marginBottom: '-5%'}}>
             {/* Left vial */}
             <div className="relative flex-shrink-0 w-[48%] z-10 vial-float-a mr-[-55px] lg:mr-[-195px]" style={{transform: 'rotate(-6deg)', transformOrigin: 'bottom center'}}>
