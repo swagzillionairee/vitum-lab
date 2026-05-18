@@ -118,7 +118,7 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
           {/* Syringe visual */}
           <div className="flex flex-col items-center gap-2 flex-shrink-0">
             <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)]">
-              U-100 Syringe
+              U-100 / 1mL / 1cc
             </p>
             <svg
               width="116"
@@ -223,7 +223,7 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
               <path d={`M55 ${barrelBottom + 8} L58 ${barrelBottom + 22} L61 ${barrelBottom + 8} Z`} fill="oklch(0.70 0.01 260)" />
             </svg>
             <p className="text-[0.6875rem] text-[oklch(0.60_0.01_260)] text-center leading-tight max-w-[90px]">
-              Units on U-100 insulin syringe
+              Units on U-100 / 1mL / 1cc syringe
             </p>
           </div>
         </div>
