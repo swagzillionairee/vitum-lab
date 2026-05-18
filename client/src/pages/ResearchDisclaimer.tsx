@@ -169,10 +169,10 @@ export default function ResearchDisclaimer() {
             </div>
           </div>
           <a
-            href="mailto:support@vitumlab.com"
+            href="mailto:hello@vitumlab.com"
             className="inline-flex items-center gap-2 bg-white text-[oklch(0.13_0.01_260)] font-semibold text-sm px-5 py-2.5 rounded-full hover:bg-white/90 transition-colors whitespace-nowrap"
           >
-            support@vitumlab.com
+            hello@vitumlab.com
           </a>
         </div>
 

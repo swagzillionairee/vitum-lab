@@ -16,54 +16,55 @@ import { Link } from "wouter";
 import { ArrowRight, CheckCircle2, Shield, FileText, ChevronDown, ChevronUp, FlaskConical, Truck, Users, BookOpen, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import SEO from "@/components/SEO";
+import { products } from "@/lib/products";
 
-// ─── Product data with variants ───────────────────────────────────────────────
-const retatrutideVariants = [
-  { dose: "10 MG", lot: "A003", price: 129, img: "/GLP-3%20(R)%2010MG%20PRODUCT%20PIC.png.png", cartCode: "retatrutide-10mg", id: "retatrutide-10mg" },
-  { dose: "20 MG", lot: "A003", price: 189, img: "/GLP-3%20(R)%2020MG%20PRODUCT%20PIC.png", cartCode: "retatrutide-20mg", id: "retatrutide-20mg" },
-  { dose: "30 MG", lot: "A003", price: 249, img: "/GLP-3%20(R)%2030MG%20PRODUCT%20PIC.png.png", cartCode: "retatrutide-30mg", id: "retatrutide-30mg" },
-];
+// ─── Product data derived from shared catalog ──────────────────────────────────
+const retatrutideProduct = products.find((p) => p.slug === "retatrutide")!;
+const retatrutideVariants = retatrutideProduct.variants.map((v) => ({
+  dose: v.dose,
+  lot: v.lot,
+  price: v.price,
+  img: v.img,
+  cartCode: v.cartCode,
+  id: v.id,
+}));
 
-const ghkcuVariants = [
-  { dose: "50 MG", lot: "B031", price: 69, img: "/GHKCU%2050%20MG%20PRODUCT%20PIC.png", cartCode: "ghk-cu-50mg", id: "ghkcu-50mg" },
-  { dose: "100 MG", lot: "B045", price: 109, img: "/GHKCU%20100%20MG%20PRODUCT%20PIC.png", cartCode: "ghk-cu-100mg", id: "ghkcu-100mg" },
-];
+const ghkcuProduct = products.find((p) => p.slug === "ghkcu")!;
+const ghkcuVariants = ghkcuProduct.variants.map((v) => ({
+  dose: v.dose,
+  lot: v.lot,
+  price: v.price,
+  img: v.img,
+  cartCode: v.cartCode,
+  id: v.id,
+}));
 
-// Static products (no variant selector needed)
-const staticProducts = [
-  {
-    id: "nad",
-    name: "NAD+",
-    dose: "500 MG",
-    lot: "D006",
-    price: 129,
-    category: "Cellular Research",
-    tagline: "Nicotinamide Adenine Dinucleotide",
-    description: "Research-grade NAD+ for cellular energy metabolism and longevity pathway studies in laboratory settings.",
-    img: "/NAD%2B%20500MG%20PRODUCT%20PIC.png",
-    accentColor: "oklch(0.50 0.14 50)",
-    bgTint: "bg-tint-orange",
-    cardBg: "#faeae0",
-    cartCode: "nad-500mg",
-    badge: "New" as string | null,
-  },
-  {
-    id: "bacwater",
-    name: "BAC Water",
-    dose: "10 ML",
-    lot: "C025",
-    price: 12,
-    category: "Reconstitution",
-    tagline: "Bacteriostatic Water 0.9% Benzyl Alcohol",
-    description: "USP-grade bacteriostatic water with 0.9% benzyl alcohol for safe multi-dose reconstitution of lyophilized research peptides.",
-    img: "/BAC%20WATER%2010ML%20PRODUCT%20PIC.png",
-    accentColor: "oklch(0.35 0.10 220)",
-    bgTint: "bg-tint-blue",
-    cardBg: "#e0eaf5",
-    cartCode: "bac-water-10ml",
-    badge: null as string | null,
-  },
-];
+// Static products (no variant selector needed) — NAD+ and BAC Water
+const STATIC_EXTRA: Record<string, { accentColor: string; bgTint: string }> = {
+  nad: { accentColor: "oklch(0.50 0.14 50)", bgTint: "bg-tint-orange" },
+  bacwater: { accentColor: "oklch(0.35 0.10 220)", bgTint: "bg-tint-blue" },
+};
+
+const staticProducts = ["nad", "bacwater"].map((slug) => {
+  const p = products.find((x) => x.slug === slug)!;
+  const v = p.variants[0];
+  return {
+    id: slug,
+    name: p.name,
+    dose: v.dose,
+    lot: v.lot,
+    price: v.price,
+    category: p.category,
+    tagline: p.tagline,
+    description: p.description,
+    img: v.img,
+    accentColor: STATIC_EXTRA[slug].accentColor,
+    bgTint: STATIC_EXTRA[slug].bgTint,
+    cardBg: p.cardBg,
+    cartCode: v.cartCode,
+    badge: p.badge as string | null ?? null,
+  };
+});
 
 // ─── Quality tabs ─────────────────────────────────────────────────────────────
 const qualityTabs = [
