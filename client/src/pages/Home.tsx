@@ -364,22 +364,22 @@ export default function Home() {
           </div>
         </div>
         {/* Right: product vials on light background */}
-        <div className="relative order-1 lg:order-2 flex items-end justify-center pb-10 pt-10 overflow-hidden z-0" style={{backgroundColor: '#f0f4f0'}}>
-          <div className="relative flex items-end justify-center px-10 w-full max-w-[720px]">
+        <div className="relative order-1 lg:order-2 flex items-center justify-center overflow-hidden z-0" style={{backgroundColor: '#f0f4f0'}}>
+          <div className="relative flex items-end justify-center w-full" style={{marginBottom: '-8%'}}>
             {/* Left vial */}
-            <div className="relative flex-shrink-0 w-[38%] z-10 vial-float-a mr-[-90px]" style={{transform: 'rotate(-6deg)', transformOrigin: 'bottom center'}}>
+            <div className="relative flex-shrink-0 w-[76%] z-10 vial-float-a mr-[-180px]" style={{transform: 'rotate(-6deg)', transformOrigin: 'bottom center'}}>
               <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu 50mg research peptide vial" className="w-full object-contain" />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/18 blur-md pointer-events-none" />
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/18 blur-lg pointer-events-none" />
             </div>
             {/* Centre vial */}
-            <div className="relative flex-shrink-0 w-[50%] z-20 vial-float-b">
+            <div className="relative flex-shrink-0 w-[100%] z-20 vial-float-b">
               <img src="/GLP3%2020mg%20vial%20only.png" alt="GLP-3 (R) 20mg research peptide vial" className="w-full object-contain" />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/20 blur-md pointer-events-none" />
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/20 blur-lg pointer-events-none" />
             </div>
             {/* Right vial */}
-            <div className="relative flex-shrink-0 w-[38%] z-10 vial-float-c ml-[-90px]" style={{transform: 'rotate(6deg)', transformOrigin: 'bottom center'}}>
+            <div className="relative flex-shrink-0 w-[76%] z-10 vial-float-c ml-[-180px]" style={{transform: 'rotate(6deg)', transformOrigin: 'bottom center'}}>
               <img src="/nad%2B%20500mg%20vial%20only.png" alt="NAD+ 500mg research peptide vial" className="w-full object-contain" />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/18 blur-md pointer-events-none" />
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/18 blur-lg pointer-events-none" />
             </div>
           </div>
         </div>
