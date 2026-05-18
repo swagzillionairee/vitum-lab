@@ -21,7 +21,7 @@ import SEO from "@/components/SEO";
 const allProducts = [
   {
     id: "retatrutide-10mg",
-    name: "Retatrutide GLP-3 (R)",
+    name: "GLP-3 (R)",
     dose: "10 MG",
     lot: "A003",
     price: 129,
@@ -37,7 +37,7 @@ const allProducts = [
   },
   {
     id: "retatrutide-20mg",
-    name: "Retatrutide GLP-3 (R)",
+    name: "GLP-3 (R)",
     dose: "20 MG",
     lot: "A003",
     price: 189,
@@ -53,7 +53,7 @@ const allProducts = [
   },
   {
     id: "retatrutide-30mg",
-    name: "Retatrutide GLP-3 (R)",
+    name: "GLP-3 (R)",
     dose: "30 MG",
     lot: "A003",
     price: 249,
@@ -225,7 +225,7 @@ export default function Shop() {
 
   return (
     <div className="min-h-screen bg-[oklch(0.98_0.002_260)]">
-      <SEO title="Shop" description="Browse Vitum Lab's full catalog of research peptides: Retatrutide GLP-3 (R) 10/20/30mg, GHK-Cu 50/100mg, NAD+ 500mg, and BAC Water 10mL. ≥99% purity guaranteed." />
+      <SEO title="Shop" description="Browse Vitum Lab's full catalog of research peptides: GLP-3 (R) 10/20/30mg, GHK-Cu 50/100mg, NAD+ 500mg, and BAC Water 10mL. ≥99% purity guaranteed." />
 
       {/* ── Page header ──────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-[oklch(0.91_0.004_260)]">

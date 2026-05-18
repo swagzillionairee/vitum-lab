@@ -31,14 +31,14 @@ export interface Product {
 export const products: Product[] = [
   {
     slug: "retatrutide",
-    name: "Retatrutide GLP-3 (R)",
-    fullName: "Retatrutide (GLP-1/GIP/Glucagon Triple Receptor Agonist)",
+    name: "GLP-3 (R)",
+    fullName: "GLP-3 (R) (GLP-1/GIP/Glucagon Triple Receptor Agonist)",
     category: "Metabolic Research",
     tagline: "Triple receptor agonist for metabolic pathway research",
     description:
       "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models.",
     longDescription:
-      "Retatrutide is a novel triple receptor agonist targeting GLP-1, GIP, and glucagon receptors simultaneously. It has attracted significant research interest for its potential role in metabolic regulation, energy homeostasis, and adipose tissue dynamics. Available in three doses to support a range of preclinical study designs.",
+      "GLP-3 (R) is a novel triple receptor agonist targeting GLP-1, GIP, and glucagon receptors simultaneously. It has attracted significant research interest for its potential role in metabolic regulation, energy homeostasis, and adipose tissue dynamics. Available in three doses to support a range of preclinical study designs.",
     cardBg: "#f5e8e8",
     badge: "Best Seller",
     variants: [
