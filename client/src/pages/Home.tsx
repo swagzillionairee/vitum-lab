@@ -117,7 +117,7 @@ const faqs = [
   },
   {
     q: "How should I store peptides?",
-    a: "Lyophilized peptides should be stored at −20°C (freezer) for long-term storage. Once reconstituted, store at 4°C (refrigerator) and use within 28 days. Avoid repeated freeze-thaw cycles.",
+    a: "Lyophilized peptides should be stored at −20°C / −4°F (freezer) for long-term storage. Once reconstituted, store at 4°C / 39°F (refrigerator) and use within 28 days. Avoid repeated freeze-thaw cycles.",
   },
 ];
 
