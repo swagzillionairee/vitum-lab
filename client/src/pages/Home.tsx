@@ -364,20 +364,20 @@ export default function Home() {
           </div>
         </div>
         {/* Right: product vials on light background */}
-        <div className="relative order-1 lg:order-2 flex items-end justify-center pb-0 pt-4 overflow-visible z-10" style={{backgroundColor: '#f0f4f0'}}>
-          <div className="relative flex items-end justify-center px-2 w-full max-w-[780px] mb-[-60px]">
+        <div className="relative order-1 lg:order-2 flex items-end justify-center pb-10 pt-10 overflow-hidden z-0" style={{backgroundColor: '#f0f4f0'}}>
+          <div className="relative flex items-end justify-center px-2 w-full max-w-[820px]">
             {/* Left vial */}
-            <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-a mr-[-40px]" style={{transform: 'rotate(-8deg)', transformOrigin: 'bottom center'}}>
+            <div className="relative flex-shrink-0 w-[44%] z-10 vial-float-a mr-[-70px]" style={{transform: 'rotate(-8deg)', transformOrigin: 'bottom center'}}>
               <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu 50mg research peptide vial" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/18 blur-md pointer-events-none" />
             </div>
             {/* Centre vial */}
-            <div className="relative flex-shrink-0 w-[46%] z-20 vial-float-b">
+            <div className="relative flex-shrink-0 w-[54%] z-20 vial-float-b">
               <img src="/GLP3%2020mg%20vial%20only.png" alt="GLP-3 (R) 20mg research peptide vial" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/20 blur-md pointer-events-none" />
             </div>
             {/* Right vial */}
-            <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-c ml-[-40px]" style={{transform: 'rotate(8deg)', transformOrigin: 'bottom center'}}>
+            <div className="relative flex-shrink-0 w-[44%] z-10 vial-float-c ml-[-70px]" style={{transform: 'rotate(8deg)', transformOrigin: 'bottom center'}}>
               <img src="/nad%2B%20500mg%20vial%20only.png" alt="NAD+ 500mg research peptide vial" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/18 blur-md pointer-events-none" />
             </div>
