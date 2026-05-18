@@ -45,7 +45,7 @@ export const products: Product[] = [
       {
         id: "retatrutide-10mg",
         dose: "10 MG",
-        lot: "A001",
+        lot: "A003",
         price: 129,
         img: "/GLP-3%20(R)%2010MG%20PRODUCT%20PIC.png.png",
         cartCode: "retatrutide-10mg",
@@ -61,7 +61,7 @@ export const products: Product[] = [
       {
         id: "retatrutide-30mg",
         dose: "30 MG",
-        lot: "A007",
+        lot: "A003",
         price: 249,
         img: "/GLP-3%20(R)%2030MG%20PRODUCT%20PIC.png.png",
         cartCode: "retatrutide-30mg",
