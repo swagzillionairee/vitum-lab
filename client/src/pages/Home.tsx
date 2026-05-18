@@ -558,7 +558,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-start justify-center h-full">
               <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" className="h-full max-h-full w-auto object-contain drop-shadow-2xl" />
             </div>
           </div>
