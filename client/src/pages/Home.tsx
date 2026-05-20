@@ -16,54 +16,55 @@ import { Link } from "wouter";
 import { ArrowRight, CheckCircle2, Shield, FileText, ChevronDown, ChevronUp, FlaskConical, Truck, Users, BookOpen, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import SEO from "@/components/SEO";
+import { products } from "@/lib/products";
 
-// ─── Product data with variants ───────────────────────────────────────────────
-const retatrutideVariants = [
-  { dose: "10 MG", lot: "A001", price: 129, img: "/GLP-3%20(R)%2010MG%20PRODUCT%20PIC.png.png", cartCode: "retatrutide-10mg", id: "retatrutide-10mg" },
-  { dose: "20 MG", lot: "A003", price: 189, img: "/GLP-3%20(R)%2020MG%20PRODUCT%20PIC.png", cartCode: "retatrutide-20mg", id: "retatrutide-20mg" },
-  { dose: "30 MG", lot: "A007", price: 249, img: "/GLP-3%20(R)%2030MG%20PRODUCT%20PIC.png.png", cartCode: "retatrutide-30mg", id: "retatrutide-30mg" },
-];
+// ─── Product data derived from shared catalog ──────────────────────────────────
+const retatrutideProduct = products.find((p) => p.slug === "retatrutide")!;
+const retatrutideVariants = retatrutideProduct.variants.map((v) => ({
+  dose: v.dose,
+  lot: v.lot,
+  price: v.price,
+  img: v.img,
+  cartCode: v.cartCode,
+  id: v.id,
+}));
 
-const ghkcuVariants = [
-  { dose: "50 MG", lot: "B031", price: 69, img: "/GHKCU%2050%20MG%20PRODUCT%20PIC.png", cartCode: "ghk-cu-50mg", id: "ghkcu-50mg" },
-  { dose: "100 MG", lot: "B045", price: 109, img: "/GHKCU%20100%20MG%20PRODUCT%20PIC.png", cartCode: "ghk-cu-100mg", id: "ghkcu-100mg" },
-];
+const ghkcuProduct = products.find((p) => p.slug === "ghkcu")!;
+const ghkcuVariants = ghkcuProduct.variants.map((v) => ({
+  dose: v.dose,
+  lot: v.lot,
+  price: v.price,
+  img: v.img,
+  cartCode: v.cartCode,
+  id: v.id,
+}));
 
-// Static products (no variant selector needed)
-const staticProducts = [
-  {
-    id: "nad",
-    name: "NAD+",
-    dose: "500 MG",
-    lot: "D006",
-    price: 129,
-    category: "Cellular Research",
-    tagline: "Nicotinamide Adenine Dinucleotide",
-    description: "Research-grade NAD+ for cellular energy metabolism and longevity pathway studies in laboratory settings.",
-    img: "/NAD%2B%20500MG%20PRODUCT%20PIC.png",
-    accentColor: "oklch(0.50 0.14 50)",
-    bgTint: "bg-tint-orange",
-    cardBg: "#faeae0",
-    cartCode: "nad-500mg",
-    badge: "New" as string | null,
-  },
-  {
-    id: "bacwater",
-    name: "BAC Water",
-    dose: "10 ML",
-    lot: "C025",
-    price: 12,
-    category: "Reconstitution",
-    tagline: "Bacteriostatic Water 0.9% Benzyl Alcohol",
-    description: "USP-grade bacteriostatic water with 0.9% benzyl alcohol for safe multi-dose reconstitution of lyophilized research peptides.",
-    img: "/BAC%20WATER%2010ML%20PRODUCT%20PIC.png",
-    accentColor: "oklch(0.35 0.10 220)",
-    bgTint: "bg-tint-blue",
-    cardBg: "#e0eaf5",
-    cartCode: "bac-water-10ml",
-    badge: null as string | null,
-  },
-];
+// Static products (no variant selector needed) — NAD+ and BAC Water
+const STATIC_EXTRA: Record<string, { accentColor: string; bgTint: string }> = {
+  nad: { accentColor: "oklch(0.50 0.14 50)", bgTint: "bg-tint-orange" },
+  bacwater: { accentColor: "oklch(0.35 0.10 220)", bgTint: "bg-tint-blue" },
+};
+
+const staticProducts = ["nad", "bacwater"].map((slug) => {
+  const p = products.find((x) => x.slug === slug)!;
+  const v = p.variants[0];
+  return {
+    id: slug,
+    name: p.name,
+    dose: v.dose,
+    lot: v.lot,
+    price: v.price,
+    category: p.category,
+    tagline: p.tagline,
+    description: p.description,
+    img: v.img,
+    accentColor: STATIC_EXTRA[slug].accentColor,
+    bgTint: STATIC_EXTRA[slug].bgTint,
+    cardBg: p.cardBg,
+    cartCode: v.cartCode,
+    badge: p.badge as string | null ?? null,
+  };
+});
 
 // ─── Quality tabs ─────────────────────────────────────────────────────────────
 const qualityTabs = [
@@ -117,7 +118,7 @@ const faqs = [
   },
   {
     q: "How should I store peptides?",
-    a: "Lyophilized peptides should be stored at −20°C (freezer) for long-term storage. Once reconstituted, store at 4°C (refrigerator) and use within 28 days. Avoid repeated freeze-thaw cycles.",
+    a: "Lyophilized peptides should be stored at −20°C / −4°F (freezer) for long-term storage. Once reconstituted, store at 4°C / 39°F (refrigerator) and use within 28 days. Avoid repeated freeze-thaw cycles.",
   },
 ];
 
@@ -324,7 +325,7 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════════════════
           1. HERO — split layout
       ═══════════════════════════════════════════════════════════════ */}
-      <section className="min-h-[88vh] grid grid-cols-1 lg:grid-cols-2">
+      <section className="min-h-[88vh] grid grid-cols-1 lg:grid-cols-2 overflow-x-clip">
         {/* Left: text + CTAs */}
         <div ref={heroRef} className="reveal flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-20 py-20 lg:py-0 order-2 lg:order-1">
           <div className="max-w-[520px]">
@@ -364,22 +365,22 @@ export default function Home() {
           </div>
         </div>
         {/* Right: product vials on light background */}
-        <div className="relative order-1 lg:order-2 flex items-end justify-center pb-0 pt-4 overflow-visible z-10" style={{backgroundColor: '#f0f4f0'}}>
-          <div className="relative flex items-end justify-center px-2 w-full max-w-[780px] mb-[-60px]">
+        <div className="relative order-1 lg:order-2 flex items-center justify-center overflow-visible lg:overflow-hidden z-0" style={{backgroundColor: '#f0f4f0'}}>
+          <div className="relative flex items-end justify-center w-full px-6" style={{marginBottom: '-5%'}}>
             {/* Left vial */}
-            <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-a mr-[-40px]" style={{transform: 'rotate(-8deg)', transformOrigin: 'bottom center'}}>
+            <div className="relative flex-shrink-0 w-[48%] z-10 vial-float-a mr-[-55px] lg:mr-[-195px]" style={{transform: 'rotate(-6deg)', transformOrigin: 'bottom center'}}>
               <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu 50mg research peptide vial" className="w-full object-contain" />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/18 blur-md pointer-events-none" />
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/18 blur-lg pointer-events-none" />
             </div>
             {/* Centre vial */}
-            <div className="relative flex-shrink-0 w-[46%] z-20 vial-float-b">
+            <div className="relative flex-shrink-0 w-[62%] z-20 vial-float-b">
               <img src="/GLP3%2020mg%20vial%20only.png" alt="GLP-3 (R) 20mg research peptide vial" className="w-full object-contain" />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/20 blur-md pointer-events-none" />
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/20 blur-lg pointer-events-none" />
             </div>
             {/* Right vial */}
-            <div className="relative flex-shrink-0 w-[36%] z-10 vial-float-c ml-[-40px]" style={{transform: 'rotate(8deg)', transformOrigin: 'bottom center'}}>
+            <div className="relative flex-shrink-0 w-[48%] z-10 vial-float-c ml-[-55px] lg:ml-[-195px]" style={{transform: 'rotate(6deg)', transformOrigin: 'bottom center'}}>
               <img src="/nad%2B%20500mg%20vial%20only.png" alt="NAD+ 500mg research peptide vial" className="w-full object-contain" />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-3 rounded-full bg-black/18 blur-md pointer-events-none" />
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/18 blur-lg pointer-events-none" />
             </div>
           </div>
         </div>
@@ -522,7 +523,11 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════════════════
           5. QUALITY PROOF — dark section, tabbed
       ═══════════════════════════════════════════════════════════════ */}
-      <section ref={qualityRef} className="reveal py-20 bg-dark-navy text-white">
+      <section ref={qualityRef} className="reveal relative py-20 bg-dark-navy text-white overflow-hidden">
+        {/* Vial: absolutely spans full section height, top-aligned with section padding */}
+        <div className="hidden lg:flex absolute right-0 top-0 bottom-0 w-[45%] items-start justify-center py-20 pointer-events-none">
+          <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" className="h-full w-auto object-contain drop-shadow-2xl" />
+        </div>
         <div className="container">
           <div className="flex flex-wrap gap-8 mb-12">
             <div><p className="text-[2.5rem] font-bold">99%+</p><p className="text-[0.8125rem] text-white/60 uppercase tracking-widest">Purity Guaranteed</p></div>
@@ -531,35 +536,30 @@ export default function Home() {
             <div><p className="text-[2.5rem] font-bold">1,000+</p><p className="text-[0.8125rem] text-white/60 uppercase tracking-widest">Orders Shipped</p></div>
           </div>
           <h2 className="text-[2rem] font-bold mb-10">Quality you can verify, not just trust</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-            <div>
-              <div className="flex flex-wrap gap-2 mb-8">
-                {qualityTabs.map((t, i) => (
-                  <button key={t.label} onClick={() => setActiveTab(i)}
-                    className={`px-4 py-2 rounded-full text-[0.8125rem] font-semibold transition-colors ${activeTab === i ? "bg-white text-[oklch(0.13_0.01_260)]" : "bg-white/10 text-white/70 hover:bg-white/20"}`}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              <div key={activeTab} className="space-y-3">
-                <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-white/50">{qualityTabs[activeTab].method}</p>
-                <h3 className="text-[1.5rem] font-bold">{qualityTabs[activeTab].headline}</h3>
-                <p className="text-[0.9375rem] text-white/75 leading-relaxed">{qualityTabs[activeTab].body}</p>
-                <div className="flex items-center gap-3 pt-2">
-                  <div className="bg-white/10 rounded-lg px-4 py-2.5">
-                    <p className="text-[0.875rem] font-bold">{qualityTabs[activeTab].badge}</p>
-                    <p className="text-[0.6875rem] text-white/60">{qualityTabs[activeTab].badgeSub}</p>
-                  </div>
-                </div>
-                <div className="pt-4">
-                  <Link href="/shop" className="btn-primary bg-white text-[oklch(0.13_0.01_260)] hover:bg-white/90">
-                    Shop Now <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              </div>
+          <div className="lg:w-[55%]">
+            <div className="flex flex-wrap gap-2 mb-8">
+              {qualityTabs.map((t, i) => (
+                <button key={t.label} onClick={() => setActiveTab(i)}
+                  className={`px-4 py-2 rounded-full text-[0.8125rem] font-semibold transition-colors ${activeTab === i ? "bg-white text-[oklch(0.13_0.01_260)]" : "bg-white/10 text-white/70 hover:bg-white/20"}`}>
+                  {t.label}
+                </button>
+              ))}
             </div>
-            <div className="flex items-center justify-center">
-              <img src="/GHKCU%2050%20MG%20PRODUCT%20PIC.png" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" className="max-h-80 object-contain drop-shadow-2xl" />
+            <div key={activeTab} className="space-y-3">
+              <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-white/50">{qualityTabs[activeTab].method}</p>
+              <h3 className="text-[1.5rem] font-bold">{qualityTabs[activeTab].headline}</h3>
+              <p className="text-[0.9375rem] text-white/75 leading-relaxed">{qualityTabs[activeTab].body}</p>
+              <div className="flex items-center gap-3 pt-2">
+                <div className="bg-white/10 rounded-lg px-4 py-2.5">
+                  <p className="text-[0.875rem] font-bold">{qualityTabs[activeTab].badge}</p>
+                  <p className="text-[0.6875rem] text-white/60">{qualityTabs[activeTab].badgeSub}</p>
+                </div>
+              </div>
+              <div className="pt-4">
+                <Link href="/shop" className="btn-primary bg-white text-[oklch(0.13_0.01_260)] hover:bg-white/90">
+                  Shop Now <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
             </div>
           </div>
         </div>

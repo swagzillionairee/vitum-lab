@@ -10,128 +10,41 @@
  *   floating View Cart button, product detail page links
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { FileText, ShieldCheck, Truck, ArrowLeft, ShoppingCart, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { AnimatePresence, motion } from "framer-motion";
 import SEO from "@/components/SEO";
+import { products } from "@/lib/products";
 
-// ─── Full product catalog ─────────────────────────────────────────────────────
-const allProducts = [
-  {
-    id: "retatrutide-10mg",
-    name: "GLP-3 (R)",
-    dose: "10 MG",
-    lot: "A003",
-    price: 129,
-    category: "Metabolic Research",
-    categorySlug: "metabolic",
-    tagline: "Triple Receptor Agonist",
-    description: "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models. Entry-level dose for initial research protocols.",
-    img: "/GLP-3%20(R)%2010MG%20PRODUCT%20PIC.png.png",
-    cardBg: "#f5e8e8",
-    cartCode: "retatrutide-10mg",
-    badge: null as string | null,
-    detailSlug: "retatrutide",
-  },
-  {
-    id: "retatrutide-20mg",
-    name: "GLP-3 (R)",
-    dose: "20 MG",
-    lot: "A003",
-    price: 189,
-    category: "Metabolic Research",
-    categorySlug: "metabolic",
-    tagline: "Triple Receptor Agonist",
-    description: "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models. Most popular dose for established research protocols.",
-    img: "/GLP-3%20(R)%2020MG%20PRODUCT%20PIC.png",
-    cardBg: "#f5e8e8",
-    cartCode: "retatrutide-20mg",
-    badge: "Best Seller" as string | null,
-    detailSlug: "retatrutide",
-  },
-  {
-    id: "retatrutide-30mg",
-    name: "GLP-3 (R)",
-    dose: "30 MG",
-    lot: "A003",
-    price: 249,
-    category: "Metabolic Research",
-    categorySlug: "metabolic",
-    tagline: "Triple Receptor Agonist",
-    description: "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models. High-dose vial for advanced study designs.",
-    img: "/GLP-3%20(R)%2030MG%20PRODUCT%20PIC.png.png",
-    cardBg: "#f5e8e8",
-    cartCode: "retatrutide-30mg",
-    badge: null as string | null,
-    detailSlug: "retatrutide",
-  },
-  {
-    id: "ghkcu-50mg",
-    name: "GHK-Cu",
-    dose: "50 MG",
-    lot: "B031",
-    price: 69,
-    category: "Cosmetic / Tissue Research",
-    categorySlug: "tissue",
-    tagline: "Copper Peptide Complex",
-    description: "Glycyl-L-histidyl-L-lysine copper(II) complex studied for tissue remodeling and extracellular matrix research in vitro.",
-    img: "/GHKCU%2050%20MG%20PRODUCT%20PIC.png",
-    cardBg: "#e0f0ec",
-    cartCode: "ghk-cu-50mg",
-    badge: null as string | null,
-    detailSlug: "ghkcu",
-  },
-  {
-    id: "ghkcu-100mg",
-    name: "GHK-Cu",
-    dose: "100 MG",
-    lot: "B031",
-    price: 109,
-    category: "Cosmetic / Tissue Research",
-    categorySlug: "tissue",
-    tagline: "Copper Peptide Complex",
-    description: "Glycyl-L-histidyl-L-lysine copper(II) complex studied for tissue remodeling and extracellular matrix research in vitro. High-dose vial for extended studies.",
-    img: "/GHKCU%20100%20MG%20PRODUCT%20PIC.png",
-    cardBg: "#e0f0ec",
-    cartCode: "ghk-cu-100mg",
-    badge: null as string | null,
-    detailSlug: "ghkcu",
-  },
-  {
-    id: "nad-500mg",
-    name: "NAD+",
-    dose: "500 MG",
-    lot: "D006",
-    price: 129,
-    category: "Cellular Research",
-    categorySlug: "cellular",
-    tagline: "Nicotinamide Adenine Dinucleotide",
-    description: "Research-grade NAD+ for cellular energy metabolism and longevity pathway studies in laboratory settings.",
-    img: "/NAD%2B%20500MG%20PRODUCT%20PIC.png",
-    cardBg: "#faeae0",
-    cartCode: "nad-500mg",
-    badge: "New" as string | null,
-    detailSlug: "nad",
-  },
-  {
-    id: "bacwater-10ml",
-    name: "BAC Water",
-    dose: "10 ML",
-    lot: "C025",
-    price: 12,
-    category: "Reconstitution",
-    categorySlug: "reconstitution",
-    tagline: "Bacteriostatic Water 0.9% Benzyl Alcohol",
-    description: "USP-grade bacteriostatic water with 0.9% benzyl alcohol for safe multi-dose reconstitution of lyophilized research peptides.",
-    img: "/BAC%20WATER%2010ML%20PRODUCT%20PIC.png",
-    cardBg: "#e0eaf5",
-    cartCode: "bac-water-10ml",
-    badge: null as string | null,
-    detailSlug: "bacwater",
-  },
-];
+// ─── Slug → categorySlug / detailSlug mapping ─────────────────────────────────
+const CATEGORY_SLUG_MAP: Record<string, string> = {
+  "Metabolic Research": "metabolic",
+  "Cosmetic / Tissue Research": "tissue",
+  "Cellular Research": "cellular",
+  "Reconstitution": "reconstitution",
+};
+
+// ─── Derive flat product list from PRODUCTS ───────────────────────────────────
+const allProducts = products.flatMap((product) =>
+  product.variants.map((variant, idx) => ({
+    id: variant.id,
+    name: product.name,
+    dose: variant.dose,
+    lot: variant.lot,
+    price: variant.price,
+    category: product.category,
+    categorySlug: CATEGORY_SLUG_MAP[product.category] ?? "other",
+    tagline: product.tagline,
+    description: product.description,
+    img: variant.img,
+    cardBg: product.cardBg,
+    cartCode: variant.cartCode,
+    badge: idx === 1 && product.badge ? (product.badge as string | null) : (idx === 0 && product.variants.length === 1 && product.badge ? (product.badge as string | null) : null),
+    detailSlug: product.slug,
+  }))
+);
 
 const categories = [
   { slug: "all", label: "All Products" },
@@ -140,6 +53,11 @@ const categories = [
   { slug: "cellular", label: "Cellular Research" },
   { slug: "reconstitution", label: "Reconstitution" },
 ];
+
+// URL param aliases (e.g. footer sends "cosmetic" but slug is "tissue")
+const CATEGORY_ALIASES: Record<string, string> = {
+  cosmetic: "tissue",
+};
 
 const BADGE_STYLES: Record<string, string> = {
   "Best Seller": "bg-[#1a3a2a] text-white",
@@ -218,6 +136,17 @@ export default function Shop() {
   const { totalItems, openCart } = useCart();
   const [activeCategory, setActiveCategory] = useState("all");
 
+  // Read ?category= URL param on mount so footer links filter correctly
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const cat = params.get("category");
+    if (cat) {
+      const normalized = CATEGORY_ALIASES[cat.toLowerCase()] ?? cat.toLowerCase();
+      const match = categories.find((c) => c.slug.toLowerCase() === normalized);
+      if (match) setActiveCategory(match.slug);
+    }
+  }, []);
+
   const filtered =
     activeCategory === "all"
       ? allProducts
@@ -266,14 +195,35 @@ export default function Shop() {
         </div>
       </div>
 
+      {/* ── Category filter tabs ──────────────────────────────────────────── */}
+      <div className="bg-white border-b border-[oklch(0.91_0.004_260)]">
+        <div className="container">
+          <div className="flex gap-1 py-3 overflow-x-auto">
+            {categories.map((c) => (
+              <button
+                key={c.slug}
+                onClick={() => setActiveCategory(c.slug)}
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-[0.8125rem] font-semibold transition-colors ${
+                  activeCategory === c.slug
+                    ? "bg-[oklch(0.13_0.01_260)] text-white"
+                    : "bg-[oklch(0.96_0.003_260)] text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.92_0.005_260)]"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* ── Product grid ─────────────────────────────────────────────────── */}
       <div className="container py-12">
         <p className="text-[0.8125rem] text-[oklch(0.60_0.01_260)] mb-6">
-          Showing {allProducts.length} products
+          Showing {filtered.length} product{filtered.length !== 1 ? "s" : ""}
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {allProducts.map((p) => (
+          {filtered.map((p) => (
             <ProductCard key={p.id} p={p} />
           ))}
         </div>

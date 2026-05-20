@@ -32,7 +32,7 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
       {/* Background: hero image with dark overlay */}
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url(/Researcher%20verification%20background%20image.png)");
+        style={{ backgroundImage: "url('/Researcher%20verification%20background%20image.png')" }}
       />
       <div className="absolute inset-0 bg-[oklch(0.18_0.04_255)]/80" />
 

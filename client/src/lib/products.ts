@@ -45,9 +45,9 @@ export const products: Product[] = [
       {
         id: "retatrutide-10mg",
         dose: "10 MG",
-        lot: "A001",
+        lot: "A003",
         price: 129,
-        img: "/GLP-3%20(R)%2010MG%20PRODUCT%20PIC.png.png",
+        img: "/GLP-3%20(R)%2010MG%20PRODUCT%20PIC.png",
         cartCode: "retatrutide-10mg",
       },
       {
@@ -61,9 +61,9 @@ export const products: Product[] = [
       {
         id: "retatrutide-30mg",
         dose: "30 MG",
-        lot: "A007",
+        lot: "A003",
         price: 249,
-        img: "/GLP-3%20(R)%2030MG%20PRODUCT%20PIC.png.png",
+        img: "/GLP-3%20(R)%2030MG%20PRODUCT%20PIC.png",
         cartCode: "retatrutide-30mg",
       },
     ],
@@ -73,10 +73,10 @@ export const products: Product[] = [
       { label: "Purity", value: "≥99% (HPLC)" },
       { label: "Form", value: "Lyophilized powder" },
       { label: "Solubility", value: "Soluble in BAC Water" },
-      { label: "Storage", value: "−20°C (lyophilized), 4°C (reconstituted)" },
+      { label: "Storage", value: "−20°C / −4°F (lyophilized), 4°C / 39°F (reconstituted)" },
     ],
     storageInstructions:
-      "Store lyophilized vials at −20°C. Once reconstituted with BAC Water, store at 4°C and use within 28 days. Avoid repeated freeze-thaw cycles.",
+      "Store lyophilized vials at −20°C (−4°F). Once reconstituted with BAC Water, store at 4°C (39°F) and use within 28 days. Avoid repeated freeze-thaw cycles.",
     reconstitutionNote:
       "Reconstitute with Bacteriostatic Water (BAC Water). Inject slowly along the vial wall. Gently swirl — do not shake.",
     researchNotes: [
@@ -122,10 +122,10 @@ export const products: Product[] = [
       { label: "Purity", value: "≥99% (HPLC)" },
       { label: "Form", value: "Lyophilized powder" },
       { label: "Solubility", value: "Soluble in water / BAC Water" },
-      { label: "Storage", value: "−20°C (lyophilized), 4°C (reconstituted)" },
+      { label: "Storage", value: "−20°C / −4°F (lyophilized), 4°C / 39°F (reconstituted)" },
     ],
     storageInstructions:
-      "Store lyophilized vials at −20°C. Once reconstituted, store at 4°C and use within 28 days.",
+      "Store lyophilized vials at −20°C (−4°F). Once reconstituted, store at 4°C (39°F) and use within 28 days.",
     reconstitutionNote:
       "Reconstitute with Bacteriostatic Water (BAC Water) or sterile water. Gently swirl to dissolve.",
     researchNotes: [
@@ -164,10 +164,10 @@ export const products: Product[] = [
       { label: "Purity", value: "≥99% (HPLC)" },
       { label: "Form", value: "Lyophilized powder" },
       { label: "Solubility", value: "Soluble in water / BAC Water" },
-      { label: "Storage", value: "−20°C (lyophilized), 4°C (reconstituted)" },
+      { label: "Storage", value: "−20°C / −4°F (lyophilized), 4°C / 39°F (reconstituted)" },
     ],
     storageInstructions:
-      "Store lyophilized vials at −20°C. Once reconstituted, store at 4°C and use within 14 days. NAD+ is sensitive to light and heat — minimize exposure.",
+      "Store lyophilized vials at −20°C (−4°F). Once reconstituted, store at 4°C (39°F) and use within 14 days. NAD+ is sensitive to light and heat — minimize exposure.",
     researchNotes: [
       "Critical coenzyme in redox reactions and energy metabolism",
       "Studied in mitochondrial function and DNA repair pathways",
@@ -203,10 +203,10 @@ export const products: Product[] = [
       { label: "Grade", value: "USP" },
       { label: "Sterility", value: "Sterile filtered (0.22 µm)" },
       { label: "pH", value: "4.5–7.0" },
-      { label: "Storage", value: "Room temperature (15–30°C)" },
+      { label: "Storage", value: "Room temperature (15–30°C / 59–86°F)" },
     ],
     storageInstructions:
-      "Store at room temperature (15–30°C). Keep away from direct sunlight. Do not freeze. Discard any unused portion after 28 days of first use.",
+      "Store at room temperature (15–30°C / 59–86°F). Keep away from direct sunlight. Do not freeze. Discard any unused portion after 28 days of first use.",
     researchNotes: [
       "0.9% benzyl alcohol preservative enables multi-dose use",
       "Sterile filtered through 0.22 µm membrane",

@@ -10,7 +10,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, ChevronDown, Check } from "lucide-react";
+import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, ChevronDown, Check, Coins, CreditCard } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 
 const FOXY_STORE = "vitum-lab.foxycart.com";
@@ -38,6 +38,10 @@ export default function CartDrawer() {
   const [promoCode, setPromoCode] = useState("");
   const [promoApplied, setPromoApplied] = useState(false);
   const [promoError, setPromoError] = useState(false);
+  const [cryptoStep, setCryptoStep] = useState(false);
+  const [email, setEmail] = useState("");
+  const [cryptoLoading, setCryptoLoading] = useState(false);
+  const [cryptoError, setCryptoError] = useState("");
 
   const handleApplyPromo = () => {
     if (!promoCode.trim()) return;
@@ -300,14 +304,92 @@ export default function CartDrawer() {
                   )}
                 </div>
 
-                {/* Checkout button */}
-                <a
-                  href={checkoutUrl}
-                  className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem]"
-                >
-                  Proceed to Checkout
-                  <ArrowRight className="w-4 h-4" />
-                </a>
+                {/* Crypto email capture step */}
+                {cryptoStep && (
+                  <div className="space-y-2">
+                    <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)]">
+                      Your email for order confirmation
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); setCryptoError(""); }}
+                      placeholder="you@example.com"
+                      className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                    />
+                    {cryptoError && (
+                      <p className="text-[0.75rem] text-red-500">{cryptoError}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Checkout buttons */}
+                <div className="flex flex-col gap-2.5">
+                  {!cryptoStep ? (
+                    <>
+                      <button
+                        onClick={() => setCryptoStep(true)}
+                        className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem]"
+                      >
+                        <Coins className="w-4 h-4" />
+                        Pay with Crypto
+                      </button>
+                      <a
+                        href={checkoutUrl}
+                        className="flex items-center justify-center gap-2 w-full py-3 text-[0.875rem] font-semibold rounded-xl border-2 border-[oklch(0.88_0.004_260)] text-[oklch(0.35_0.01_260)] hover:border-[oklch(0.70_0.01_260)] hover:bg-[oklch(0.98_0.002_260)] transition-colors"
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        Pay with Card
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={async () => {
+                          if (!email.trim() || !email.includes("@")) {
+                            setCryptoError("Please enter a valid email address.");
+                            return;
+                          }
+                          setCryptoLoading(true);
+                          setCryptoError("");
+                          try {
+                            const response = await fetch("/api/create-crypto-payment", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity })),
+                                email,
+                                total: subtotal,
+                              }),
+                            });
+                            const data = await response.json();
+                            if (!response.ok) {
+                              setCryptoError(data.error || "Failed to create payment. Please try again.");
+                            } else {
+                              window.location.href = data.invoiceUrl;
+                            }
+                          } catch {
+                            setCryptoError("Failed to create payment. Please try again.");
+                          } finally {
+                            setCryptoLoading(false);
+                          }
+                        }}
+                        disabled={cryptoLoading}
+                        className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {cryptoLoading ? "Creating Payment…" : (
+                          <>Continue to Crypto Payment <ArrowRight className="w-4 h-4" /></>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => { setCryptoStep(false); setCryptoError(""); }}
+                        className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] hover:underline"
+                      >
+                        ← Back
+                      </button>
+                    </>
+                  )}
+                </div>
 
                 {/* Research disclaimer */}
                 <p className="text-[0.625rem] text-center text-[oklch(0.70_0.01_260)] leading-relaxed">

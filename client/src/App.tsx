@@ -7,7 +7,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useEffect, useState } from "react";
@@ -28,6 +28,15 @@ import About from "./pages/About";
 import Contact from "./pages/Contact";
 import FAQ from "./pages/FAQ";
 import ProductDetail from "./pages/ProductDetail";
+import OrderSuccess from "./pages/OrderSuccess";
+import OrderCancel from "./pages/OrderCancel";
+
+// ─── Scroll to top on every route change ─────────────────────────────────────
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [location]);
+  return null;
+}
 
 // ─── Age gate cookie check ────────────────────────────────────────────────────
 function isAgeVerified(): boolean {
@@ -51,6 +60,8 @@ function PlaceholderPage({ title }: { title: string }) {
 
 function Router() {
   return (
+    <>
+      <ScrollToTop />
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/shop" component={Shop} />
@@ -64,9 +75,12 @@ function Router() {
       <Route path="/terms-of-service" component={TermsOfService} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/research-disclaimer" component={ResearchDisclaimer} />
+      <Route path="/order-success" component={OrderSuccess} />
+      <Route path="/order-cancel" component={OrderCancel} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
+    </>
   );
 }
 

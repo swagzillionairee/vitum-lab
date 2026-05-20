@@ -12,20 +12,23 @@ interface Props {
 }
 
 export default function ReconstitutionCalculator({ peptideMg }: Props) {
-  const [peptideAmount, setPeptideAmount] = useState(peptideMg);
-  const [bacWaterMl, setBacWaterMl] = useState(2);
-  const [desiredDoseMcg, setDesiredDoseMcg] = useState(250);
+  const [peptideAmount, setPeptideAmount] = useState(String(peptideMg));
+  const [bacWaterMl, setBacWaterMl] = useState("2");
+  const [desiredDoseMg, setDesiredDoseMg] = useState("0.25");
 
   const result = useMemo(() => {
-    if (!peptideAmount || !bacWaterMl || !desiredDoseMcg || bacWaterMl <= 0 || peptideAmount <= 0) {
+    const peptide = parseFloat(peptideAmount);
+    const bac = parseFloat(bacWaterMl);
+    const dose = parseFloat(desiredDoseMg);
+    if (!peptide || !bac || !dose || bac <= 0 || peptide <= 0 || dose <= 0) {
       return null;
     }
-    const concentrationMcgPerMl = (peptideAmount * 1000) / bacWaterMl;
-    const volumePerDoseMl = desiredDoseMcg / concentrationMcgPerMl;
-    const volumePerDoseUnits = volumePerDoseMl * 100; // 1 mL = 100 IU on U-100 insulin syringe
-    const dosesPerVial = Math.floor((peptideAmount * 1000) / desiredDoseMcg);
-    return { concentrationMcgPerMl, volumePerDoseMl, volumePerDoseUnits, dosesPerVial };
-  }, [peptideAmount, bacWaterMl, desiredDoseMcg]);
+    const concentrationMgPerMl = peptide / bac;
+    const volumePerDoseMl = dose / concentrationMgPerMl;
+    const volumePerDoseUnits = volumePerDoseMl * 100;
+    const dosesPerVial = Math.floor(peptide / dose);
+    return { concentrationMgPerMl, volumePerDoseMl, volumePerDoseUnits, dosesPerVial };
+  }, [peptideAmount, bacWaterMl, desiredDoseMg]);
 
   // Syringe fill: 0–100 units on a U-100 syringe
   const syringeUnits = result ? Math.min(Math.max(result.volumePerDoseUnits, 0), 100) : 0;
@@ -70,7 +73,7 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
                 min={0.1}
                 step={0.1}
                 value={peptideAmount}
-                onChange={(e) => setPeptideAmount(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setPeptideAmount(e.target.value)}
                 className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3.5 py-2.5 text-[0.9375rem] font-mono focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
               />
             </div>
@@ -83,20 +86,20 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
                 min={0.1}
                 step={0.1}
                 value={bacWaterMl}
-                onChange={(e) => setBacWaterMl(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setBacWaterMl(e.target.value)}
                 className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3.5 py-2.5 text-[0.9375rem] font-mono focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
               />
             </div>
             <div>
               <label className="block text-[0.75rem] font-semibold tracking-wide uppercase text-[oklch(0.45_0.01_260)] mb-1.5">
-                Desired Dose (mcg)
+                Desired Dose (mg)
               </label>
               <input
                 type="number"
-                min={1}
-                step={1}
-                value={desiredDoseMcg}
-                onChange={(e) => setDesiredDoseMcg(parseFloat(e.target.value) || 0)}
+                min={0.001}
+                step={0.001}
+                value={desiredDoseMg}
+                onChange={(e) => setDesiredDoseMg(e.target.value)}
                 className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3.5 py-2.5 text-[0.9375rem] font-mono focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
               />
             </div>
@@ -104,7 +107,7 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
             {/* Results */}
             {result && (
               <div className="rounded-xl bg-[oklch(0.975_0.003_260)] p-4 space-y-3">
-                <ResultRow label="Concentration" value={`${result.concentrationMcgPerMl.toFixed(0)} mcg/mL`} />
+                <ResultRow label="Concentration" value={`${result.concentrationMgPerMl.toFixed(3)} mg/mL`} />
                 <ResultRow label="Volume per dose" value={`${result.volumePerDoseMl.toFixed(3)} mL`} highlight />
                 <ResultRow label="Syringe units (U-100)" value={`${result.volumePerDoseUnits.toFixed(1)} units`} highlight />
                 <ResultRow label="Doses per vial" value={`~${result.dosesPerVial} doses`} />
@@ -115,7 +118,7 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
           {/* Syringe visual */}
           <div className="flex flex-col items-center gap-2 flex-shrink-0">
             <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)]">
-              U-100 Syringe
+              U-100 / 1mL / 1cc
             </p>
             <svg
               width="116"
@@ -220,7 +223,7 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
               <path d={`M55 ${barrelBottom + 8} L58 ${barrelBottom + 22} L61 ${barrelBottom + 8} Z`} fill="oklch(0.70 0.01 260)" />
             </svg>
             <p className="text-[0.6875rem] text-[oklch(0.60_0.01_260)] text-center leading-tight max-w-[90px]">
-              Units on U-100 insulin syringe
+              Units on U-100 / 1mL / 1cc syringe
             </p>
           </div>
         </div>
