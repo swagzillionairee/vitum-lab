@@ -2,15 +2,132 @@ import express from "express";
 import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
+import crypto from "node:crypto";
+import { nanoid } from "nanoid";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
+
+// ── Create NowPayments invoice ─────────────────────────────────────────────
+async function createInvoice(
+  total: number,
+  orderId: string,
+  description: string,
+  baseUrl: string
+) {
+  const res = await fetch(`${NOWPAYMENTS_API}/invoice`, {
+    method: "POST",
+    headers: {
+      "x-api-key": process.env.NOWPAYMENTS_API_KEY!,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      price_amount: total,
+      price_currency: "usd",
+      order_id: orderId,
+      order_description: description,
+      ipn_callback_url: `${baseUrl}/api/nowpayments-webhook`,
+      success_url: `${baseUrl}/order-success?order=${orderId}`,
+      cancel_url: `${baseUrl}/order-cancel`,
+      is_fixed_rate: false,
+      is_fee_paid_by_user: false,
+    }),
+  });
+  if (!res.ok) throw new Error(`NowPayments error: ${await res.text()}`);
+  return res.json() as Promise<{ invoice_url: string }>;
+}
+
+// ── Verify NowPayments IPN signature ─────────────────────────────────────
+function verifyIpn(rawBody: string, signature: string, secret: string): boolean {
+  try {
+    const payload = JSON.parse(rawBody);
+    const sorted = sortKeys(payload);
+    const hmac = crypto.createHmac("sha512", secret);
+    hmac.update(JSON.stringify(sorted));
+    const computed = hmac.digest("hex");
+    return crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(signature));
+  } catch {
+    return false;
+  }
+}
+
+function sortKeys(obj: unknown): unknown {
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;
+  return Object.keys(obj as Record<string, unknown>)
+    .sort()
+    .reduce((acc: Record<string, unknown>, key) => {
+      acc[key] = sortKeys((obj as Record<string, unknown>)[key]);
+      return acc;
+    }, {});
+}
 
 async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  // Serve static files from dist/public in production
+  // ── Webhook route (raw body needed for HMAC) — must come before express.json()
+  app.post(
+    "/api/nowpayments-webhook",
+    express.raw({ type: "*/*" }),
+    (req, res) => {
+      const signature = req.headers["x-nowpayments-sig"] as string;
+      const rawBody = (req.body as Buffer).toString("utf8");
+
+      if (!verifyIpn(rawBody, signature, process.env.NOWPAYMENTS_IPN_SECRET!)) {
+        res.status(401).send("Invalid signature");
+        return;
+      }
+
+      const payload = JSON.parse(rawBody);
+      const status: string = payload.payment_status;
+
+      if (status === "finished" || status === "confirmed") {
+        console.log(`✅ Payment confirmed — order ${payload.order_id}, ${payload.price_amount} USD`);
+        // TODO: send confirmation email once Google Workspace is configured
+      } else {
+        console.log(`ℹ️  Payment status update — order ${payload.order_id}: ${status}`);
+      }
+
+      res.status(200).send("OK");
+    }
+  );
+
+  // ── JSON body parsing for all other routes
+  app.use(express.json());
+
+  // ── Create crypto payment invoice
+  app.post("/api/create-crypto-payment", async (req, res) => {
+    try {
+      const { items, email, total } = req.body as {
+        items: { name: string; dose: string; quantity: number }[];
+        email: string;
+        total: number;
+      };
+
+      if (!items?.length || !email || !total) {
+        res.status(400).json({ error: "Missing required fields" });
+        return;
+      }
+
+      const orderId = nanoid(12);
+      const description = items
+        .map((i) => `${i.name} ${i.dose} x${i.quantity}`)
+        .join(", ");
+      const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
+
+      console.log(`Creating invoice for order ${orderId}: $${total} — ${email}`);
+      const { invoice_url } = await createInvoice(total, orderId, description, baseUrl);
+
+      res.json({ invoiceUrl: invoice_url, orderId });
+    } catch (err) {
+      console.error("create-crypto-payment error:", err);
+      res.status(500).json({ error: "Failed to create payment. Please try again." });
+    }
+  });
+
+  // ── Static files
   const staticPath =
     process.env.NODE_ENV === "production"
       ? path.resolve(__dirname, "public")
@@ -18,13 +135,11 @@ async function startServer() {
 
   app.use(express.static(staticPath));
 
-  // Handle client-side routing - serve index.html for all routes
   app.get("*", (_req, res) => {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
   const port = process.env.PORT || 3000;
-
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });

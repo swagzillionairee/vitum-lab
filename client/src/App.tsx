@@ -28,6 +28,8 @@ import About from "./pages/About";
 import Contact from "./pages/Contact";
 import FAQ from "./pages/FAQ";
 import ProductDetail from "./pages/ProductDetail";
+import OrderSuccess from "./pages/OrderSuccess";
+import OrderCancel from "./pages/OrderCancel";
 
 // ─── Scroll to top on every route change ─────────────────────────────────────
 function ScrollToTop() {
@@ -73,6 +75,8 @@ function Router() {
       <Route path="/terms-of-service" component={TermsOfService} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/research-disclaimer" component={ResearchDisclaimer} />
+      <Route path="/order-success" component={OrderSuccess} />
+      <Route path="/order-cancel" component={OrderCancel} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
