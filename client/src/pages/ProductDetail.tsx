@@ -72,14 +72,14 @@ export default function ProductDetail() {
 
           {/* ── Product image ─────────────────────────────────────────── */}
           <div
-            className="rounded-3xl overflow-hidden flex items-center justify-center"
-            style={{ backgroundColor: product.cardBg, minHeight: "480px" }}
+            className="rounded-3xl overflow-hidden aspect-square w-full"
+            style={{ backgroundColor: product.cardBg }}
           >
             <img
               key={selected.img}
               src={selected.img}
               alt={`${product.name} ${selected.dose} research peptide vial`}
-              className="w-full max-w-[420px] object-contain p-8 transition-opacity duration-200"
+              className="w-full h-full object-cover transition-opacity duration-200"
             />
           </div>
 

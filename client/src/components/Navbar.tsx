@@ -18,6 +18,7 @@ const FOXY_STORE = "vitum-lab.foxycart.com";
 const navLinks = [
   { label: "Shop", href: "/shop" },
   { label: "COA Library", href: "/coa-library" },
+  { label: "Dose Calculator", href: "/dose-calculator" },
   { label: "Research", href: "/research-disclaimer" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
