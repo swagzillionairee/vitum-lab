@@ -85,7 +85,7 @@ export const products: Product[] = [
       "Research interest in energy homeostasis and adipose tissue dynamics",
       "For in vitro / laboratory research use only",
     ],
-    coaHref: "/coa-library#retatrutide",
+    coaHref: "/coa/Retatrutide_COA.pdf",
   },
   {
     slug: "ghkcu",
@@ -134,7 +134,7 @@ export const products: Product[] = [
       "Research interest in collagen synthesis and antioxidant activity",
       "For in vitro / laboratory research use only",
     ],
-    coaHref: "/coa-library#ghkcu",
+    coaHref: "/coa/GHKCU_COA.pdf",
   },
   {
     slug: "nad",
@@ -174,7 +174,7 @@ export const products: Product[] = [
       "Research interest in sirtuin and PARP enzyme activity",
       "For in vitro / laboratory research use only",
     ],
-    coaHref: "/coa-library#nad",
+    coaHref: "/coa/NAD_COA.pdf",
   },
   {
     slug: "bacwater",

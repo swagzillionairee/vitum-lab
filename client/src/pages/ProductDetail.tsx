@@ -159,12 +159,16 @@ export default function ProductDetail() {
             </div>
 
             {/* COA link */}
-            <a
-              href={product.coaHref}
-              className="inline-flex items-center gap-1.5 text-[0.875rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors mb-8"
-            >
-              <FileText className="w-4 h-4" /> View Certificate of Analysis
-            </a>
+            {product.coaHref !== "/coa-library#bacwater" && (
+              <a
+                href={product.coaHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[0.875rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors mb-8"
+              >
+                <FileText className="w-4 h-4" /> View Certificate of Analysis
+              </a>
+            )}
 
             {/* Trust badges */}
             <div className="grid grid-cols-3 gap-3 mb-8">

@@ -31,6 +31,7 @@ import ProductDetail from "./pages/ProductDetail";
 import OrderSuccess from "./pages/OrderSuccess";
 import OrderCancel from "./pages/OrderCancel";
 import DoseCalculator from "./pages/DoseCalculator";
+import COALibrary from "./pages/COALibrary";
 
 // ─── Scroll to top on every route change ─────────────────────────────────────
 function ScrollToTop() {
@@ -67,7 +68,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/shop" component={Shop} />
       <Route path="/shop/:slug" component={ProductDetail} />
-      <Route path="/coa-library">{() => <PlaceholderPage title="COA Library" />}</Route>
+      <Route path="/coa-library" component={COALibrary} />
       <Route path="/about" component={About} />
       <Route path="/contact" component={Contact} />
       <Route path="/faq" component={FAQ} />
