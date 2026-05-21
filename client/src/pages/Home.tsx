@@ -13,7 +13,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { ArrowRight, CheckCircle2, Shield, FileText, ChevronDown, ChevronUp, FlaskConical, Truck, Users, BookOpen, Check } from "lucide-react";
+import { ArrowRight, CheckCircle2, Shield, FileText, ChevronDown, ChevronUp, FlaskConical, Truck, BookOpen, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import SEO from "@/components/SEO";
 import { products } from "@/lib/products";

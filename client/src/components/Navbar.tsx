@@ -23,9 +23,11 @@ const navLinks = [
   { label: "Contact", href: "/contact" },
 ];
 
-// ─── Marquee message ──────────────────────────────────────────────────────────
-const PROMO_MESSAGE =
-  "Free shipping and 10mL BAC Water for orders over $150                      ·                       2–3 day delivery via USPS Priority Mail                       ·                       Free shipping and 10mL BAC Water for orders over $150                       ·                       2–3 day delivery via USPS Priority Mail  ·                     ";
+// ─── Marquee items ────────────────────────────────────────────────────────────
+const PROMO_ITEMS = [
+  "Free shipping + 10mL BAC Water on orders over $150",
+  "2–3 day delivery via USPS Priority Mail",
+];
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -52,13 +54,17 @@ export default function Navbar() {
             <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[oklch(0.35_0.15_260)] to-transparent z-10 pointer-events-none" />
 
             <div className="marquee-track whitespace-nowrap">
-              <span className="marquee-content text-[0.75rem] font-semibold tracking-wide">
-                {PROMO_MESSAGE}
-              </span>
-              {/* Duplicate for seamless loop */}
-              <span className="marquee-content text-[0.75rem] font-semibold tracking-wide" aria-hidden>
-                {PROMO_MESSAGE}
-              </span>
+              {/* Render 6 copies of the items for a seamless loop */}
+              {[...Array(6)].map((_, i) => (
+                <span key={i} className="marquee-content inline-flex items-center" aria-hidden={i > 0}>
+                  {PROMO_ITEMS.map((item, j) => (
+                    <span key={j} className="inline-flex items-center">
+                      <span className="text-[0.75rem] font-semibold tracking-wide">{item}</span>
+                      <span className="mx-10 text-white/40 text-[0.75rem]">·</span>
+                    </span>
+                  ))}
+                </span>
+              ))}
             </div>
           </div>
         </div>

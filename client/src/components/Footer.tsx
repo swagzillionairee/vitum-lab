@@ -58,7 +58,7 @@ export default function Footer() {
                 { label: "All Products", href: "/shop" },
                 { label: "Cosmetic / Tissue Research", href: "/shop?category=cosmetic" },
                 { label: "Metabolic Research", href: "/shop?category=metabolic" },
-                { label: "Lab Supplies", href: "/shop?category=lab-supplies" },
+                { label: "Lab Supplies", href: "/shop?category=reconstitution" },
                 { label: "COA Library", href: "/coa-library" },
               ].map((link) => (
                 <li key={link.href}>

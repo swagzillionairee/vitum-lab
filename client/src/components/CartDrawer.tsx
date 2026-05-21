@@ -12,6 +12,7 @@ import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, ChevronDown, Check, Coins, CreditCard } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { useLocation } from "wouter";
 
 const FOXY_STORE = "vitum-lab.foxycart.com";
 const FREE_SHIPPING_THRESHOLD = 150;
@@ -33,6 +34,7 @@ function buildFoxyUrl(items: { name: string; dose: string; price: number; cartCo
 
 export default function CartDrawer() {
   const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, totalItems } = useCart();
+  const [, navigate] = useLocation();
   const drawerRef = useRef<HTMLDivElement>(null);
   const [promoOpen, setPromoOpen] = useState(false);
   const [promoCode, setPromoCode] = useState("");
@@ -162,7 +164,7 @@ export default function CartDrawer() {
                     Add research peptides to get started.
                   </p>
                   <button
-                    onClick={closeCart}
+                    onClick={() => { closeCart(); navigate("/shop"); }}
                     className="mt-6 btn-primary text-sm py-2.5 px-6"
                   >
                     Browse Products

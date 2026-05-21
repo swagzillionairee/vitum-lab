@@ -8,7 +8,7 @@ export default function ShippingPolicy() {
     <LegalPage title="Shipping Policy" lastUpdated="May 2025">
       <h2>Shipping Method</h2>
       <p>
-        All orders are shipped via <strong>USPS Priority Mail® in padded envelopes</strong>. Orders are processed and shipped on business days (Monday–Friday, excluding federal holidays).
+        All orders are shipped via <strong>USPS Priority Mail® in padded envelopes</strong>. Orders are processed and shipped on business days and weekends, excluding holidays and special circumstances.
       </p>
 
       <h2>Estimated Delivery Times</h2>
