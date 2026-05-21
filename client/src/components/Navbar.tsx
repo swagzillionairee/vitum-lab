@@ -18,7 +18,7 @@ const navLinks = [
   { label: "Shop", href: "/shop" },
   { label: "COA Library", href: "/coa-library" },
   { label: "Dose Calculator", href: "/dose-calculator" },
-  { label: "Research", href: "/research-disclaimer" },
+  { label: "Research", href: "/research" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];

@@ -56,9 +56,6 @@ export default function Footer() {
             <ul className="space-y-2.5">
               {[
                 { label: "All Products", href: "/shop" },
-                { label: "Cosmetic / Tissue Research", href: "/shop?category=cosmetic" },
-                { label: "Metabolic Research", href: "/shop?category=metabolic" },
-                { label: "Lab Supplies", href: "/shop?category=reconstitution" },
                 { label: "COA Library", href: "/coa-library" },
               ].map((link) => (
                 <li key={link.href}>

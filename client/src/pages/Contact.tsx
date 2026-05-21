@@ -12,20 +12,39 @@ import SEO from "@/components/SEO";
 export default function Contact() {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Build mailto link with form data
-    const subject = encodeURIComponent(form.subject || "Inquiry from Vitum Lab website");
-    const body = encodeURIComponent(
-      `Name: ${form.name}\nEmail: ${form.email}\n\nMessage:\n${form.message}`
-    );
-    window.location.href = `mailto:hello@vitumlab.com?subject=${subject}&body=${body}`;
-    setSubmitted(true);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          subject: form.subject,
+          message: form.message,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to send. Please email hello@vitumlab.com directly.");
+      }
+      setSubmitted(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to send. Please email hello@vitumlab.com directly.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,16 +73,12 @@ export default function Contact() {
             {submitted ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <CheckCircle2 className="w-12 h-12 text-[oklch(0.40_0.14_155)] mb-4" />
-                <h3 className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)] mb-2">Message sent!</h3>
+                <h3 className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)] mb-2">Message received!</h3>
                 <p className="text-[0.9375rem] text-[oklch(0.52_0.01_260)] max-w-sm">
-                  Your email client should have opened. If it didn't, you can reach us directly at{" "}
-                  <a href="mailto:hello@vitumlab.com" className="text-[oklch(0.40_0.16_260)] hover:underline font-semibold">
-                    hello@vitumlab.com
-                  </a>
-                  .
+                  Message sent! We'll get back to you within 1 business day.
                 </p>
                 <button
-                  onClick={() => setSubmitted(false)}
+                  onClick={() => { setSubmitted(false); setForm({ name: "", email: "", subject: "", message: "" }); }}
                   className="mt-6 btn-secondary text-sm"
                 >
                   Send another message
@@ -141,8 +156,18 @@ export default function Contact() {
                   By submitting this form you confirm you are a qualified researcher. All inquiries are for research purposes only.
                 </p>
 
-                <button type="submit" className="btn-primary w-full sm:w-auto py-3.5 px-8 text-[0.9375rem]">
-                  Send Message →
+                {error && (
+                  <p className="text-[0.875rem] text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                    {error}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-primary w-full sm:w-auto py-3.5 px-8 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Sending…" : "Send Message →"}
                 </button>
               </form>
             )}

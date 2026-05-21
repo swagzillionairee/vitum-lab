@@ -33,6 +33,7 @@ import OrderSuccess from "./pages/OrderSuccess";
 import OrderCancel from "./pages/OrderCancel";
 import DoseCalculator from "./pages/DoseCalculator";
 import COALibrary from "./pages/COALibrary";
+import Research from "./pages/Research";
 
 // ─── Scroll to top on every route change ─────────────────────────────────────
 function ScrollToTop() {
@@ -79,6 +80,7 @@ function Router() {
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/research-disclaimer" component={ResearchDisclaimer} />
       <Route path="/dose-calculator" component={DoseCalculator} />
+      <Route path="/research" component={Research} />
       <Route path="/order-success" component={OrderSuccess} />
       <Route path="/order-cancel" component={OrderCancel} />
       <Route path="/404" component={NotFound} />
