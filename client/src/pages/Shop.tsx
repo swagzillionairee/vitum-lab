@@ -41,7 +41,7 @@ const allProducts = products.flatMap((product) =>
     img: variant.img,
     cardBg: product.cardBg,
     cartCode: variant.cartCode,
-    badge: idx === 1 && product.badge ? (product.badge as string | null) : (idx === 0 && product.variants.length === 1 && product.badge ? (product.badge as string | null) : null),
+    badge: idx === 0 && product.badge ? (product.badge as string | null) : null,
     detailSlug: product.slug,
   }))
 );

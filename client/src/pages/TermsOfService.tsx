@@ -33,8 +33,8 @@ export default function TermsOfService() {
 
       <h2>Returns and Refunds</h2>
       <p>
-        Due to the nature of research compounds, all sales are final. We do not accept returns. If you receive a damaged, incorrect, or missing item, please contact us within 7 days of delivery at{" "}
-        <a href="mailto:hello@vitumlab.com">hello@vitumlab.com</a> with your order number and photos of the issue. We will work with you to resolve the matter on a case-by-case basis.
+        Unopened, sealed products may be returned within 14 days of delivery. Once a vial's plastic cap has been removed, the product is no longer eligible for return. Return shipping costs are the buyer's responsibility. If your order is lost in transit, we will ship a free replacement upon confirmation with USPS. Please contact us at{" "}
+        <a href="mailto:hello@vitumlab.com">hello@vitumlab.com</a> before returning any item to receive a return authorization. See our <a href="/return-policy">Return Policy</a> for full details.
       </p>
 
       <h2>Intellectual Property</h2>

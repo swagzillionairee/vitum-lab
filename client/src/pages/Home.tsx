@@ -454,7 +454,6 @@ export default function Home() {
               cardBg="#e0f0ec"
               variants={ghkcuVariants}
               detailHref="/shop/ghkcu"
-              fixedLot="B031"
             />
             {/* NAD+ and BAC Water — static cards */}
             {staticProducts.map((p) => (

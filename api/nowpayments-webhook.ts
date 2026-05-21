@@ -106,7 +106,9 @@ export default async function handler(req: any, res: any) {
     hmac.update(JSON.stringify(sorted));
     const computed = hmac.digest("hex");
 
-    if (!crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(signature))) {
+    const sigBuf = Buffer.from(signature ?? "");
+    const cmpBuf = Buffer.from(computed);
+    if (sigBuf.length !== cmpBuf.length || !crypto.timingSafeEqual(cmpBuf, sigBuf)) {
       res.status(401).send("Invalid signature");
       return;
     }

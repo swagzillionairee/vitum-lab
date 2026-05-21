@@ -12,8 +12,6 @@ import { Link, useLocation } from "wouter";
 import { ShoppingCart, Menu, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 
-const FOXY_STORE = "vitum-lab.foxycart.com";
-
 const navLinks = [
   { label: "Shop", href: "/shop" },
   { label: "COA Library", href: "/coa-library" },
