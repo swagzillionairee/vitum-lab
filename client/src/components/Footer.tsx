@@ -43,7 +43,7 @@ export default function Footer() {
               </a>
               <div className="flex items-start gap-2 text-sm text-white/60">
                 <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>United States</span>
+                <span>1300 S Columbus Blvd<br />Philadelphia, PA 19147</span>
               </div>
             </div>
           </div>
@@ -108,7 +108,6 @@ export default function Footer() {
                 { label: "Research Disclaimer", href: "/research-disclaimer" },
                 { label: "Terms of Service", href: "/terms-of-service" },
                 { label: "Privacy Policy", href: "/privacy-policy" },
-                { label: "Shipping Policy", href: "/shipping-policy" },
               ].map((link) => (
                 <li key={link.label}>
                   <Link
