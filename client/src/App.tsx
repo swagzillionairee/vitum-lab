@@ -23,6 +23,7 @@ import ResearchDisclaimer from "./pages/ResearchDisclaimer";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import ShippingPolicy from "./pages/ShippingPolicy";
+import ReturnPolicy from "./pages/ReturnPolicy";
 import Shop from "./pages/Shop";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
@@ -73,7 +74,7 @@ function Router() {
       <Route path="/contact" component={Contact} />
       <Route path="/faq" component={FAQ} />
       <Route path="/shipping-policy" component={ShippingPolicy} />
-      <Route path="/return-policy">{() => <PlaceholderPage title="Return Policy" />}</Route>
+      <Route path="/return-policy" component={ReturnPolicy} />
       <Route path="/terms-of-service" component={TermsOfService} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/research-disclaimer" component={ResearchDisclaimer} />
