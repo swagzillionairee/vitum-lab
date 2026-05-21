@@ -185,7 +185,7 @@ export default function Shop() {
             </span>
             <span className="hidden sm:block opacity-30">|</span>
             <span className="flex items-center gap-1.5 opacity-80">
-              <Truck className="w-3.5 h-3.5" /> Same-Day Shipping Before 1pm EST
+              <Truck className="w-3.5 h-3.5" /> 2–3 Day Delivery via USPS Priority Mail
             </span>
             <span className="hidden sm:block opacity-30">|</span>
             <span className="flex items-center gap-1.5 opacity-80">
@@ -238,7 +238,7 @@ export default function Shop() {
               Free Shipping + Free BAC Water
             </h3>
             <p className="text-[0.875rem] opacity-80 mt-1">
-              On all orders over $150. USPS Priority Mail — same-day dispatch before 1pm EST.
+              On all orders over $150. Shipped via USPS Priority Mail padded envelopes.
             </p>
           </div>
           <Link

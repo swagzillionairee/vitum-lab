@@ -49,7 +49,7 @@ function orderConfirmedHtml(orderId: string, amount: string) {
         </table>
       </div>
       <p style="margin:0 0 28px;font-size:14px;color:#666;line-height:1.65;">
-        You'll receive your tracking information once your order ships. Orders placed before 1pm EST typically ship the same day.
+        You'll receive your tracking information once your order ships. East Coast orders typically arrive in 2 days; Central and West Coast orders in 3 days via USPS Priority Mail.
       </p>
       <div style="border-top:1px solid #eee;padding-top:24px;">
         <p style="margin:0 0 6px;font-size:13px;color:#888;">Questions about your order?</p>

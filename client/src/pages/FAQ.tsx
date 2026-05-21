@@ -52,7 +52,7 @@ const faqCategories = [
       },
       {
         q: "Can I modify or cancel my order after placing it?",
-        a: "Orders placed before 1pm EST can typically be modified or cancelled by contacting us immediately at hello@vitumlab.com. Once an order has been dispatched, it cannot be cancelled.",
+        a: "Orders can typically be modified or cancelled by contacting us immediately at hello@vitumlab.com. Once an order has been dispatched, it cannot be cancelled.",
       },
     ],
   },
@@ -61,7 +61,7 @@ const faqCategories = [
     questions: [
       {
         q: "How are orders shipped?",
-        a: "Orders are shipped via USPS Priority Mail® Padded Flat Rate Envelope. Orders placed before 1pm EST ship the same day. Orders placed after 1pm EST ship the following business day.",
+        a: "Orders are shipped via USPS Priority Mail® in padded envelopes. East Coast deliveries typically arrive in 2 days; Central and West Coast deliveries typically arrive in 3 days.",
       },
       {
         q: "Do you offer free shipping?",
@@ -73,7 +73,7 @@ const faqCategories = [
       },
       {
         q: "How long does delivery take?",
-        a: "USPS Priority Mail® typically delivers within 1–3 business days within the contiguous US. Delivery times may vary during peak periods or due to carrier delays outside our control.",
+        a: "East Coast orders average 2 days; Central and West Coast orders average 3 days via USPS Priority Mail®. Delivery times are estimates and may vary during peak periods or due to carrier delays outside our control.",
       },
       {
         q: "How is packaging handled for temperature-sensitive compounds?",

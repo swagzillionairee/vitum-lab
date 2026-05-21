@@ -175,7 +175,7 @@ export default function ProductDetail() {
               {[
                 { icon: <ShieldCheck className="w-4 h-4" />, label: "≥99% Purity" },
                 { icon: <FlaskConical className="w-4 h-4" />, label: "3rd-Party Tested" },
-                { icon: <Truck className="w-4 h-4" />, label: "Next-Day Ship" },
+                { icon: <Truck className="w-4 h-4" />, label: "USPS Priority Mail" },
               ].map((b) => (
                 <div key={b.label} className="flex flex-col items-center gap-1.5 bg-[oklch(0.97_0.003_260)] rounded-xl py-3 px-2 text-center">
                   <span className="text-[oklch(0.40_0.16_260)]">{b.icon}</span>

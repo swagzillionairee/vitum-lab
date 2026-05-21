@@ -27,7 +27,7 @@ const values = [
   {
     icon: <Truck className="w-6 h-6" />,
     title: "Researcher-First Logistics",
-    body: "Same-day dispatch on orders placed before 1pm EST. Cold-chain packaging for temperature-sensitive compounds. Free shipping and a complimentary BAC Water on orders over $150.",
+    body: "Fast delivery via USPS Priority Mail padded envelopes — 2 days avg. to East Coast, 3 days to Central & West Coast. Free shipping and a complimentary BAC Water on orders over $150.",
   },
 ];
 
@@ -35,7 +35,7 @@ const stats = [
   { value: "≥99%", label: "Minimum purity on all compounds" },
   { value: "100%", label: "Batches independently tested" },
   { value: "5+", label: "Quality checks per batch" },
-  { value: "48h", label: "Average delivery time (contiguous US)" },
+  { value: "2–3", label: "Day avg. delivery (East to West Coast)" },
 ];
 
 export default function About() {

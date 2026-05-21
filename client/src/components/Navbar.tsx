@@ -3,14 +3,13 @@
  * Design: Contemporary Clinical
  * Features:
  *   - Continuous marquee promotional banner (no dismiss — always visible)
- *   - Live countdown timer to 1pm EST same-day shipping cutoff
  *   - Persistent compliance bar
  *   - Sticky navbar with cart, nav links, mobile menu
  */
 
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { ShoppingCart, Menu, X, Clock } from "lucide-react";
+import { ShoppingCart, Menu, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 
 const FOXY_STORE = "vitum-lab.foxycart.com";
@@ -24,65 +23,9 @@ const navLinks = [
   { label: "Contact", href: "/contact" },
 ];
 
-// ─── Countdown to 1pm EST ─────────────────────────────────────────────────────
-function getTimeUntilCutoff(): { hours: number; minutes: number; seconds: number; showCountdown: boolean } {
-  const now = new Date();
-  // Get current time in US/Eastern (handles DST automatically)
-  const estNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const currentHour = estNow.getHours();
-
-  // Only show countdown between 6am and 1pm EST
-  const inCountdownWindow = currentHour >= 6 && currentHour < 13;
-
-  if (!inCountdownWindow) {
-    return { hours: 0, minutes: 0, seconds: 0, showCountdown: false };
-  }
-
-  const cutoff = new Date(estNow);
-  cutoff.setHours(13, 0, 0, 0); // 1:00:00 PM
-
-  const diffMs = cutoff.getTime() - estNow.getTime();
-  const totalSeconds = Math.floor(diffMs / 1000);
-
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  return { hours, minutes, seconds, showCountdown: true };
-}
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function CountdownTimer() {
-  const [time, setTime] = useState(getTimeUntilCutoff);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setTime(getTimeUntilCutoff());
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  if (!time.showCountdown) {
-    return null;
-  }
-
-  return (
-    <div className="flex items-center gap-1.5 flex-shrink-0 bg-white/10 rounded-sm px-2.5 py-1">
-      <Clock className="w-3 h-3 opacity-80" />
-      <span className="text-[0.6875rem] font-semibold tabular-nums tracking-wide">
-        {pad(time.hours)}:{pad(time.minutes)}:{pad(time.seconds)}
-      </span>
-      <span className="text-[0.625rem] opacity-75 hidden sm:inline">until cutoff</span>
-    </div>
-  );
-}
-
 // ─── Marquee message ──────────────────────────────────────────────────────────
 const PROMO_MESSAGE =
-  "Free shipping and 10mL BAC Water for orders over $150                      ·                       Orders ships next day!                       ·                       Free shipping and 10mL BAC Water for orders over $150                       ·                       Orders placed ships next day!  ·                     ";
+  "Free shipping and 10mL BAC Water for orders over $150                      ·                       2–3 day delivery via USPS Priority Mail                       ·                       Free shipping and 10mL BAC Water for orders over $150                       ·                       2–3 day delivery via USPS Priority Mail  ·                     ";
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);

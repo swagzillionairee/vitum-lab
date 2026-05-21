@@ -102,7 +102,7 @@ const faqs = [
   },
   {
     q: "How are orders shipped?",
-    a: "Orders are shipped via USPS Priority Mail® Padded Flat Rate Envelope. Orders placed before 1pm EST ship the same day. Orders placed after 1pm EST ship the following business day.",
+    a: "Orders are shipped via USPS Priority Mail® in padded envelopes. East Coast deliveries typically arrive in 2 days; Central and West Coast deliveries typically arrive in 3 days. Delivery times are estimates and not guaranteed.",
   },
   {
     q: "Do you offer free shipping?",
@@ -354,7 +354,7 @@ export default function Home() {
                 "≥99% Purity Verified",
                 "COA with Every Batch",
                 "US-Based & Tested",
-                "Next-Day Shipping*",
+                "USPS Priority Mail",
               ].map((t) => (
                 <span key={t} className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.01_260)]">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[oklch(0.40_0.16_260)] flex-shrink-0" />
@@ -405,8 +405,8 @@ export default function Home() {
               },
               {
                 icon: <Truck className="w-5 h-5" />,
-                title: "Next-Day US Shipping",
-                body: "Orders placed before 1pm EST ship same business day. Free shipping + BAC Water over $150.",
+                title: "Fast US Shipping",
+                body: "2 days avg. to East Coast, 3 days to Central & West Coast via USPS Priority Mail. Free shipping + BAC Water over $150.",
               },
             ].map((pillar) => (
               <div key={pillar.title} className="flex items-start gap-4 px-8 py-7">
@@ -490,8 +490,8 @@ export default function Home() {
               },
               {
                 icon: <Truck className="w-6 h-6" />,
-                title: "Anywhere in the US, as fast as next day",
-                body: "Orders placed before 1pm EST ship the same business day. Free shipping and a complimentary 10mL BAC Water on orders over $150.",
+                title: "Fast delivery anywhere in the US",
+                body: "2 days avg. to East Coast, 3 days to Central & West Coast via USPS Priority Mail. Free shipping and a complimentary 10mL BAC Water on orders over $150.",
                 cta: "Shipping Info",
                 href: "/shipping-policy",
               },

@@ -4,16 +4,24 @@ import SEO from "@/components/SEO";
 export default function ShippingPolicy() {
   return (
     <>
-    <SEO title="Shipping & Returns" description="Vitum Lab shipping policy: same-day processing before 1pm EST, USPS Priority Mail, free shipping on orders over $150. US domestic only." />
+    <SEO title="Shipping & Returns" description="Vitum Lab shipping policy: USPS Priority Mail padded envelopes, 2-day East Coast / 3-day West Coast delivery, free shipping on orders over $150." />
     <LegalPage title="Shipping Policy" lastUpdated="May 2025">
       <h2>Shipping Method</h2>
       <p>
-        All orders are shipped via <strong>USPS Priority Mail® Padded Flat Rate Envelope</strong>. This service typically delivers within 1–3 business days across the contiguous United States. Delivery times are estimates provided by USPS and are not guaranteed by Vitum Lab.
+        All orders are shipped via <strong>USPS Priority Mail® in padded envelopes</strong>. Orders are processed and shipped on business days (Monday–Friday, excluding federal holidays).
       </p>
 
-      <h2>Same-Day Shipping Cutoff</h2>
+      <h2>Estimated Delivery Times</h2>
       <p>
-        Orders placed before <strong>1:00 PM Eastern Time (ET)</strong> on a business day are processed and shipped the same day. Orders placed after 1:00 PM ET, on weekends, or on federal holidays will be shipped on the next available business day.
+        Delivery times are averages based on USPS Priority Mail® transit times and are not guaranteed:
+      </p>
+      <ul>
+        <li><strong>East Coast</strong> — approximately 2 business days</li>
+        <li><strong>Central US</strong> — approximately 3 business days</li>
+        <li><strong>West Coast</strong> — approximately 3 business days</li>
+      </ul>
+      <p>
+        Delivery times are estimates provided by USPS and are not guaranteed by Vitum Lab. Delays may occur during peak periods or due to carrier circumstances outside our control.
       </p>
 
       <h2>Free Shipping Promotion</h2>
