@@ -110,7 +110,7 @@ export const products: Product[] = [
       {
         id: "ghkcu-100mg",
         dose: "100 MG",
-        lot: "B045",
+        lot: "B031",
         price: 109,
         img: "/GHKCU%20100%20MG%20PRODUCT%20PIC.png",
         cartCode: "ghk-cu-100mg",
@@ -147,7 +147,7 @@ export const products: Product[] = [
     longDescription:
       "Nicotinamide Adenine Dinucleotide (NAD+) is a critical coenzyme involved in redox reactions, energy metabolism, and cellular signaling. It has been extensively studied in the context of mitochondrial function, DNA repair, and longevity pathways including sirtuins and PARP enzymes.",
     cardBg: "#faeae0",
-    badge: "New",
+    badge: "Out of Stock",
     variants: [
       {
         id: "nad-500mg",

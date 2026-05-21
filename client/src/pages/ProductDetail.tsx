@@ -95,6 +95,8 @@ export default function ProductDetail() {
                 <span className={`text-[0.625rem] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full ${
                   product.badge === "Best Seller"
                     ? "bg-[#1a3a2a] text-white"
+                    : product.badge === "Out of Stock"
+                    ? "bg-[oklch(0.45_0.01_260)] text-white"
                     : "bg-[oklch(0.35_0.15_260)] text-white"
                 }`}>
                   {product.badge === "Best Seller" ? "★ " : ""}{product.badge}
