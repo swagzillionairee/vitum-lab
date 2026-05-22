@@ -4,13 +4,14 @@
  * Features:
  *   - Continuous marquee promotional banner (no dismiss — always visible)
  *   - Persistent compliance bar
- *   - Sticky navbar with cart, nav links, mobile menu
+ *   - Sticky navbar with cart, nav links, dark mode toggle, mobile menu
  */
 
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { ShoppingCart, Menu, X } from "lucide-react";
+import { ShoppingCart, Menu, X, Sun, Moon } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const navLinks = [
   { label: "Shop", href: "/shop" },
@@ -31,6 +32,7 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
   const { totalItems, openCart } = useCart();
+  const { theme, toggleTheme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -40,7 +42,7 @@ export default function Navbar() {
   }, []);
 
   return (
-    <header className={`sticky top-0 z-50 bg-white border-b border-[oklch(0.91_0.004_260)] transition-shadow duration-200 ${scrolled ? "shadow-[0_2px_16px_oklch(0.13_0.01_260/0.12)]" : "shadow-[0_1px_4px_oklch(0.13_0.01_260/0.06)]"}`}>
+    <header className={`sticky top-0 z-50 bg-white dark:bg-[oklch(0.13_0.02_260)] border-b border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] transition-shadow duration-200 ${scrolled ? "shadow-[0_2px_16px_oklch(0.13_0.01_260/0.12)] dark:shadow-[0_2px_16px_oklch(0_0_0/0.5)]" : "shadow-[0_1px_4px_oklch(0.13_0.01_260/0.06)] dark:shadow-[0_1px_4px_oklch(0_0_0/0.3)]"}`}>
 
       {/* ── Promotional marquee banner ────────────────────────────────── */}
       <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden">
@@ -83,7 +85,7 @@ export default function Navbar() {
             <img
               src="/vitum%20lab%20logo%20black.png"
               alt="Vitum Lab"
-              className="h-14 w-auto"
+              className="h-14 w-auto dark:invert"
             />
           </Link>
 
@@ -95,8 +97,8 @@ export default function Navbar() {
                 href={link.href}
                 className={`text-sm font-medium transition-colors duration-150 ${
                   location === link.href
-                    ? "text-[oklch(0.13_0.01_260)] border-b-2 border-[oklch(0.13_0.01_260)] pb-0.5"
-                    : "text-[oklch(0.40_0.01_260)] hover:text-[oklch(0.13_0.01_260)]"
+                    ? "text-[oklch(0.13_0.01_260)] dark:text-[oklch(0.94_0.006_260)] border-b-2 border-[oklch(0.13_0.01_260)] dark:border-[oklch(0.94_0.006_260)] pb-0.5"
+                    : "text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)] hover:text-[oklch(0.13_0.01_260)] dark:hover:text-[oklch(0.94_0.006_260)]"
                 }`}
               >
                 {link.label}
@@ -105,13 +107,26 @@ export default function Navbar() {
           </nav>
 
           {/* Right actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {/* Dark mode toggle */}
+            <button
+              onClick={toggleTheme}
+              className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {theme === "dark" ? (
+                <Sun className="w-4.5 h-4.5 text-[oklch(0.75_0.12_80)]" />
+              ) : (
+                <Moon className="w-4.5 h-4.5 text-[oklch(0.40_0.01_260)]" />
+              )}
+            </button>
+
             <button
               onClick={openCart}
-              className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] transition-colors"
+              className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
               aria-label="Shopping cart"
             >
-              <ShoppingCart className="w-5 h-5 text-[oklch(0.40_0.01_260)]" />
+              <ShoppingCart className="w-5 h-5 text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)]" />
               {totalItems > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-[oklch(0.35_0.15_260)] text-white text-[10px] font-bold rounded-full px-1">
                   {totalItems > 99 ? "99+" : totalItems}
@@ -124,14 +139,14 @@ export default function Navbar() {
             </Link>
 
             <button
-              className="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] transition-colors"
+              className="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Toggle menu"
             >
               {mobileOpen ? (
-                <X className="w-5 h-5 text-[oklch(0.40_0.01_260)]" />
+                <X className="w-5 h-5 text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)]" />
               ) : (
-                <Menu className="w-5 h-5 text-[oklch(0.40_0.01_260)]" />
+                <Menu className="w-5 h-5 text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)]" />
               )}
             </button>
           </div>
@@ -140,7 +155,7 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-[oklch(0.91_0.004_260)] bg-white">
+        <div className="md:hidden border-t border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] bg-white dark:bg-[oklch(0.13_0.02_260)]">
           <nav className="container py-4 flex flex-col gap-1">
             {navLinks.map((link) => (
               <Link
@@ -149,14 +164,14 @@ export default function Navbar() {
                 onClick={() => setMobileOpen(false)}
                 className={`text-sm font-medium py-2.5 px-3 rounded-xl transition-colors ${
                   location === link.href
-                    ? "bg-[oklch(0.96_0.003_260)] text-[oklch(0.13_0.01_260)]"
-                    : "text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)]"
+                    ? "bg-[oklch(0.96_0.003_260)] dark:bg-[oklch(0.20_0.02_260)] text-[oklch(0.13_0.01_260)] dark:text-[oklch(0.94_0.006_260)]"
+                    : "text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)]"
                 }`}
               >
                 {link.label}
               </Link>
             ))}
-            <div className="pt-3 border-t border-[oklch(0.91_0.004_260)] mt-2">
+            <div className="pt-3 border-t border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] mt-2">
               <Link href="/shop" onClick={() => setMobileOpen(false)} className="btn-primary block text-center text-sm">
                 Shop Now
               </Link>

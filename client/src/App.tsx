@@ -121,7 +121,7 @@ function AppLayout() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
+      <ThemeProvider defaultTheme="light" switchable={true}>
         <TooltipProvider>
           <CartProvider>
             <Toaster />

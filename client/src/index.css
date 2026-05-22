@@ -102,6 +102,104 @@
   --sidebar-ring: oklch(0.45 0.15 260);
 }
 
+/* ─── Dark mode CSS variables ────────────────────────────────────────────── */
+.dark {
+  color-scheme: dark;
+  --background:            oklch(0.12 0.02 260);
+  --foreground:            oklch(0.94 0.006 260);
+  --card:                  oklch(0.155 0.02 260);
+  --card-foreground:       oklch(0.94 0.006 260);
+  --popover:               oklch(0.155 0.02 260);
+  --popover-foreground:    oklch(0.94 0.006 260);
+  --primary:               oklch(0.94 0.006 260);
+  --primary-foreground:    oklch(0.12 0.02 260);
+  --secondary:             oklch(0.20 0.02 260);
+  --secondary-foreground:  oklch(0.94 0.006 260);
+  --muted:                 oklch(0.20 0.02 260);
+  --muted-foreground:      oklch(0.60 0.01 260);
+  --accent:                oklch(0.20 0.02 260);
+  --accent-foreground:     oklch(0.94 0.006 260);
+  --border:                oklch(0.26 0.02 260);
+  --input:                 oklch(0.20 0.02 260);
+  --ring:                  oklch(0.55 0.15 260);
+  --sidebar:               oklch(0.155 0.02 260);
+  --sidebar-foreground:    oklch(0.94 0.006 260);
+  --sidebar-border:        oklch(0.26 0.02 260);
+  --sidebar-ring:          oklch(0.55 0.15 260);
+}
+
+/* ─── Dark mode: background overrides ───────────────────────────────────── */
+.dark .bg-white                              { background-color: oklch(0.12 0.02 260); }
+.dark .bg-\[oklch\(0\.975_0\.003_260\)\]    { background-color: oklch(0.155 0.02 260); }
+.dark .bg-\[oklch\(0\.97_0\.003_260\)\]     { background-color: oklch(0.19 0.02 260); }
+.dark .bg-\[oklch\(0\.96_0\.003_260\)\]     { background-color: oklch(0.22 0.02 260); }
+.dark .bg-\[oklch\(0\.97_0\.004_260\)\]     { background-color: oklch(0.19 0.02 260); }
+.dark .bg-\[oklch\(0\.985_0_0\)\]           { background-color: oklch(0.155 0.02 260); }
+
+/* ─── Dark mode: text overrides ──────────────────────────────────────────── */
+.dark .text-\[oklch\(0\.13_0\.01_260\)\]    { color: oklch(0.94 0.006 260); }
+.dark .text-\[oklch\(0\.18_0\.04_255\)\]    { color: oklch(0.94 0.006 260); }
+.dark .text-\[oklch\(0\.40_0\.01_260\)\]    { color: oklch(0.76 0.01 260); }
+.dark .text-\[oklch\(0\.45_0\.01_260\)\]    { color: oklch(0.72 0.01 260); }
+.dark .text-\[oklch\(0\.52_0\.01_260\)\]    { color: oklch(0.64 0.01 260); }
+.dark .text-\[oklch\(0\.55_0\.02_255\)\]    { color: oklch(0.64 0.01 260); }
+.dark .text-\[oklch\(0\.60_0\.01_260\)\]    { color: oklch(0.56 0.01 260); }
+.dark .text-\[oklch\(0\.65_0\.01_260\)\]    { color: oklch(0.52 0.01 260); }
+
+/* ─── Dark mode: border overrides ────────────────────────────────────────── */
+.dark .border-\[oklch\(0\.91_0\.004_260\)\] { border-color: oklch(0.26 0.02 260); }
+.dark .border-\[oklch\(0\.93_0\.004_260\)\] { border-color: oklch(0.26 0.02 260); }
+.dark .border-\[oklch\(0\.88_0\.004_260\)\] { border-color: oklch(0.23 0.02 260); }
+.dark .border-\[oklch\(0\.95_0\.003_260\)\] { border-color: oklch(0.22 0.02 260); }
+.dark .border-\[oklch\(0\.60_0\.01_260\)\]  { border-color: oklch(0.38 0.02 260); }
+
+/* ─── Dark mode: buttons ─────────────────────────────────────────────────── */
+.dark .btn-primary {
+  background-color: oklch(0.94 0.006 260);
+  color: oklch(0.12 0.02 260);
+}
+.dark .btn-primary:hover {
+  background-color: oklch(0.86 0.008 260);
+}
+.dark .btn-secondary {
+  color: oklch(0.94 0.006 260);
+  border-color: oklch(0.40 0.02 260);
+}
+.dark .btn-secondary:hover {
+  background-color: oklch(0.20 0.02 260);
+}
+
+/* ─── Dark mode: section tints ───────────────────────────────────────────── */
+.dark .bg-tint-blue  { background-color: oklch(0.16 0.025 240); }
+.dark .bg-tint-green { background-color: oklch(0.16 0.025 155); }
+.dark .bg-tint-warm  { background-color: oklch(0.17 0.020 80); }
+
+/* ─── Dark mode: form inputs ─────────────────────────────────────────────── */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: oklch(0.18 0.02 260);
+  color: oklch(0.94 0.006 260);
+  border-color: oklch(0.28 0.02 260);
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: oklch(0.50 0.01 260);
+}
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: oklch(0.45 0.12 260);
+  outline-color: oklch(0.45 0.12 260);
+}
+
+/* ─── Dark mode: misc ────────────────────────────────────────────────────── */
+/* Dose selector active pill */
+.dark .bg-\[oklch\(0\.13_0\.01_260\)\] { background-color: oklch(0.94 0.006 260); }
+.dark .text-white.bg-\[oklch\(0\.13_0\.01_260\)\] { color: oklch(0.12 0.02 260); }
+/* Accordion hover / trust badge bg */
+.dark .bg-\[oklch\(0\.97_0\.003_260\)\] { background-color: oklch(0.19 0.02 260); }
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
