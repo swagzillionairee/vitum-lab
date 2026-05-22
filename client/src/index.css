@@ -116,7 +116,7 @@
   --secondary:             oklch(0.20 0.02 260);
   --secondary-foreground:  oklch(0.94 0.006 260);
   --muted:                 oklch(0.20 0.02 260);
-  --muted-foreground:      oklch(0.60 0.01 260);
+  --muted-foreground:      oklch(0.74 0.01 260);
   --accent:                oklch(0.20 0.02 260);
   --accent-foreground:     oklch(0.94 0.006 260);
   --border:                oklch(0.26 0.02 260);
@@ -137,14 +137,20 @@
 .dark .bg-\[oklch\(0\.985_0_0\)\]           { background-color: oklch(0.155 0.02 260); }
 
 /* ─── Dark mode: text overrides ──────────────────────────────────────────── */
-.dark .text-\[oklch\(0\.13_0\.01_260\)\]    { color: oklch(0.94 0.006 260); }
-.dark .text-\[oklch\(0\.18_0\.04_255\)\]    { color: oklch(0.94 0.006 260); }
-.dark .text-\[oklch\(0\.40_0\.01_260\)\]    { color: oklch(0.76 0.01 260); }
-.dark .text-\[oklch\(0\.45_0\.01_260\)\]    { color: oklch(0.72 0.01 260); }
-.dark .text-\[oklch\(0\.52_0\.01_260\)\]    { color: oklch(0.64 0.01 260); }
-.dark .text-\[oklch\(0\.55_0\.02_255\)\]    { color: oklch(0.64 0.01 260); }
-.dark .text-\[oklch\(0\.60_0\.01_260\)\]    { color: oklch(0.56 0.01 260); }
-.dark .text-\[oklch\(0\.65_0\.01_260\)\]    { color: oklch(0.52 0.01 260); }
+/* Rule: dark bg is ~0.12 lightness. All text must be >= 0.68 for readability. */
+.dark .text-\[oklch\(0\.13_0\.01_260\)\]    { color: oklch(0.95 0.006 260); }
+.dark .text-\[oklch\(0\.18_0\.04_255\)\]    { color: oklch(0.95 0.006 260); }
+.dark .text-\[oklch\(0\.40_0\.01_260\)\]    { color: oklch(0.87 0.008 260); }
+.dark .text-\[oklch\(0\.45_0\.01_260\)\]    { color: oklch(0.83 0.008 260); }
+.dark .text-\[oklch\(0\.52_0\.01_260\)\]    { color: oklch(0.78 0.01 260); }
+.dark .text-\[oklch\(0\.55_0\.02_255\)\]    { color: oklch(0.76 0.01 260); }
+.dark .text-\[oklch\(0\.60_0\.01_260\)\]    { color: oklch(0.74 0.01 260); }
+.dark .text-\[oklch\(0\.65_0\.01_260\)\]    { color: oklch(0.72 0.01 260); }
+/* Cobalt accent text (icons, checkmarks) — keep hue, raise lightness */
+.dark .text-\[oklch\(0\.40_0\.16_260\)\]    { color: oklch(0.72 0.16 260); }
+.dark .text-\[oklch\(0\.40_0\.14_155\)\]    { color: oklch(0.72 0.14 155); }
+/* Italic / fine-print text */
+.dark .text-\[oklch\(0\.52_0\.01_260\)\]    { color: oklch(0.78 0.01 260); }
 
 /* ─── Dark mode: border overrides ────────────────────────────────────────── */
 .dark .border-\[oklch\(0\.91_0\.004_260\)\] { border-color: oklch(0.26 0.02 260); }
