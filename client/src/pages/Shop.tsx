@@ -205,8 +205,8 @@ export default function Shop() {
                 onClick={() => setActiveCategory(c.slug)}
                 className={`flex-shrink-0 px-4 py-2 rounded-full text-[0.8125rem] font-semibold transition-colors ${
                   activeCategory === c.slug
-                    ? "bg-[oklch(0.13_0.01_260)] text-white"
-                    : "bg-[oklch(0.96_0.003_260)] text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.92_0.005_260)]"
+                    ? "bg-[oklch(0.13_0.01_260)] dark:bg-[oklch(0.40_0.16_260)] text-white"
+                    : "bg-[oklch(0.96_0.003_260)] dark:bg-[oklch(0.20_0.02_260)] text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.80_0.01_260)] hover:bg-[oklch(0.92_0.005_260)] dark:hover:bg-[oklch(0.26_0.02_260)]"
                 }`}
               >
                 {c.label}

@@ -1,6 +1,6 @@
 /**
  * LegalPage — shared layout wrapper for all legal/policy pages
- * Design: matches Vitum Lab oklch color system — dark navy header, white body
+ * Design: matches Vitum Lab oklch color system — dark navy header, white/dark body
  */
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
@@ -13,137 +13,43 @@ interface LegalPageProps {
 
 export default function LegalPage({ title, lastUpdated, children }: LegalPageProps) {
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#ffffff",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      {/* Full-width dark navy header */}
-      <div
-        style={{
-          backgroundColor: "oklch(0.13 0.01 260)",
-          paddingTop: "3.5rem",
-          paddingBottom: "3.5rem",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "48rem",
-            margin: "0 auto",
-            paddingLeft: "1.5rem",
-            paddingRight: "1.5rem",
-          }}
-        >
+    <div className="min-h-screen bg-white dark:bg-[oklch(0.12_0.02_260)] flex flex-col">
+
+      {/* Full-width dark navy header — stays dark in both modes */}
+      <div className="bg-[oklch(0.13_0.01_260)] pt-14 pb-14">
+        <div className="max-w-3xl mx-auto px-6">
           <Link
             href="/"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.375rem",
-              fontSize: "0.8125rem",
-              color: "oklch(0.65 0.01 260)",
-              textDecoration: "none",
-              marginBottom: "1.75rem",
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={(e) =>
-              ((e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.9)")
-            }
-            onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLAnchorElement).style.color = "oklch(0.65 0.01 260)")
-            }
+            className="inline-flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.55_0.01_260)] hover:text-white transition-colors mb-7"
           >
-            <ArrowLeft style={{ width: "0.875rem", height: "0.875rem", flexShrink: 0 }} />
+            <ArrowLeft className="w-3.5 h-3.5 flex-shrink-0" />
             Back to Vitum Lab
           </Link>
 
-          <p
-            style={{
-              fontSize: "0.6875rem",
-              fontWeight: 600,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "oklch(0.52 0.01 260)",
-              marginBottom: "0.75rem",
-            }}
-          >
+          <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-3">
             Vitum Lab
           </p>
 
-          <h1
-            style={{
-              fontSize: "2rem",
-              fontWeight: 700,
-              color: "#ffffff",
-              marginBottom: "0.875rem",
-              lineHeight: 1.2,
-            }}
-          >
+          <h1 className="text-[2rem] font-bold text-white mb-3.5 leading-tight">
             {title}
           </h1>
 
-          <span
-            style={{
-              display: "inline-block",
-              fontSize: "0.75rem",
-              fontWeight: 500,
-              color: "oklch(0.52 0.01 260)",
-              backgroundColor: "oklch(0.19 0.01 260)",
-              border: "1px solid oklch(0.25 0.01 260)",
-              borderRadius: "9999px",
-              padding: "0.25rem 0.75rem",
-            }}
-          >
+          <span className="inline-block text-[0.75rem] font-medium text-[oklch(0.55_0.01_260)] bg-[oklch(0.19_0.01_260)] border border-[oklch(0.25_0.01_260)] rounded-full px-3 py-1">
             Last updated: {lastUpdated}
           </span>
         </div>
       </div>
 
       {/* Body content */}
-      <div
-        style={{
-          flex: 1,
-          backgroundColor: "#ffffff",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "48rem",
-            margin: "0 auto",
-            paddingLeft: "1.5rem",
-            paddingRight: "1.5rem",
-            paddingTop: "3.5rem",
-            paddingBottom: "3.5rem",
-          }}
-          className="legal-page-content"
-        >
+      <div className="flex-1 bg-white dark:bg-[oklch(0.12_0.02_260)]">
+        <div className="max-w-3xl mx-auto px-6 py-14 legal-page-content">
           {children}
         </div>
       </div>
 
       {/* Footer note */}
-      <div
-        style={{
-          borderTop: "1px solid oklch(0.91 0.004 260)",
-          backgroundColor: "#ffffff",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "48rem",
-            margin: "0 auto",
-            paddingLeft: "1.5rem",
-            paddingRight: "1.5rem",
-            paddingTop: "2rem",
-            paddingBottom: "2rem",
-            textAlign: "center",
-            fontSize: "0.75rem",
-            color: "oklch(0.52 0.01 260)",
-          }}
-        >
+      <div className="border-t border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] bg-white dark:bg-[oklch(0.12_0.02_260)]">
+        <div className="max-w-3xl mx-auto px-6 py-8 text-center text-[0.75rem] text-[oklch(0.52_0.01_260)] dark:text-[oklch(0.60_0.01_260)]">
           © {new Date().getFullYear()} Vitum Lab. All products are for research use only — not for
           human or veterinary use.
         </div>

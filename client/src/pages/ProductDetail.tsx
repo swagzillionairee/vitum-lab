@@ -123,8 +123,8 @@ export default function ProductDetail() {
                       onClick={() => setSelectedIdx(i)}
                       className={`px-5 py-2.5 rounded-full border text-[0.875rem] font-semibold transition-colors duration-150 ${
                         i === selectedIdx
-                          ? "bg-[oklch(0.13_0.01_260)] text-white border-[oklch(0.13_0.01_260)]"
-                          : "bg-white text-[oklch(0.40_0.01_260)] border-[oklch(0.88_0.004_260)] hover:border-[oklch(0.60_0.01_260)]"
+                          ? "bg-[oklch(0.13_0.01_260)] dark:bg-[oklch(0.40_0.16_260)] text-white border-[oklch(0.13_0.01_260)] dark:border-[oklch(0.40_0.16_260)]"
+                          : "bg-white dark:bg-[oklch(0.18_0.02_260)] text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.80_0.01_260)] border-[oklch(0.88_0.004_260)] dark:border-[oklch(0.28_0.02_260)] hover:border-[oklch(0.60_0.01_260)]"
                       }`}
                     >
                       {v.dose}

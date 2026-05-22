@@ -79,9 +79,9 @@ export default function COALibrary() {
           </p>
 
           {/* Lab badge */}
-          <div className="mt-5 inline-flex items-center gap-2.5 bg-[oklch(0.97_0.003_260)] border border-[oklch(0.90_0.005_260)] rounded-full px-4 py-2">
+          <div className="mt-5 inline-flex items-center gap-2.5 bg-[oklch(0.97_0.003_260)] dark:bg-[oklch(0.19_0.02_260)] border border-[oklch(0.90_0.005_260)] dark:border-[oklch(0.26_0.02_260)] rounded-full px-4 py-2">
             <ShieldCheck className="w-4 h-4 text-[oklch(0.40_0.14_155)]" />
-            <span className="text-[0.8125rem] font-semibold text-[oklch(0.30_0.01_260)]">
+            <span className="text-[0.8125rem] font-semibold text-[oklch(0.30_0.01_260)] dark:text-[oklch(0.88_0.006_260)]">
               Tested by Constitution Laboratories LLC
             </span>
           </div>
@@ -139,13 +139,13 @@ export default function COALibrary() {
                     href={c.pdf}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full bg-[oklch(0.13_0.01_260)] text-white text-[0.875rem] font-semibold hover:bg-[oklch(0.22_0.01_260)] transition-colors"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full bg-[oklch(0.13_0.01_260)] dark:bg-[oklch(0.40_0.16_260)] text-white text-[0.875rem] font-semibold hover:bg-[oklch(0.22_0.01_260)] dark:hover:bg-[oklch(0.35_0.16_260)] transition-colors"
                   >
                     <FileText className="w-4 h-4" /> Download COA (PDF)
                   </a>
                   <Link
                     href={`/shop/${c.slug === "glp3r" ? "retatrutide" : c.slug}`}
-                    className="flex items-center justify-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors"
+                    className="flex items-center justify-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] dark:hover:text-white transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5" /> View Product
                   </Link>

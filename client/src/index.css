@@ -129,35 +129,57 @@
 }
 
 /* ─── Dark mode: background overrides ───────────────────────────────────── */
+/* NOTE: do NOT override oklch(0.13 0.01 260) — it is used as intentional dark
+   section headers that should stay dark in dark mode. Handle active buttons
+   via component-level dark: classes instead. */
 .dark .bg-white                              { background-color: oklch(0.12 0.02 260); }
 .dark .bg-\[oklch\(0\.975_0\.003_260\)\]    { background-color: oklch(0.155 0.02 260); }
 .dark .bg-\[oklch\(0\.97_0\.003_260\)\]     { background-color: oklch(0.19 0.02 260); }
 .dark .bg-\[oklch\(0\.96_0\.003_260\)\]     { background-color: oklch(0.22 0.02 260); }
 .dark .bg-\[oklch\(0\.97_0\.004_260\)\]     { background-color: oklch(0.19 0.02 260); }
 .dark .bg-\[oklch\(0\.985_0_0\)\]           { background-color: oklch(0.155 0.02 260); }
+.dark .bg-\[oklch\(0\.98_0\.002_260\)\]     { background-color: oklch(0.12 0.02 260); }
+/* Research page study badge backgrounds */
+.dark .bg-\[oklch\(0\.93_0\.04_260\)\]      { background-color: oklch(0.22 0.08 260); }
+.dark .bg-\[oklch\(0\.93_0\.04_160\)\]      { background-color: oklch(0.20 0.07 160); }
+.dark .bg-\[oklch\(0\.95_0\.04_55\)\]       { background-color: oklch(0.22 0.06 55); }
+/* COA Library card pastel headers */
+.dark .bg-\[\#f5e8e0\]                      { background-color: oklch(0.22 0.03 30); }
+.dark .bg-\[\#e0f0ec\]                      { background-color: oklch(0.20 0.03 155); }
+.dark .bg-\[\#faeae0\]                      { background-color: oklch(0.22 0.03 50); }
+.dark .bg-\[\#e0eaf5\]                      { background-color: oklch(0.20 0.03 260); }
 
 /* ─── Dark mode: text overrides ──────────────────────────────────────────── */
-/* Rule: dark bg is ~0.12 lightness. All text must be >= 0.68 for readability. */
+/* Rule: dark bg is ~0.12 lightness. All text must be >= 0.70 for readability. */
 .dark .text-\[oklch\(0\.13_0\.01_260\)\]    { color: oklch(0.95 0.006 260); }
 .dark .text-\[oklch\(0\.18_0\.04_255\)\]    { color: oklch(0.95 0.006 260); }
+.dark .text-\[oklch\(0\.20_0\.01_260\)\]    { color: oklch(0.92 0.006 260); }
+.dark .text-\[oklch\(0\.30_0\.01_260\)\]    { color: oklch(0.90 0.006 260); }
 .dark .text-\[oklch\(0\.40_0\.01_260\)\]    { color: oklch(0.87 0.008 260); }
 .dark .text-\[oklch\(0\.45_0\.01_260\)\]    { color: oklch(0.83 0.008 260); }
+.dark .text-\[oklch\(0\.50_0\.01_260\)\]    { color: oklch(0.76 0.01 260); }
 .dark .text-\[oklch\(0\.52_0\.01_260\)\]    { color: oklch(0.78 0.01 260); }
+.dark .text-\[oklch\(0\.55_0\.01_260\)\]    { color: oklch(0.74 0.01 260); }
 .dark .text-\[oklch\(0\.55_0\.02_255\)\]    { color: oklch(0.76 0.01 260); }
 .dark .text-\[oklch\(0\.60_0\.01_260\)\]    { color: oklch(0.74 0.01 260); }
 .dark .text-\[oklch\(0\.65_0\.01_260\)\]    { color: oklch(0.72 0.01 260); }
-/* Cobalt accent text (icons, checkmarks) — keep hue, raise lightness */
-.dark .text-\[oklch\(0\.40_0\.16_260\)\]    { color: oklch(0.72 0.16 260); }
-.dark .text-\[oklch\(0\.40_0\.14_155\)\]    { color: oklch(0.72 0.14 155); }
-/* Italic / fine-print text */
-.dark .text-\[oklch\(0\.52_0\.01_260\)\]    { color: oklch(0.78 0.01 260); }
+/* Cobalt/accent text — raise lightness, keep hue/chroma */
+.dark .text-\[oklch\(0\.35_0\.15_260\)\]    { color: oklch(0.74 0.15 260); }
+.dark .text-\[oklch\(0\.40_0\.16_260\)\]    { color: oklch(0.74 0.16 260); }
+.dark .text-\[oklch\(0\.40_0\.14_155\)\]    { color: oklch(0.74 0.14 155); }
+/* Research badge text (colored, dark on light) */
+.dark .text-\[oklch\(0\.35_0\.18_260\)\]    { color: oklch(0.84 0.14 260); }
+.dark .text-\[oklch\(0\.30_0\.17_160\)\]    { color: oklch(0.84 0.12 160); }
+.dark .text-\[oklch\(0\.38_0\.14_55\)\]     { color: oklch(0.84 0.10 55); }
 
 /* ─── Dark mode: border overrides ────────────────────────────────────────── */
+.dark .border-\[oklch\(0\.90_0\.005_260\)\] { border-color: oklch(0.26 0.02 260); }
 .dark .border-\[oklch\(0\.91_0\.004_260\)\] { border-color: oklch(0.26 0.02 260); }
 .dark .border-\[oklch\(0\.93_0\.004_260\)\] { border-color: oklch(0.26 0.02 260); }
 .dark .border-\[oklch\(0\.88_0\.004_260\)\] { border-color: oklch(0.23 0.02 260); }
 .dark .border-\[oklch\(0\.95_0\.003_260\)\] { border-color: oklch(0.22 0.02 260); }
 .dark .border-\[oklch\(0\.60_0\.01_260\)\]  { border-color: oklch(0.38 0.02 260); }
+.dark .divide-\[oklch\(0\.93_0\.004_260\)\] { --tw-divide-opacity: 1; border-color: oklch(0.26 0.02 260); }
 
 /* ─── Dark mode: buttons ─────────────────────────────────────────────────── */
 .dark .btn-primary {
@@ -190,7 +212,7 @@
 }
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: oklch(0.50 0.01 260);
+  color: oklch(0.56 0.01 260);
 }
 .dark input:focus,
 .dark textarea:focus,
@@ -199,12 +221,14 @@
   outline-color: oklch(0.45 0.12 260);
 }
 
-/* ─── Dark mode: misc ────────────────────────────────────────────────────── */
-/* Dose selector active pill */
-.dark .bg-\[oklch\(0\.13_0\.01_260\)\] { background-color: oklch(0.94 0.006 260); }
-.dark .text-white.bg-\[oklch\(0\.13_0\.01_260\)\] { color: oklch(0.12 0.02 260); }
-/* Accordion hover / trust badge bg */
-.dark .bg-\[oklch\(0\.97_0\.003_260\)\] { background-color: oklch(0.19 0.02 260); }
+/* ─── Dark mode: LegalPage scoped content ────────────────────────────────── */
+.dark .legal-page-content h2     { color: oklch(0.95 0.006 260) !important; }
+.dark .legal-page-content p      { color: oklch(0.80 0.01 260) !important; }
+.dark .legal-page-content strong { color: oklch(0.95 0.006 260) !important; }
+.dark .legal-page-content a      { color: oklch(0.74 0.15 260) !important; }
+.dark .legal-page-content ul,
+.dark .legal-page-content li     { color: oklch(0.80 0.01 260) !important; }
+.dark .legal-page-content li strong { color: oklch(0.95 0.006 260) !important; }
 
 @layer base {
   * {
