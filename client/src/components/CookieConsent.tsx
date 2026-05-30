@@ -50,8 +50,12 @@ export default function CookieConsent() {
 
             {/* Text */}
             <p className="flex-1 text-sm text-gray-600 leading-relaxed">
-              We use cookies to remember your preferences and improve your experience. By continuing, you agree to our{" "}
-              <Link href="/privacy-policy" className="underline underline-offset-2 text-gray-800 hover:text-black transition-colors">
+              We use cookies to remember your preferences and improve your
+              experience. By continuing, you agree to our{" "}
+              <Link
+                href="/privacy-policy"
+                className="underline underline-offset-2 text-gray-800 hover:text-black transition-colors"
+              >
                 Privacy Policy
               </Link>
               .

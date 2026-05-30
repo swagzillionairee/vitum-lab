@@ -57,8 +57,12 @@ export default async function handler(req: any, res: any) {
   } catch (err: any) {
     console.error("Contact email error:", err);
     res.status(500).json({
-      error: "Failed to send message. Please email us directly at hello@vitumlab.com.",
-      debug: process.env.NODE_ENV !== "production" ? String(err?.message ?? err) : undefined,
+      error:
+        "Failed to send message. Please email us directly at hello@vitumlab.com.",
+      debug:
+        process.env.NODE_ENV !== "production"
+          ? String(err?.message ?? err)
+          : undefined,
     });
   }
 }

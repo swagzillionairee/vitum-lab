@@ -32,7 +32,10 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
       {/* Background: hero image with dark overlay */}
       <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url('/Researcher%20verification%20background%20image.png')" }}
+        style={{
+          backgroundImage:
+            "url('/Researcher%20verification%20background%20image.png')",
+        }}
       />
       <div className="absolute inset-0 bg-[oklch(0.18_0.04_255)]/80" />
 
@@ -53,7 +56,9 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
 
           {/* Headline */}
           <div className="mb-6 text-center">
-            <span className="section-label block mb-3">Researcher Verification</span>
+            <span className="section-label block mb-3">
+              Researcher Verification
+            </span>
             <h1 className="text-xl font-bold text-[oklch(0.18_0.04_255)] leading-snug">
               Research Use Only
             </h1>
@@ -71,12 +76,12 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
                 <input
                   type="checkbox"
                   checked={ageChecked}
-                  onChange={(e) => {
+                  onChange={e => {
                     setAgeChecked(e.target.checked);
                     setError(false);
                   }}
                   className="w-5 h-5 rounded-none border-[oklch(0.55_0.02_255)] accent-[oklch(0.35_0.15_260)] cursor-pointer"
-                  style={{ minWidth: '1.25rem', minHeight: '1.25rem' }}
+                  style={{ minWidth: "1.25rem", minHeight: "1.25rem" }}
                 />
               </div>
               <span className="text-sm text-[oklch(0.35_0.05_255)] leading-relaxed group-hover:text-[oklch(0.18_0.04_255)] transition-colors">
@@ -89,18 +94,18 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
                 <input
                   type="checkbox"
                   checked={researchChecked}
-                  onChange={(e) => {
+                  onChange={e => {
                     setResearchChecked(e.target.checked);
                     setError(false);
                   }}
                   className="w-5 h-5 rounded-none border-[oklch(0.55_0.02_255)] accent-[oklch(0.35_0.15_260)] cursor-pointer"
-                  style={{ minWidth: '1.25rem', minHeight: '1.25rem' }}
+                  style={{ minWidth: "1.25rem", minHeight: "1.25rem" }}
                 />
               </div>
               <span className="text-sm text-[oklch(0.35_0.05_255)] leading-relaxed group-hover:text-[oklch(0.18_0.04_255)] transition-colors">
-                I confirm I am a <strong>qualified researcher</strong> purchasing
-                for in vitro / laboratory research only — not for human or
-                veterinary use.
+                I confirm I am a <strong>qualified researcher</strong>{" "}
+                purchasing for in vitro / laboratory research only — not for
+                human or veterinary use.
               </span>
             </label>
           </div>
@@ -125,7 +130,10 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
             By proceeding you affirm the above statements are true. Products are
             not for human or veterinary use, not for use in diagnostic
             procedures, and have not been evaluated by the FDA.{" "}
-            <a href="/research-disclaimer" className="underline hover:text-[oklch(0.35_0.15_260)]">
+            <a
+              href="/research-disclaimer"
+              className="underline hover:text-[oklch(0.35_0.15_260)]"
+            >
               Full disclaimer
             </a>
             .

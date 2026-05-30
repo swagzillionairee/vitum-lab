@@ -20,8 +20,11 @@ function buildOrderId(email: string) {
 function parseEmailFromOrderId(orderId: string): string | null {
   const sep = orderId.indexOf("--");
   if (sep === -1) return null;
-  try { return Buffer.from(orderId.slice(sep + 2), "base64url").toString("utf8"); }
-  catch { return null; }
+  try {
+    return Buffer.from(orderId.slice(sep + 2), "base64url").toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 // ── Create NowPayments invoice ─────────────────────────────────────────────
@@ -63,14 +66,23 @@ function sortKeys(obj: unknown): unknown {
       return acc;
     }, {});
 }
-function verifyIpn(rawBody: string, signature: string, secret: string): boolean {
+function verifyIpn(
+  rawBody: string,
+  signature: string,
+  secret: string
+): boolean {
   try {
     const sorted = sortKeys(JSON.parse(rawBody));
     const hmac = crypto.createHmac("sha512", secret);
     hmac.update(JSON.stringify(sorted));
     const computed = hmac.digest("hex");
-    return crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(signature));
-  } catch { return false; }
+    return crypto.timingSafeEqual(
+      Buffer.from(computed),
+      Buffer.from(signature)
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function startServer() {
@@ -78,33 +90,42 @@ async function startServer() {
   const server = createServer(app);
 
   // ── Webhook — raw body BEFORE express.json() so HMAC verification works
-  app.post("/api/nowpayments-webhook", express.raw({ type: "*/*" }), async (req, res) => {
-    const signature = req.headers["x-nowpayments-sig"] as string;
-    const rawBody = (req.body as Buffer).toString("utf8");
+  app.post(
+    "/api/nowpayments-webhook",
+    express.raw({ type: "*/*" }),
+    async (req, res) => {
+      const signature = req.headers["x-nowpayments-sig"] as string;
+      const rawBody = (req.body as Buffer).toString("utf8");
 
-    if (!verifyIpn(rawBody, signature, process.env.NOWPAYMENTS_IPN_SECRET!)) {
-      res.status(401).send("Invalid signature");
-      return;
-    }
+      if (!verifyIpn(rawBody, signature, process.env.NOWPAYMENTS_IPN_SECRET!)) {
+        res.status(401).send("Invalid signature");
+        return;
+      }
 
-    const payload = JSON.parse(rawBody);
-    const status: string = payload.payment_status;
-    console.log(`ℹ️  NowPayments IPN — order ${payload.order_id}: ${status}`);
+      const payload = JSON.parse(rawBody);
+      const status: string = payload.payment_status;
+      console.log(`ℹ️  NowPayments IPN — order ${payload.order_id}: ${status}`);
 
-    if (status === "finished" || status === "confirmed") {
-      const email = parseEmailFromOrderId(payload.order_id);
-      if (email) {
-        try {
-          await sendOrderConfirmation(email, payload.order_id, String(payload.price_amount), String(payload.price_currency));
-          console.log(`✅ Confirmation email sent to ${email}`);
-        } catch (err) {
-          console.error("Failed to send confirmation email:", err);
+      if (status === "finished" || status === "confirmed") {
+        const email = parseEmailFromOrderId(payload.order_id);
+        if (email) {
+          try {
+            await sendOrderConfirmation(
+              email,
+              payload.order_id,
+              String(payload.price_amount),
+              String(payload.price_currency)
+            );
+            console.log(`✅ Confirmation email sent to ${email}`);
+          } catch (err) {
+            console.error("Failed to send confirmation email:", err);
+          }
         }
       }
-    }
 
-    res.status(200).send("OK");
-  });
+      res.status(200).send("OK");
+    }
+  );
 
   app.use(express.json());
 
@@ -123,23 +144,35 @@ async function startServer() {
       }
 
       const orderId = buildOrderId(email);
-      const description = items.map((i) => `${i.name} ${i.dose} x${i.quantity}`).join(", ");
+      const description = items
+        .map(i => `${i.name} ${i.dose} x${i.quantity}`)
+        .join(", ");
       const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
 
       console.log(`Creating invoice ${orderId}: $${total} for ${email}`);
-      const { invoice_url } = await createInvoice(total, orderId, description, baseUrl);
+      const { invoice_url } = await createInvoice(
+        total,
+        orderId,
+        description,
+        baseUrl
+      );
 
       res.json({ invoiceUrl: invoice_url, orderId });
     } catch (err) {
       console.error("create-crypto-payment error:", err);
-      res.status(500).json({ error: "Failed to create payment. Please try again." });
+      res
+        .status(500)
+        .json({ error: "Failed to create payment. Please try again." });
     }
   });
 
   // ── Contact form
   app.post("/api/contact", async (req, res) => {
     const { name, email, subject, message } = req.body as {
-      name: string; email: string; subject?: string; message: string;
+      name: string;
+      email: string;
+      subject?: string;
+      message: string;
     };
     if (!name || !email || !message) {
       res.status(400).json({ error: "Missing required fields" });
@@ -183,7 +216,12 @@ async function startServer() {
       res.json({ ok: true });
     } catch (err) {
       console.error("Contact email error:", err);
-      res.status(500).json({ error: "Failed to send message. Please email us directly at hello@vitumlab.com." });
+      res
+        .status(500)
+        .json({
+          error:
+            "Failed to send message. Please email us directly at hello@vitumlab.com.",
+        });
     }
   });
 
@@ -199,7 +237,9 @@ async function startServer() {
   });
 
   const port = process.env.PORT || 3000;
-  server.listen(port, () => console.log(`Server running on http://localhost:${port}/`));
+  server.listen(port, () =>
+    console.log(`Server running on http://localhost:${port}/`)
+  );
 }
 
 startServer().catch(console.error);

@@ -11,10 +11,13 @@ interface LegalPageProps {
   children: React.ReactNode;
 }
 
-export default function LegalPage({ title, lastUpdated, children }: LegalPageProps) {
+export default function LegalPage({
+  title,
+  lastUpdated,
+  children,
+}: LegalPageProps) {
   return (
     <div className="min-h-screen bg-white dark:bg-[oklch(0.12_0.02_260)] flex flex-col">
-
       {/* Full-width dark navy header — stays dark in both modes */}
       <div className="bg-[oklch(0.13_0.01_260)] pt-14 pb-14">
         <div className="max-w-3xl mx-auto px-6">
@@ -50,8 +53,8 @@ export default function LegalPage({ title, lastUpdated, children }: LegalPagePro
       {/* Footer note */}
       <div className="border-t border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] bg-white dark:bg-[oklch(0.12_0.02_260)]">
         <div className="max-w-3xl mx-auto px-6 py-8 text-center text-[0.75rem] text-[oklch(0.52_0.01_260)] dark:text-[oklch(0.60_0.01_260)]">
-          © {new Date().getFullYear()} Vitum Lab. All products are for research use only — not for
-          human or veterinary use.
+          © {new Date().getFullYear()} Vitum Lab. All products are for research
+          use only — not for human or veterinary use.
         </div>
       </div>
 

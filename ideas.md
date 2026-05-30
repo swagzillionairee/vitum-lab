@@ -7,6 +7,7 @@
 **Design Movement**: Swiss International Typographic Style meets Clinical Modernism
 
 **Core Principles**:
+
 1. Information hierarchy through typographic scale — no decorative elements, only structure
 2. Asymmetric grid with deliberate tension between text columns and imagery
 3. Monochromatic navy/white palette interrupted only by precise cobalt accents
@@ -17,6 +18,7 @@
 **Layout Paradigm**: Left-anchored asymmetric layout. Navigation and headlines hug the left edge. Product imagery bleeds to the right. Content columns use a strict 12-column grid with intentional negative space. Sections separated by thin 1px rules rather than background color changes.
 
 **Signature Elements**:
+
 1. Thin horizontal rule with a small diamond separator — used between sections
 2. Monospaced batch/lot numbers in a subtle code-style font (like a lab report)
 3. COA verification badges styled as official stamps with a thin border and checkmark
@@ -25,14 +27,15 @@
 
 **Animation**: Fade-in on scroll (opacity 0→1, translateY 8px→0, 200ms ease-out). No parallax. No floating elements. Section entrances stagger at 40ms intervals. Button press: scale(0.97) at 120ms.
 
-**Typography System**: 
+**Typography System**:
+
 - Display: DM Sans 700 (headlines, product names)
 - Body: DM Sans 400 (descriptions, metadata)
 - Mono: JetBrains Mono 400 (batch numbers, COA codes, technical specs)
 - Scale: 48px hero → 32px section → 20px card → 16px body → 12px metadata
-</idea>
-</text>
-</response>
+  </idea>
+  </text>
+  </response>
 
 <response>
 <probability>0.05</probability>
@@ -41,6 +44,7 @@
 **Design Movement**: Bauhaus Functionalism meets Pharmaceutical Precision
 
 **Core Principles**:
+
 1. Form follows function — every visual element serves a compliance or trust purpose
 2. Strong geometric structure with deliberate use of negative space as a design element
 3. Clinical white dominates; navy appears only where authority is needed
@@ -51,6 +55,7 @@
 **Layout Paradigm**: Modular card grid with strict proportional relationships. Hero section uses a 60/40 split — text block left, floating vial imagery right. Product cards are perfectly square with consistent padding. No organic shapes, no diagonal cuts.
 
 **Signature Elements**:
+
 1. Thin navy border on left edge of section headers (4px accent bar)
 2. "VERIFIED" stamp overlay on product cards — circular badge with checkmark
 3. Monospaced COA reference numbers displayed like lab specimen IDs
@@ -60,13 +65,14 @@
 **Animation**: Minimal. Section reveals use a 150ms opacity fade only. No transforms. Accordion opens at 200ms ease-out. The UI should feel like a precision instrument, not a consumer app.
 
 **Typography System**:
+
 - Display: Space Grotesk 700 (headlines)
 - Body: Space Grotesk 400 (body text)
 - Mono: Space Mono 400 (technical data, batch numbers)
 - Hierarchy: tight letter-spacing on uppercase labels, generous line-height on body
-</idea>
-</text>
-</response>
+  </idea>
+  </text>
+  </response>
 
 <response>
 <probability>0.08</probability>
@@ -75,6 +81,7 @@
 **Design Movement**: Contemporary Clinical — Med Spa Precision with Research Credibility
 
 **Core Principles**:
+
 1. Generous whitespace as a trust signal — cluttered sites feel untrustworthy
 2. Navy-anchored color system with silver as a sophisticated secondary
 3. Product photography as the primary visual element — vials as hero objects
@@ -85,6 +92,7 @@
 **Layout Paradigm**: Full-width sections with contained content columns (max 1280px). Hero uses a left-text / right-image split with the image bleeding to the viewport edge. Product grid is 3-column on desktop, 2 on tablet, 1 on mobile. Trust badges run in a horizontal strip between hero and products.
 
 **Signature Elements**:
+
 1. Thin cobalt underline on active navigation items and section labels
 2. "Research Use Only" disclaimer styled as a formal notice box with a left border accent
 3. COA download buttons styled as document icons with a navy border
@@ -94,13 +102,14 @@
 **Animation**: Subtle entrance animations on scroll (translateY 16px → 0, opacity 0 → 1, 250ms cubic-bezier(0.23, 1, 0.32, 1)). Stagger product cards at 60ms. Button hover: slight background darkening at 150ms. No parallax, no heavy motion.
 
 **Typography System**:
+
 - Display: Sora 700 (hero headlines, product names)
 - Body: Sora 400/500 (descriptions, navigation, UI)
 - Mono: IBM Plex Mono 400 (batch numbers, COA codes)
 - Uppercase tracking on category labels and trust badges
-</idea>
-</text>
-</response>
+  </idea>
+  </text>
+  </response>
 
 ---
 

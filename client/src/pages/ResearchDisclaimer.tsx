@@ -28,7 +28,8 @@ const sections = [
     color: "text-[oklch(0.35_0.15_260)]",
     bg: "bg-[oklch(0.95_0.01_260)]",
     body: "All products sold by Vitum Lab are intended exclusively for in vitro laboratory research and scientific study by qualified researchers. They are not intended for human consumption, veterinary use, diagnostic procedures, or therapeutic application of any kind.",
-    emphasis: "not intended for human consumption, veterinary use, diagnostic procedures, or therapeutic application of any kind.",
+    emphasis:
+      "not intended for human consumption, veterinary use, diagnostic procedures, or therapeutic application of any kind.",
   },
   {
     icon: <MessageSquareOff className="w-6 h-6" />,
@@ -95,11 +96,14 @@ export default function ResearchDisclaimer() {
             <TriangleAlert className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-white/80 leading-relaxed">
               These products have{" "}
-              <span className="text-white font-semibold">not been evaluated</span> by the
-              U.S. Food and Drug Administration (FDA) or any other regulatory authority.
-              They are not approved drugs, dietary supplements, or medical devices. Vitum
-              Lab makes no claims regarding the safety, efficacy, or suitability of any
-              product for use in humans or animals.
+              <span className="text-white font-semibold">
+                not been evaluated
+              </span>{" "}
+              by the U.S. Food and Drug Administration (FDA) or any other
+              regulatory authority. They are not approved drugs, dietary
+              supplements, or medical devices. Vitum Lab makes no claims
+              regarding the safety, efficacy, or suitability of any product for
+              use in humans or animals.
             </p>
           </div>
         </div>
@@ -107,9 +111,8 @@ export default function ResearchDisclaimer() {
 
       {/* ── Main content ────────────────────────────────────────────────── */}
       <div className="max-w-4xl mx-auto px-6 py-14 space-y-8">
-
         {/* Info section cards */}
-        {sections.map((s) => (
+        {sections.map(s => (
           <div
             key={s.title}
             className="bg-white rounded-2xl border border-[oklch(0.91_0.004_260)] overflow-hidden shadow-[0_1px_4px_oklch(0.13_0.01_260/0.05)]"
@@ -119,7 +122,9 @@ export default function ResearchDisclaimer() {
                 <div className={`p-2 rounded-xl ${s.bg} ${s.color}`}>
                   {s.icon}
                 </div>
-                <h2 className="text-lg font-bold text-[oklch(0.13_0.01_260)]">{s.title}</h2>
+                <h2 className="text-lg font-bold text-[oklch(0.13_0.01_260)]">
+                  {s.title}
+                </h2>
               </div>
               <p className="text-[0.9375rem] text-[oklch(0.40_0.01_260)] leading-relaxed">
                 {s.body}
@@ -164,8 +169,12 @@ export default function ResearchDisclaimer() {
               <Mail className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="font-semibold text-white">Questions about this disclaimer?</p>
-              <p className="text-sm text-white/60 mt-0.5">Our team is available to help.</p>
+              <p className="font-semibold text-white">
+                Questions about this disclaimer?
+              </p>
+              <p className="text-sm text-white/60 mt-0.5">
+                Our team is available to help.
+              </p>
             </div>
           </div>
           <a
@@ -175,13 +184,13 @@ export default function ResearchDisclaimer() {
             hello@vitumlab.com
           </a>
         </div>
-
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <div className="border-t border-[oklch(0.91_0.004_260)] mt-4">
         <div className="max-w-4xl mx-auto px-6 py-8 text-center text-xs text-[oklch(0.60_0.01_260)]">
-          © {new Date().getFullYear()} Vitum Lab. All products are for research use only — not for human or veterinary use.
+          © {new Date().getFullYear()} Vitum Lab. All products are for research
+          use only — not for human or veterinary use.
         </div>
       </div>
     </div>

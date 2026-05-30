@@ -12,7 +12,14 @@
 
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { FileText, ShieldCheck, Truck, ArrowLeft, ShoppingCart, Check } from "lucide-react";
+import {
+  FileText,
+  ShieldCheck,
+  Truck,
+  ArrowLeft,
+  ShoppingCart,
+  Check,
+} from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { AnimatePresence, motion } from "framer-motion";
 import SEO from "@/components/SEO";
@@ -23,11 +30,11 @@ const CATEGORY_SLUG_MAP: Record<string, string> = {
   "Metabolic Research": "metabolic",
   "Cosmetic / Tissue Research": "tissue",
   "Cellular Research": "cellular",
-  "Reconstitution": "reconstitution",
+  Reconstitution: "reconstitution",
 };
 
 // ─── Derive flat product list from PRODUCTS ───────────────────────────────────
-const allProducts = products.flatMap((product) =>
+const allProducts = products.flatMap(product =>
   product.variants.map((variant, idx) => ({
     id: variant.id,
     name: product.name,
@@ -61,16 +68,23 @@ const CATEGORY_ALIASES: Record<string, string> = {
 
 const BADGE_STYLES: Record<string, string> = {
   "Best Seller": "bg-[#1a3a2a] text-white",
-  "New": "bg-[oklch(0.35_0.15_260)] text-white",
+  New: "bg-[oklch(0.35_0.15_260)] text-white",
 };
 
 // ─── Product card with Added✓ feedback ───────────────────────────────────────
-function ProductCard({ p }: { p: typeof allProducts[0] }) {
+function ProductCard({ p }: { p: (typeof allProducts)[0] }) {
   const { addItem } = useCart();
   const [added, setAdded] = useState(false);
 
   const handleAdd = () => {
-    addItem({ id: p.id, name: p.name, dose: p.dose, price: p.price, img: p.img, cartCode: p.cartCode });
+    addItem({
+      id: p.id,
+      name: p.name,
+      dose: p.dose,
+      price: p.price,
+      img: p.img,
+      cartCode: p.cartCode,
+    });
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };
@@ -79,10 +93,16 @@ function ProductCard({ p }: { p: typeof allProducts[0] }) {
     <div className="bg-white rounded-2xl overflow-hidden shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] group hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200">
       {/* Image area — links to product detail */}
       <Link href={`/shop/${p.detailSlug}`}>
-        <div className="relative overflow-hidden cursor-pointer" style={{ backgroundColor: p.cardBg, height: "280px" }}>
+        <div
+          className="relative overflow-hidden cursor-pointer"
+          style={{ backgroundColor: p.cardBg, height: "280px" }}
+        >
           {p.badge && (
-            <span className={`absolute top-3 left-3 z-10 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md ${BADGE_STYLES[p.badge] ?? "bg-gray-800 text-white"}`}>
-              {p.badge === "Best Seller" ? "★ " : ""}{p.badge}
+            <span
+              className={`absolute top-3 left-3 z-10 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md ${BADGE_STYLES[p.badge] ?? "bg-gray-800 text-white"}`}
+            >
+              {p.badge === "Best Seller" ? "★ " : ""}
+              {p.badge}
             </span>
           )}
           <img
@@ -95,16 +115,28 @@ function ProductCard({ p }: { p: typeof allProducts[0] }) {
 
       {/* Info area */}
       <div className="px-5 pt-4 pb-5">
-        <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-1">{p.category}</p>
+        <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-1">
+          {p.category}
+        </p>
         <div className="flex items-baseline gap-2 mb-0.5">
-          <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight">{p.name}</h3>
-          <span className="text-[0.8125rem] font-semibold text-[oklch(0.52_0.01_260)] flex-shrink-0">{p.dose}</span>
+          <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight">
+            {p.name}
+          </h3>
+          <span className="text-[0.8125rem] font-semibold text-[oklch(0.52_0.01_260)] flex-shrink-0">
+            {p.dose}
+          </span>
         </div>
-        <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-2">LOT: {p.lot}</p>
-        <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{p.description}</p>
+        <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-2">
+          LOT: {p.lot}
+        </p>
+        <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">
+          {p.description}
+        </p>
 
         <div className="flex items-center justify-between">
-          <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${p.price}</span>
+          <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">
+            ${p.price}
+          </span>
           <div className="flex items-center gap-2">
             <a
               href={`/coa-library#${p.cartCode}`}
@@ -119,7 +151,9 @@ function ProductCard({ p }: { p: typeof allProducts[0] }) {
               }`}
             >
               {added ? (
-                <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Added</span>
+                <span className="flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" /> Added
+                </span>
               ) : (
                 "Add to Cart"
               )}
@@ -141,8 +175,9 @@ export default function Shop() {
     const params = new URLSearchParams(window.location.search);
     const cat = params.get("category");
     if (cat) {
-      const normalized = CATEGORY_ALIASES[cat.toLowerCase()] ?? cat.toLowerCase();
-      const match = categories.find((c) => c.slug.toLowerCase() === normalized);
+      const normalized =
+        CATEGORY_ALIASES[cat.toLowerCase()] ?? cat.toLowerCase();
+      const match = categories.find(c => c.slug.toLowerCase() === normalized);
       if (match) setActiveCategory(match.slug);
     }
   }, []);
@@ -150,11 +185,14 @@ export default function Shop() {
   const filtered =
     activeCategory === "all"
       ? allProducts
-      : allProducts.filter((p) => p.categorySlug === activeCategory);
+      : allProducts.filter(p => p.categorySlug === activeCategory);
 
   return (
     <div className="min-h-screen bg-[oklch(0.98_0.002_260)]">
-      <SEO title="Shop" description="Browse Vitum Lab's full catalog of research peptides: GLP-3 (R) 10/20/30mg, GHK-Cu 50/100mg, NAD+ 500mg, and BAC Water 10mL. ≥99% purity guaranteed." />
+      <SEO
+        title="Shop"
+        description="Browse Vitum Lab's full catalog of research peptides: GLP-3 (R) 10/20/30mg, GHK-Cu 50/100mg, NAD+ 500mg, and BAC Water 10mL. ≥99% purity guaranteed."
+      />
 
       {/* ── Page header ──────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-[oklch(0.91_0.004_260)]">
@@ -170,8 +208,8 @@ export default function Shop() {
           </h1>
           <p className="text-[oklch(0.52_0.01_260)] text-[0.9375rem] max-w-xl">
             All peptides are lyophilized, ≥99% purity by HPLC, and supplied with
-            third-party certificates of analysis. For in vitro / laboratory research
-            use only.
+            third-party certificates of analysis. For in vitro / laboratory
+            research use only.
           </p>
         </div>
       </div>
@@ -181,11 +219,13 @@ export default function Shop() {
         <div className="container">
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 py-3 text-[0.75rem] font-semibold tracking-wide">
             <span className="flex items-center gap-1.5 opacity-80">
-              <ShieldCheck className="w-3.5 h-3.5" /> ≥99% Purity — HPLC Verified
+              <ShieldCheck className="w-3.5 h-3.5" /> ≥99% Purity — HPLC
+              Verified
             </span>
             <span className="hidden sm:block opacity-30">|</span>
             <span className="flex items-center gap-1.5 opacity-80">
-              <Truck className="w-3.5 h-3.5" /> 2–3 Day Delivery via USPS Priority Mail
+              <Truck className="w-3.5 h-3.5" /> 2–3 Day Delivery via USPS
+              Priority Mail
             </span>
             <span className="hidden sm:block opacity-30">|</span>
             <span className="flex items-center gap-1.5 opacity-80">
@@ -199,7 +239,7 @@ export default function Shop() {
       <div className="bg-white border-b border-[oklch(0.91_0.004_260)]">
         <div className="container">
           <div className="flex gap-1 py-3 overflow-x-auto">
-            {categories.map((c) => (
+            {categories.map(c => (
               <button
                 key={c.slug}
                 onClick={() => setActiveCategory(c.slug)}
@@ -223,7 +263,7 @@ export default function Shop() {
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filtered.map((p) => (
+          {filtered.map(p => (
             <ProductCard key={p.id} p={p} />
           ))}
         </div>
@@ -238,7 +278,8 @@ export default function Shop() {
               Free Shipping + Free BAC Water
             </h3>
             <p className="text-[0.875rem] opacity-80 mt-1">
-              On all orders over $150. Shipped via USPS Priority Mail padded envelopes.
+              On all orders over $150. Shipped via USPS Priority Mail padded
+              envelopes.
             </p>
           </div>
           <Link
@@ -251,10 +292,14 @@ export default function Shop() {
 
         {/* ── Research disclaimer ───────────────────────────────────────── */}
         <p className="mt-8 text-center text-[0.6875rem] text-[oklch(0.65_0.01_260)] max-w-2xl mx-auto leading-relaxed">
-          All products are sold strictly for in vitro / laboratory research purposes only.
-          Not for human or veterinary use. Not for use in diagnostic procedures.
-          These statements have not been evaluated by the FDA.{" "}
-          <Link href="/research-disclaimer" className="underline hover:text-[oklch(0.35_0.15_260)]">
+          All products are sold strictly for in vitro / laboratory research
+          purposes only. Not for human or veterinary use. Not for use in
+          diagnostic procedures. These statements have not been evaluated by the
+          FDA.{" "}
+          <Link
+            href="/research-disclaimer"
+            className="underline hover:text-[oklch(0.35_0.15_260)]"
+          >
             Full disclaimer
           </Link>
           .

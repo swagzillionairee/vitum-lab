@@ -34,17 +34,22 @@ import OrderCancel from "./pages/OrderCancel";
 import DoseCalculator from "./pages/DoseCalculator";
 import COALibrary from "./pages/COALibrary";
 import Research from "./pages/Research";
+import { Analytics } from "@vercel/analytics/react";
 
 // ─── Scroll to top on every route change ─────────────────────────────────────
 function ScrollToTop() {
   const [location] = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [location]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location]);
   return null;
 }
 
 // ─── Age gate cookie check ────────────────────────────────────────────────────
 function isAgeVerified(): boolean {
-  return document.cookie.split(";").some((c) => c.trim().startsWith("vitum_age_verified=true"));
+  return document.cookie
+    .split(";")
+    .some(c => c.trim().startsWith("vitum_age_verified=true"));
 }
 
 // ─── Placeholder page for unbuilt routes ─────────────────────────────────────
@@ -53,7 +58,9 @@ function PlaceholderPage({ title }: { title: string }) {
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="text-center">
         <p className="section-label mb-3">Coming Soon</p>
-        <h1 className="text-2xl font-bold text-[oklch(0.18_0.04_255)] mb-2">{title}</h1>
+        <h1 className="text-2xl font-bold text-[oklch(0.18_0.04_255)] mb-2">
+          {title}
+        </h1>
         <p className="text-sm text-[oklch(0.55_0.02_255)]">
           This page is under construction. Check back soon.
         </p>
@@ -66,26 +73,26 @@ function Router() {
   return (
     <>
       <ScrollToTop />
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/shop" component={Shop} />
-      <Route path="/shop/:slug" component={ProductDetail} />
-      <Route path="/coa-library" component={COALibrary} />
-      <Route path="/about" component={About} />
-      <Route path="/contact" component={Contact} />
-      <Route path="/faq" component={FAQ} />
-      <Route path="/shipping-policy" component={ShippingPolicy} />
-      <Route path="/return-policy" component={ReturnPolicy} />
-      <Route path="/terms-of-service" component={TermsOfService} />
-      <Route path="/privacy-policy" component={PrivacyPolicy} />
-      <Route path="/research-disclaimer" component={ResearchDisclaimer} />
-      <Route path="/dose-calculator" component={DoseCalculator} />
-      <Route path="/research" component={Research} />
-      <Route path="/order-success" component={OrderSuccess} />
-      <Route path="/order-cancel" component={OrderCancel} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/shop" component={Shop} />
+        <Route path="/shop/:slug" component={ProductDetail} />
+        <Route path="/coa-library" component={COALibrary} />
+        <Route path="/about" component={About} />
+        <Route path="/contact" component={Contact} />
+        <Route path="/faq" component={FAQ} />
+        <Route path="/shipping-policy" component={ShippingPolicy} />
+        <Route path="/return-policy" component={ReturnPolicy} />
+        <Route path="/terms-of-service" component={TermsOfService} />
+        <Route path="/privacy-policy" component={PrivacyPolicy} />
+        <Route path="/research-disclaimer" component={ResearchDisclaimer} />
+        <Route path="/dose-calculator" component={DoseCalculator} />
+        <Route path="/research" component={Research} />
+        <Route path="/order-success" component={OrderSuccess} />
+        <Route path="/order-cancel" component={OrderCancel} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
     </>
   );
 }
@@ -102,10 +109,10 @@ function AppLayout() {
 
   return (
     <>
-      {!verified && (
-        <AgeGate onVerified={() => setVerified(true)} />
-      )}
-      <div className={!verified ? "pointer-events-none select-none blur-sm" : ""}>
+      {!verified && <AgeGate onVerified={() => setVerified(true)} />}
+      <div
+        className={!verified ? "pointer-events-none select-none blur-sm" : ""}
+      >
         <Navbar />
         <main>
           <Router />
@@ -127,6 +134,7 @@ function App() {
             <Toaster />
             <AppLayout />
             <CartDrawer />
+            <Analytics />
           </CartProvider>
         </TooltipProvider>
       </ThemeProvider>

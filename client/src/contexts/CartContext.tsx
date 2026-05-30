@@ -5,7 +5,14 @@
  * Auto-adds free BAC Water when subtotal crosses $150
  */
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from "react";
 import { toast } from "sonner";
 
 export interface CartItem {
@@ -80,19 +87,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // Auto-add / auto-remove free BAC Water based on subtotal
   useEffect(() => {
     const paidSubtotal = items
-      .filter((i) => !i.isFreeGift)
+      .filter(i => !i.isFreeGift)
       .reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-    const hasFreeGift = items.some((i) => i.id === FREE_BAC_WATER.id);
+    const hasFreeGift = items.some(i => i.id === FREE_BAC_WATER.id);
 
     if (paidSubtotal >= FREE_SHIPPING_THRESHOLD && !hasFreeGift) {
-      setItems((prev) => [...prev, { ...FREE_BAC_WATER, quantity: 1 }]);
+      setItems(prev => [...prev, { ...FREE_BAC_WATER, quantity: 1 }]);
       toast.success("🎉 Free BAC Water added to your cart!", {
         description: "You've unlocked free shipping + a free BAC Water.",
         duration: 4000,
       });
     } else if (paidSubtotal < FREE_SHIPPING_THRESHOLD && hasFreeGift) {
-      setItems((prev) => prev.filter((i) => i.id !== FREE_BAC_WATER.id));
+      setItems(prev => prev.filter(i => i.id !== FREE_BAC_WATER.id));
     }
   }, [items]);
 
@@ -100,10 +107,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const closeCart = useCallback(() => setIsOpen(false), []);
 
   const addItem = useCallback((newItem: Omit<CartItem, "quantity">) => {
-    setItems((prev) => {
-      const existing = prev.find((i) => i.id === newItem.id);
+    setItems(prev => {
+      const existing = prev.find(i => i.id === newItem.id);
       if (existing) {
-        return prev.map((i) =>
+        return prev.map(i =>
           i.id === newItem.id ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
@@ -113,16 +120,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeItem = useCallback((id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    setItems(prev => prev.filter(i => i.id !== id));
   }, []);
 
   const updateQuantity = useCallback((id: string, quantity: number) => {
     if (quantity <= 0) {
-      setItems((prev) => prev.filter((i) => i.id !== id));
+      setItems(prev => prev.filter(i => i.id !== id));
     } else {
-      setItems((prev) =>
-        prev.map((i) => (i.id === id ? { ...i, quantity } : i))
-      );
+      setItems(prev => prev.map(i => (i.id === id ? { ...i, quantity } : i)));
     }
   }, []);
 

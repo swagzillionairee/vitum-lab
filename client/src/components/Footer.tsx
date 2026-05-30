@@ -15,7 +15,8 @@ export default function Footer() {
       <div className="border-b border-white/10 bg-[oklch(0.14_0.04_255)]">
         <div className="container py-3">
           <p className="text-center text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.75_0.05_255)]">
-            ⚠ Research Use Only — Not for Human Consumption — Not Evaluated by the FDA
+            ⚠ Research Use Only — Not for Human Consumption — Not Evaluated by
+            the FDA
           </p>
         </div>
       </div>
@@ -43,7 +44,11 @@ export default function Footer() {
               </a>
               <div className="flex items-start gap-2 text-sm text-white/60">
                 <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>1300 S Columbus Blvd<br />Philadelphia, PA 19147</span>
+                <span>
+                  1300 S Columbus Blvd
+                  <br />
+                  Philadelphia, PA 19147
+                </span>
               </div>
             </div>
           </div>
@@ -57,7 +62,7 @@ export default function Footer() {
               {[
                 { label: "All Products", href: "/shop" },
                 { label: "COA Library", href: "/coa-library" },
-              ].map((link) => (
+              ].map(link => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
@@ -82,7 +87,7 @@ export default function Footer() {
                 { label: "Return Policy", href: "/return-policy" },
                 { label: "Contact Us", href: "/contact" },
                 { label: "About Vitum Lab", href: "/about" },
-              ].map((link) => (
+              ].map(link => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
@@ -105,7 +110,7 @@ export default function Footer() {
                 { label: "Research Disclaimer", href: "/research-disclaimer" },
                 { label: "Terms of Service", href: "/terms-of-service" },
                 { label: "Privacy Policy", href: "/privacy-policy" },
-              ].map((link) => (
+              ].map(link => (
                 <li key={link.label}>
                   <Link
                     href={link.href}

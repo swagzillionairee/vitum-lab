@@ -125,46 +125,61 @@ function FaqItem({ q, a }: { q: string; a: string }) {
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between py-5 text-left gap-4"
       >
-        <span className="text-[0.9375rem] font-semibold text-[oklch(0.13_0.01_260)] leading-snug">{q}</span>
-        {open
-          ? <ChevronUp className="w-5 h-5 flex-shrink-0 text-[oklch(0.52_0.01_260)]" />
-          : <ChevronDown className="w-5 h-5 flex-shrink-0 text-[oklch(0.52_0.01_260)]" />}
+        <span className="text-[0.9375rem] font-semibold text-[oklch(0.13_0.01_260)] leading-snug">
+          {q}
+        </span>
+        {open ? (
+          <ChevronUp className="w-5 h-5 flex-shrink-0 text-[oklch(0.52_0.01_260)]" />
+        ) : (
+          <ChevronDown className="w-5 h-5 flex-shrink-0 text-[oklch(0.52_0.01_260)]" />
+        )}
       </button>
       {open && (
-        <p className="pb-5 text-[0.9375rem] text-[oklch(0.40_0.01_260)] leading-relaxed">{a}</p>
+        <p className="pb-5 text-[0.9375rem] text-[oklch(0.40_0.01_260)] leading-relaxed">
+          {a}
+        </p>
       )}
     </div>
   );
 }
 
 export default function FAQ() {
-  const [activeCategory, setActiveCategory] = useState(faqCategories[0].category);
+  const [activeCategory, setActiveCategory] = useState(
+    faqCategories[0].category
+  );
 
   return (
     <div className="min-h-screen bg-white">
-      <SEO title="FAQ" description="Frequently asked questions about Vitum Lab peptides, ordering, shipping, reconstitution, and storage." />
+      <SEO
+        title="FAQ"
+        description="Frequently asked questions about Vitum Lab peptides, ordering, shipping, reconstitution, and storage."
+      />
 
       {/* ── Page header ──────────────────────────────────────────────── */}
       <div className="bg-[oklch(0.14_0.03_260)] text-white">
         <div className="container py-16">
-          <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-white/50 mb-4">Support</p>
+          <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-white/50 mb-4">
+            Support
+          </p>
           <h1 className="text-[2.75rem] font-bold leading-tight tracking-tight mb-4">
             Frequently Asked Questions
           </h1>
           <p className="text-[1rem] text-white/70 max-w-lg leading-relaxed">
-            Find answers to common questions about our products, ordering, shipping, and documentation.
+            Find answers to common questions about our products, ordering,
+            shipping, and documentation.
           </p>
         </div>
       </div>
 
       <div className="container py-12">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
-
           {/* ── Category sidebar ─────────────────────────────────────── */}
           <div className="lg:col-span-1">
-            <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-4">Categories</p>
+            <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-4">
+              Categories
+            </p>
             <nav className="space-y-1">
-              {faqCategories.map((cat) => (
+              {faqCategories.map(cat => (
                 <button
                   key={cat.category}
                   onClick={() => setActiveCategory(cat.category)}
@@ -175,7 +190,9 @@ export default function FAQ() {
                   }`}
                 >
                   {cat.category}
-                  <span className={`ml-2 text-[0.75rem] font-normal ${activeCategory === cat.category ? "text-white/60" : "text-[oklch(0.65_0.01_260)]"}`}>
+                  <span
+                    className={`ml-2 text-[0.75rem] font-normal ${activeCategory === cat.category ? "text-white/60" : "text-[oklch(0.65_0.01_260)]"}`}
+                  >
                     ({cat.questions.length})
                   </span>
                 </button>
@@ -184,11 +201,16 @@ export default function FAQ() {
 
             {/* Contact callout */}
             <div className="mt-8 rounded-2xl bg-[oklch(0.97_0.003_260)] p-5">
-              <p className="text-[0.8125rem] font-semibold text-[oklch(0.13_0.01_260)] mb-1">Still have questions?</p>
+              <p className="text-[0.8125rem] font-semibold text-[oklch(0.13_0.01_260)] mb-1">
+                Still have questions?
+              </p>
               <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-3">
                 Our team responds within 1 business day.
               </p>
-              <Link href="/contact" className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">
+              <Link
+                href="/contact"
+                className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline"
+              >
                 Contact Us <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -197,12 +219,14 @@ export default function FAQ() {
           {/* ── FAQ list ─────────────────────────────────────────────── */}
           <div className="lg:col-span-3">
             {faqCategories
-              .filter((cat) => cat.category === activeCategory)
-              .map((cat) => (
+              .filter(cat => cat.category === activeCategory)
+              .map(cat => (
                 <div key={cat.category}>
-                  <h2 className="text-[1.5rem] font-bold text-[oklch(0.13_0.01_260)] mb-6">{cat.category}</h2>
+                  <h2 className="text-[1.5rem] font-bold text-[oklch(0.13_0.01_260)] mb-6">
+                    {cat.category}
+                  </h2>
                   <div>
-                    {cat.questions.map((item) => (
+                    {cat.questions.map(item => (
                       <FaqItem key={item.q} q={item.q} a={item.a} />
                     ))}
                   </div>

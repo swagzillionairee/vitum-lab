@@ -10,14 +10,34 @@
 
 import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, ChevronDown, Check, Coins, CreditCard } from "lucide-react";
+import {
+  X,
+  Minus,
+  Plus,
+  Trash2,
+  ShoppingBag,
+  ArrowRight,
+  Tag,
+  ChevronDown,
+  Check,
+  Coins,
+  CreditCard,
+} from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useLocation } from "wouter";
 
 const FOXY_STORE = "vitum-lab.foxycart.com";
 const FREE_SHIPPING_THRESHOLD = 150;
 
-function buildFoxyUrl(items: { name: string; dose: string; price: number; cartCode: string; quantity: number }[]): string {
+function buildFoxyUrl(
+  items: {
+    name: string;
+    dose: string;
+    price: number;
+    cartCode: string;
+    quantity: number;
+  }[]
+): string {
   // Foxy.io supports multi-item cart via repeated query params
   const base = `https://${FOXY_STORE}/cart?`;
   const params = items.map((item, i) => {
@@ -33,7 +53,15 @@ function buildFoxyUrl(items: { name: string; dose: string; price: number; cartCo
 }
 
 export default function CartDrawer() {
-  const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, totalItems } = useCart();
+  const {
+    items,
+    isOpen,
+    closeCart,
+    removeItem,
+    updateQuantity,
+    subtotal,
+    totalItems,
+  } = useCart();
   const [, navigate] = useLocation();
   const drawerRef = useRef<HTMLDivElement>(null);
   const [promoOpen, setPromoOpen] = useState(false);
@@ -69,11 +97,16 @@ export default function CartDrawer() {
     } else {
       document.body.style.overflow = "";
     }
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [isOpen]);
 
   const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
-  const freeShippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
+  const freeShippingProgress = Math.min(
+    (subtotal / FREE_SHIPPING_THRESHOLD) * 100,
+    100
+  );
   const checkoutUrl = buildFoxyUrl(items);
 
   return (
@@ -99,7 +132,12 @@ export default function CartDrawer() {
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 340, damping: 36, mass: 0.9 }}
+            transition={{
+              type: "spring",
+              stiffness: 340,
+              damping: 36,
+              mass: 0.9,
+            }}
             className="fixed top-0 right-0 bottom-0 z-[9999] w-full sm:max-w-[420px] bg-white shadow-2xl flex flex-col"
             role="dialog"
             aria-label="Shopping cart"
@@ -164,7 +202,10 @@ export default function CartDrawer() {
                     Add research peptides to get started.
                   </p>
                   <button
-                    onClick={() => { closeCart(); navigate("/shop"); }}
+                    onClick={() => {
+                      closeCart();
+                      navigate("/shop");
+                    }}
                     className="mt-6 btn-primary text-sm py-2.5 px-6"
                   >
                     Browse Products
@@ -172,13 +213,17 @@ export default function CartDrawer() {
                 </div>
               ) : (
                 <AnimatePresence initial={false}>
-                  {items.map((item) => (
+                  {items.map(item => (
                     <motion.div
                       key={item.id}
                       layout
                       initial={{ opacity: 0, y: -8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, x: 40, transition: { duration: 0.18 } }}
+                      exit={{
+                        opacity: 0,
+                        x: 40,
+                        transition: { duration: 0.18 },
+                      }}
                       transition={{ duration: 0.22, ease: "easeOut" }}
                       className="flex gap-3 p-3 rounded-xl border border-[oklch(0.91_0.004_260)] bg-white hover:border-[oklch(0.82_0.008_260)] transition-colors"
                     >
@@ -207,7 +252,9 @@ export default function CartDrawer() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1 border border-[oklch(0.88_0.004_260)] rounded-lg overflow-hidden">
                             <button
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                              onClick={() =>
+                                updateQuantity(item.id, item.quantity - 1)
+                              }
                               className="w-7 h-7 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] transition-colors active:scale-95"
                               aria-label="Decrease quantity"
                             >
@@ -217,7 +264,9 @@ export default function CartDrawer() {
                               {item.quantity}
                             </span>
                             <button
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                              onClick={() =>
+                                updateQuantity(item.id, item.quantity + 1)
+                              }
                               className="w-7 h-7 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] transition-colors active:scale-95"
                               aria-label="Increase quantity"
                             >
@@ -250,7 +299,9 @@ export default function CartDrawer() {
               <div className="border-t border-[oklch(0.91_0.004_260)] px-6 py-5 space-y-4 bg-white">
                 {/* Subtotal */}
                 <div className="flex items-center justify-between">
-                  <span className="text-[0.875rem] text-[oklch(0.52_0.01_260)]">Subtotal</span>
+                  <span className="text-[0.875rem] text-[oklch(0.52_0.01_260)]">
+                    Subtotal
+                  </span>
                   <span className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">
                     ${subtotal.toFixed(2)}
                   </span>
@@ -275,14 +326,20 @@ export default function CartDrawer() {
                   >
                     <Tag className="w-3.5 h-3.5" />
                     Have a promo code?
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${promoOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform duration-150 ${promoOpen ? "rotate-180" : ""}`}
+                    />
                   </button>
                   {promoOpen && (
                     <div className="mt-2 flex gap-2">
                       <input
                         type="text"
                         value={promoCode}
-                        onChange={(e) => { setPromoCode(e.target.value); setPromoError(false); setPromoApplied(false); }}
+                        onChange={e => {
+                          setPromoCode(e.target.value);
+                          setPromoError(false);
+                          setPromoApplied(false);
+                        }}
                         placeholder="Enter code"
                         className="flex-1 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2 text-[0.8125rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
                       />
@@ -315,12 +372,17 @@ export default function CartDrawer() {
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => { setEmail(e.target.value); setCryptoError(""); }}
+                      onChange={e => {
+                        setEmail(e.target.value);
+                        setCryptoError("");
+                      }}
                       placeholder="you@example.com"
                       className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
                     />
                     {cryptoError && (
-                      <p className="text-[0.75rem] text-red-500">{cryptoError}</p>
+                      <p className="text-[0.75rem] text-red-500">
+                        {cryptoError}
+                      </p>
                     )}
                   </div>
                 )}
@@ -349,29 +411,43 @@ export default function CartDrawer() {
                       <button
                         onClick={async () => {
                           if (!email.trim() || !email.includes("@")) {
-                            setCryptoError("Please enter a valid email address.");
+                            setCryptoError(
+                              "Please enter a valid email address."
+                            );
                             return;
                           }
                           setCryptoLoading(true);
                           setCryptoError("");
                           try {
-                            const response = await fetch("/api/create-crypto-payment", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity })),
-                                email,
-                                total: subtotal,
-                              }),
-                            });
+                            const response = await fetch(
+                              "/api/create-crypto-payment",
+                              {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  items: items.map(i => ({
+                                    name: i.name,
+                                    dose: i.dose,
+                                    quantity: i.quantity,
+                                  })),
+                                  email,
+                                  total: subtotal,
+                                }),
+                              }
+                            );
                             const data = await response.json();
                             if (!response.ok) {
-                              setCryptoError(data.error || "Failed to create payment. Please try again.");
+                              setCryptoError(
+                                data.error ||
+                                  "Failed to create payment. Please try again."
+                              );
                             } else {
                               window.location.href = data.invoiceUrl;
                             }
                           } catch {
-                            setCryptoError("Failed to create payment. Please try again.");
+                            setCryptoError(
+                              "Failed to create payment. Please try again."
+                            );
                           } finally {
                             setCryptoLoading(false);
                           }
@@ -379,12 +455,20 @@ export default function CartDrawer() {
                         disabled={cryptoLoading}
                         className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {cryptoLoading ? "Creating Payment…" : (
-                          <>Continue to Crypto Payment <ArrowRight className="w-4 h-4" /></>
+                        {cryptoLoading ? (
+                          "Creating Payment…"
+                        ) : (
+                          <>
+                            Continue to Crypto Payment{" "}
+                            <ArrowRight className="w-4 h-4" />
+                          </>
                         )}
                       </button>
                       <button
-                        onClick={() => { setCryptoStep(false); setCryptoError(""); }}
+                        onClick={() => {
+                          setCryptoStep(false);
+                          setCryptoError("");
+                        }}
                         className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] hover:underline"
                       >
                         ← Back

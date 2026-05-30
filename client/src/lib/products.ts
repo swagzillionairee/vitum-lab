@@ -73,7 +73,10 @@ export const products: Product[] = [
       { label: "Purity", value: "≥99% (HPLC)" },
       { label: "Form", value: "Lyophilized powder" },
       { label: "Solubility", value: "Soluble in BAC Water" },
-      { label: "Storage", value: "−20°C / −4°F (lyophilized), 4°C / 39°F (reconstituted)" },
+      {
+        label: "Storage",
+        value: "−20°C / −4°F (lyophilized), 4°C / 39°F (reconstituted)",
+      },
     ],
     storageInstructions:
       "Store lyophilized vials at −20°C (−4°F). Once reconstituted with BAC Water, store at 4°C (39°F) and use within 28 days. Avoid repeated freeze-thaw cycles.",
@@ -122,7 +125,10 @@ export const products: Product[] = [
       { label: "Purity", value: "≥99% (HPLC)" },
       { label: "Form", value: "Lyophilized powder" },
       { label: "Solubility", value: "Soluble in water / BAC Water" },
-      { label: "Storage", value: "−20°C / −4°F (lyophilized), 4°C / 39°F (reconstituted)" },
+      {
+        label: "Storage",
+        value: "−20°C / −4°F (lyophilized), 4°C / 39°F (reconstituted)",
+      },
     ],
     storageInstructions:
       "Store lyophilized vials at −20°C (−4°F). Once reconstituted, store at 4°C (39°F) and use within 28 days.",
@@ -164,7 +170,10 @@ export const products: Product[] = [
       { label: "Purity", value: "≥99% (HPLC)" },
       { label: "Form", value: "Lyophilized powder" },
       { label: "Solubility", value: "Soluble in water / BAC Water" },
-      { label: "Storage", value: "−20°C / −4°F (lyophilized), 4°C / 39°F (reconstituted)" },
+      {
+        label: "Storage",
+        value: "−20°C / −4°F (lyophilized), 4°C / 39°F (reconstituted)",
+      },
     ],
     storageInstructions:
       "Store lyophilized vials at −20°C (−4°F). Once reconstituted, store at 4°C (39°F) and use within 14 days. NAD+ is sensitive to light and heat — minimize exposure.",
@@ -198,7 +207,10 @@ export const products: Product[] = [
       },
     ],
     specs: [
-      { label: "Composition", value: "Water for injection, 0.9% Benzyl Alcohol" },
+      {
+        label: "Composition",
+        value: "Water for injection, 0.9% Benzyl Alcohol",
+      },
       { label: "Volume", value: "10 mL" },
       { label: "Grade", value: "USP" },
       { label: "Sterility", value: "Sterile filtered (0.22 µm)" },
@@ -218,5 +230,5 @@ export const products: Product[] = [
 ];
 
 export function getProductBySlug(slug: string): Product | undefined {
-  return products.find((p) => p.slug === slug);
+  return products.find(p => p.slug === slug);
 }

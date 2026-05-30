@@ -14,8 +14,11 @@ function sortKeys(obj: unknown): unknown {
 function parseEmailFromOrderId(orderId: string): string | null {
   const sep = orderId.indexOf("--");
   if (sep === -1) return null;
-  try { return Buffer.from(orderId.slice(sep + 2), "base64url").toString("utf8"); }
-  catch { return null; }
+  try {
+    return Buffer.from(orderId.slice(sep + 2), "base64url").toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 function orderConfirmedHtml(orderId: string, amount: string) {
@@ -67,7 +70,11 @@ function orderConfirmedHtml(orderId: string, amount: string) {
 </html>`;
 }
 
-async function sendConfirmationEmail(toEmail: string, orderId: string, amount: string) {
+async function sendConfirmationEmail(
+  toEmail: string,
+  orderId: string,
+  amount: string
+) {
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 587,
@@ -102,13 +109,19 @@ export default async function handler(req: any, res: any) {
   try {
     const payload = JSON.parse(rawBody);
     const sorted = sortKeys(payload);
-    const hmac = crypto.createHmac("sha512", process.env.NOWPAYMENTS_IPN_SECRET!);
+    const hmac = crypto.createHmac(
+      "sha512",
+      process.env.NOWPAYMENTS_IPN_SECRET!
+    );
     hmac.update(JSON.stringify(sorted));
     const computed = hmac.digest("hex");
 
     const sigBuf = Buffer.from(signature ?? "");
     const cmpBuf = Buffer.from(computed);
-    if (sigBuf.length !== cmpBuf.length || !crypto.timingSafeEqual(cmpBuf, sigBuf)) {
+    if (
+      sigBuf.length !== cmpBuf.length ||
+      !crypto.timingSafeEqual(cmpBuf, sigBuf)
+    ) {
       res.status(401).send("Invalid signature");
       return;
     }
@@ -120,7 +133,11 @@ export default async function handler(req: any, res: any) {
       const email = parseEmailFromOrderId(payload.order_id);
       if (email) {
         try {
-          await sendConfirmationEmail(email, payload.order_id, String(payload.price_amount));
+          await sendConfirmationEmail(
+            email,
+            payload.order_id,
+            String(payload.price_amount)
+          );
           console.log(`✅ Confirmation email sent to ${email}`);
         } catch (err) {
           console.error("Failed to send confirmation email:", err);

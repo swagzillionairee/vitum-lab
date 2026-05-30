@@ -42,8 +42,9 @@ export default function Navbar() {
   }, []);
 
   return (
-    <header className={`sticky top-0 z-50 bg-white dark:bg-[oklch(0.13_0.02_260)] border-b border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] transition-shadow duration-200 ${scrolled ? "shadow-[0_2px_16px_oklch(0.13_0.01_260/0.12)] dark:shadow-[0_2px_16px_oklch(0_0_0/0.5)]" : "shadow-[0_1px_4px_oklch(0.13_0.01_260/0.06)] dark:shadow-[0_1px_4px_oklch(0_0_0/0.3)]"}`}>
-
+    <header
+      className={`sticky top-0 z-50 bg-white dark:bg-[oklch(0.13_0.02_260)] border-b border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] transition-shadow duration-200 ${scrolled ? "shadow-[0_2px_16px_oklch(0.13_0.01_260/0.12)] dark:shadow-[0_2px_16px_oklch(0_0_0/0.5)]" : "shadow-[0_1px_4px_oklch(0.13_0.01_260/0.06)] dark:shadow-[0_1px_4px_oklch(0_0_0/0.3)]"}`}
+    >
       {/* ── Promotional marquee banner ────────────────────────────────── */}
       <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden">
         <div className="flex items-center">
@@ -56,11 +57,19 @@ export default function Navbar() {
             <div className="marquee-track whitespace-nowrap">
               {/* Render 6 copies of the items for a seamless loop */}
               {[...Array(6)].map((_, i) => (
-                <span key={i} className="marquee-content inline-flex items-center" aria-hidden={i > 0}>
+                <span
+                  key={i}
+                  className="marquee-content inline-flex items-center"
+                  aria-hidden={i > 0}
+                >
                   {PROMO_ITEMS.map((item, j) => (
                     <span key={j} className="inline-flex items-center">
-                      <span className="text-[0.75rem] font-semibold tracking-wide">{item}</span>
-                      <span className="mx-10 text-white/40 text-[0.75rem]">·</span>
+                      <span className="text-[0.75rem] font-semibold tracking-wide">
+                        {item}
+                      </span>
+                      <span className="mx-10 text-white/40 text-[0.75rem]">
+                        ·
+                      </span>
                     </span>
                   ))}
                 </span>
@@ -91,7 +100,7 @@ export default function Navbar() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-7">
-            {navLinks.map((link) => (
+            {navLinks.map(link => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -112,7 +121,11 @@ export default function Navbar() {
             <button
               onClick={toggleTheme}
               className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={
+                theme === "dark"
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
+              }
             >
               {theme === "dark" ? (
                 <Sun className="w-4.5 h-4.5 text-[oklch(0.75_0.12_80)]" />
@@ -134,7 +147,10 @@ export default function Navbar() {
               )}
             </button>
 
-            <Link href="/shop" className="hidden md:block btn-primary text-sm py-2.5 px-5">
+            <Link
+              href="/shop"
+              className="hidden md:block btn-primary text-sm py-2.5 px-5"
+            >
               Shop Now
             </Link>
 
@@ -157,7 +173,7 @@ export default function Navbar() {
       {mobileOpen && (
         <div className="md:hidden border-t border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] bg-white dark:bg-[oklch(0.13_0.02_260)]">
           <nav className="container py-4 flex flex-col gap-1">
-            {navLinks.map((link) => (
+            {navLinks.map(link => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -172,7 +188,11 @@ export default function Navbar() {
               </Link>
             ))}
             <div className="pt-3 border-t border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] mt-2">
-              <Link href="/shop" onClick={() => setMobileOpen(false)} className="btn-primary block text-center text-sm">
+              <Link
+                href="/shop"
+                onClick={() => setMobileOpen(false)}
+                className="btn-primary block text-center text-sm"
+              >
                 Shop Now
               </Link>
             </div>

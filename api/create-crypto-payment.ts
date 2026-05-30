@@ -56,10 +56,12 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const data = await nowRes.json() as { invoice_url: string };
+    const data = (await nowRes.json()) as { invoice_url: string };
     res.status(200).json({ invoiceUrl: data.invoice_url, orderId });
   } catch (err) {
     console.error("create-crypto-payment error:", err);
-    res.status(500).json({ error: "Failed to create payment. Please try again." });
+    res
+      .status(500)
+      .json({ error: "Failed to create payment. Please try again." });
   }
 }

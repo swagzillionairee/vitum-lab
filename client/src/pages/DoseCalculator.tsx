@@ -12,9 +12,12 @@ export default function DoseCalculator() {
       <div className="border-b border-[oklch(0.93_0.004_260)]">
         <div className="container py-8">
           <p className="section-label mb-2">Tools</p>
-          <h1 className="text-[2rem] font-bold text-[oklch(0.13_0.01_260)]">Dose Calculator</h1>
+          <h1 className="text-[2rem] font-bold text-[oklch(0.13_0.01_260)]">
+            Dose Calculator
+          </h1>
           <p className="text-[oklch(0.52_0.01_260)] mt-2 text-[0.9375rem]">
-            Calculate reconstitution volumes and doses for your research peptides.
+            Calculate reconstitution volumes and doses for your research
+            peptides.
           </p>
         </div>
       </div>
