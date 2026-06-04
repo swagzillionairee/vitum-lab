@@ -40,17 +40,38 @@ export default function CartDrawer() {
   const [promoCode, setPromoCode] = useState("");
   const [promoApplied, setPromoApplied] = useState(false);
   const [promoError, setPromoError] = useState(false);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [discountPct, setDiscountPct] = useState(0);
+  const [affiliateId, setAffiliateId] = useState<string | undefined>();
   const [cryptoStep, setCryptoStep] = useState(false);
   const [email, setEmail] = useState("");
   const [cryptoLoading, setCryptoLoading] = useState(false);
   const [cryptoError, setCryptoError] = useState("");
 
-  const handleApplyPromo = () => {
+  const handleApplyPromo = async () => {
     if (!promoCode.trim()) return;
-    // Placeholder: in production this would validate against the backend/Foxy
+    setPromoLoading(true);
+    setPromoError(false);
     setPromoApplied(false);
-    setPromoError(true);
-    setTimeout(() => setPromoError(false), 2500);
+    try {
+      const res = await fetch("/api/validate-discount", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: promoCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        setPromoError(true);
+      } else {
+        setPromoApplied(true);
+        setDiscountPct(data.discountPct);
+        setAffiliateId(data.affiliateId);
+      }
+    } catch {
+      setPromoError(true);
+    } finally {
+      setPromoLoading(false);
+    }
   };
 
   // Close on Escape
@@ -72,6 +93,8 @@ export default function CartDrawer() {
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
+  const discountAmount = promoApplied ? parseFloat((subtotal * discountPct / 100).toFixed(2)) : 0;
+  const discountedTotal = subtotal - discountAmount;
   const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
   const freeShippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
   const checkoutUrl = buildFoxyUrl(items);
@@ -255,6 +278,20 @@ export default function CartDrawer() {
                     ${subtotal.toFixed(2)}
                   </span>
                 </div>
+                {promoApplied && discountAmount > 0 && (
+                  <>
+                    <div className="flex items-center justify-between text-[0.875rem] text-[oklch(0.35_0.14_155)] font-semibold">
+                      <span>Discount ({discountPct}%)</span>
+                      <span>−${discountAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-[oklch(0.91_0.004_260)] pt-2">
+                      <span className="text-[0.875rem] font-bold text-[oklch(0.13_0.01_260)]">Total</span>
+                      <span className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">
+                        ${discountedTotal.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
 
                 {subtotal >= FREE_SHIPPING_THRESHOLD && (
                   <div className="flex items-center justify-between text-[0.75rem] text-[oklch(0.35_0.12_155)] font-semibold">
@@ -282,15 +319,16 @@ export default function CartDrawer() {
                       <input
                         type="text"
                         value={promoCode}
-                        onChange={(e) => { setPromoCode(e.target.value); setPromoError(false); setPromoApplied(false); }}
+                        onChange={(e) => { setPromoCode(e.target.value); setPromoError(false); setPromoApplied(false); setDiscountPct(0); setAffiliateId(undefined); }}
                         placeholder="Enter code"
                         className="flex-1 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2 text-[0.8125rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
                       />
                       <button
                         onClick={handleApplyPromo}
-                        className="flex-shrink-0 px-4 py-2 rounded-lg bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors active:scale-95"
+                        disabled={promoLoading}
+                        className="flex-shrink-0 px-4 py-2 rounded-lg bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors active:scale-95 disabled:opacity-60"
                       >
-                        Apply
+                        {promoLoading ? "…" : "Apply"}
                       </button>
                     </div>
                   )}
@@ -359,9 +397,12 @@ export default function CartDrawer() {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({
-                                items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity })),
+                                items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price })),
                                 email,
-                                total: subtotal,
+                                total: discountedTotal,
+                                discountCode: promoApplied ? promoCode : undefined,
+                                affiliateId: promoApplied ? affiliateId : undefined,
+                                discountAmount: promoApplied ? discountAmount : undefined,
                               }),
                             });
                             const data = await response.json();

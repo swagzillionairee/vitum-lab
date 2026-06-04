@@ -1,4 +1,5 @@
 import { customAlphabet } from "nanoid";
+import { supabaseAdmin } from "../server/lib/supabase-admin";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
@@ -14,10 +15,13 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { items, email, total } = req.body as {
-      items: { name: string; dose: string; quantity: number }[];
+    const { items, email, total, discountCode, affiliateId, discountAmount } = req.body as {
+      items: { name: string; dose: string; quantity: number; cartCode: string; price: number }[];
       email: string;
       total: number;
+      discountCode?: string;
+      affiliateId?: string;
+      discountAmount?: number;
     };
 
     if (!items?.length || !email || !total) {
@@ -25,11 +29,41 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
+    // Validate stock for each item (skip free gifts with price 0)
+    const paidItems = items.filter((i) => i.price > 0 && i.cartCode !== "bac-water-free");
+    for (const item of paidItems) {
+      const { data } = await supabaseAdmin
+        .from("inventory")
+        .select("stock")
+        .eq("cart_code", item.cartCode)
+        .maybeSingle();
+
+      if (data && data.stock < item.quantity) {
+        res.status(409).json({ error: `${item.name} ${item.dose} is out of stock.` });
+        return;
+      }
+    }
+
     const orderId = buildOrderId(email);
-    const description = items
-      .map((i: any) => `${i.name} ${i.dose} x${i.quantity}`)
+    const grossAmount = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const netAmount = total;
+    const description = paidItems
+      .map((i) => `${i.name} ${i.dose} x${i.quantity}`)
       .join(", ");
     const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
+
+    // Persist pending order
+    await supabaseAdmin.from("orders").insert({
+      id: orderId,
+      email,
+      status: "pending",
+      items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price })),
+      gross_amount: grossAmount,
+      discount_amount: discountAmount ?? 0,
+      net_amount: netAmount,
+      discount_code: discountCode ?? null,
+      affiliate_id: affiliateId ?? null,
+    });
 
     const nowRes = await fetch(`${NOWPAYMENTS_API}/invoice`, {
       method: "POST",
@@ -38,7 +72,7 @@ export default async function handler(req: any, res: any) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        price_amount: total,
+        price_amount: netAmount,
         price_currency: "usd",
         order_id: orderId,
         order_description: description,

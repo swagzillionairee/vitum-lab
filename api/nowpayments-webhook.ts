@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import nodemailer from "nodemailer";
+import { supabaseAdmin } from "../server/lib/supabase-admin";
 
 function sortKeys(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;
@@ -118,6 +119,35 @@ export default async function handler(req: any, res: any) {
 
     if (status === "finished" || status === "confirmed") {
       const email = parseEmailFromOrderId(payload.order_id);
+
+      // Fetch order items and decrement stock atomically
+      try {
+        const { data: order } = await supabaseAdmin
+          .from("orders")
+          .select("items, status")
+          .eq("id", payload.order_id)
+          .maybeSingle();
+
+        if (order && order.status === "pending") {
+          const items = (order.items as { cartCode: string; quantity: number; price: number }[]) ?? [];
+          for (const item of items) {
+            if (item.price > 0 && item.cartCode !== "bac-water-free") {
+              await supabaseAdmin.rpc("decrement_stock", {
+                p_cart_code: item.cartCode,
+                p_qty: item.quantity,
+              });
+            }
+          }
+
+          await supabaseAdmin
+            .from("orders")
+            .update({ status: "confirmed", confirmed_at: new Date().toISOString() })
+            .eq("id", payload.order_id);
+        }
+      } catch (err) {
+        console.error("Failed to update order/stock:", err);
+      }
+
       if (email) {
         try {
           await sendConfirmationEmail(email, payload.order_id, String(payload.price_amount));
