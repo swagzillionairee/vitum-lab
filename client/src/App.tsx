@@ -34,6 +34,9 @@ import OrderCancel from "./pages/OrderCancel";
 import DoseCalculator from "./pages/DoseCalculator";
 import COALibrary from "./pages/COALibrary";
 import Research from "./pages/Research";
+import AdminLogin from "./pages/AdminLogin";
+import AdminDashboard from "./pages/AdminDashboard";
+import { AuthProvider } from "./contexts/AuthContext";
 
 // ─── Scroll to top on every route change ─────────────────────────────────────
 function ScrollToTop() {
@@ -92,10 +95,21 @@ function Router() {
 
 function AppLayout() {
   const [verified, setVerified] = useState<boolean | null>(null);
+  const [location] = useLocation();
 
   useEffect(() => {
     setVerified(isAgeVerified());
   }, []);
+
+  // Admin routes bypass the age gate and storefront chrome (Navbar/Footer).
+  if (location.startsWith("/admin")) {
+    return (
+      <Switch>
+        <Route path="/admin/login" component={AdminLogin} />
+        <Route path="/admin" component={AdminDashboard} />
+      </Switch>
+    );
+  }
 
   // Show nothing until we've checked the cookie (avoids flash)
   if (verified === null) return null;
@@ -123,11 +137,13 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light" switchable={true}>
         <TooltipProvider>
-          <CartProvider>
-            <Toaster />
-            <AppLayout />
-            <CartDrawer />
-          </CartProvider>
+          <AuthProvider>
+            <CartProvider>
+              <Toaster />
+              <AppLayout />
+              <CartDrawer />
+            </CartProvider>
+          </AuthProvider>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

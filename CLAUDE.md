@@ -132,11 +132,19 @@ The Vercel-Supabase connector auto-injects `SUPABASE_URL` and `SUPABASE_SERVICE_
 
 ## Open Work
 
-**Phase 5 — Affiliate Dashboard** (not yet built):
+**Authentication roadmap** (Supabase Auth — Google OAuth + magic link). Three independent login types, build in this order:
+
+1. **Admin login** (you) — single admin identified via `admins` table (or `is_admin` flag). Google login. Admin dashboard for inventory management (edit stock, toggle `is_active`), order overview, and affiliate management. Replaces editing inventory directly in the Supabase dashboard.
+2. **Affiliate login** — magic-link email only (small closed group, no Google). See affiliate dashboard files below.
+3. **Customer login** — Google OAuth + magic link. `profiles` table linked to `auth.users`; `orders` gets a `user_id` column; checkout optionally attaches the logged-in user's ID. "My Account" page with order history + status. Note: orders placed before an account exists cannot be retroactively linked.
+
+**Affiliate Dashboard files** (not yet built):
 - `server/lib/requireAffiliate.ts` — Supabase JWT validation middleware
 - `api/affiliate/stats.ts` + `api/affiliate/orders.ts` — protected endpoints
 - `client/src/pages/AffiliateLogin.tsx` — Supabase magic link login
 - `client/src/pages/AffiliateDashboard.tsx` — stats + recharts chart + orders table
 - `client/src/App.tsx` — add `/affiliate/login` and `/affiliate/dashboard` routes
+
+**Product management** (considered, not built): move catalog from `products.ts` into a Supabase `products` table with `sale_price`/`sale_ends_at` columns; store images in a Supabase Storage bucket and reference by URL. Enables price/sale/product edits without redeploying.
 
 To test discount codes end-to-end, insert a row into the `affiliates` table first.
