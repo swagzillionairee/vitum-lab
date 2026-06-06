@@ -36,6 +36,10 @@ import COALibrary from "./pages/COALibrary";
 import Research from "./pages/Research";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import Login from "./pages/Login";
+import Account from "./pages/Account";
+import AffiliateLogin from "./pages/AffiliateLogin";
+import AffiliateDashboard from "./pages/AffiliateDashboard";
 import { AuthProvider } from "./contexts/AuthContext";
 
 // ─── Scroll to top on every route change ─────────────────────────────────────
@@ -86,6 +90,8 @@ function Router() {
       <Route path="/research" component={Research} />
       <Route path="/order-success" component={OrderSuccess} />
       <Route path="/order-cancel" component={OrderCancel} />
+      <Route path="/login" component={Login} />
+      <Route path="/account" component={Account} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -101,25 +107,33 @@ function AppLayout() {
     setVerified(isAgeVerified());
   }, []);
 
-  // Admin routes bypass the age gate and storefront chrome (Navbar/Footer).
-  if (location.startsWith("/admin")) {
+  // Admin + affiliate routes bypass the age gate and storefront chrome.
+  if (location.startsWith("/admin") || location.startsWith("/affiliate")) {
     return (
       <Switch>
         <Route path="/admin/login" component={AdminLogin} />
         <Route path="/admin" component={AdminDashboard} />
+        <Route path="/affiliate/login" component={AffiliateLogin} />
+        <Route path="/affiliate/dashboard" component={AffiliateDashboard} />
+        <Route component={NotFound} />
       </Switch>
     );
   }
 
+  // Customer auth pages keep storefront chrome but skip the age gate.
+  const isAuthPage = location === "/login" || location === "/account";
+
   // Show nothing until we've checked the cookie (avoids flash)
-  if (verified === null) return null;
+  if (verified === null && !isAuthPage) return null;
+
+  const gated = !verified && !isAuthPage;
 
   return (
     <>
-      {!verified && (
+      {gated && (
         <AgeGate onVerified={() => setVerified(true)} />
       )}
-      <div className={!verified ? "pointer-events-none select-none blur-sm" : ""}>
+      <div className={gated ? "pointer-events-none select-none blur-sm" : ""}>
         <Navbar />
         <main>
           <Router />
