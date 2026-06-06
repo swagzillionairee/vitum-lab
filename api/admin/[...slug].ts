@@ -7,8 +7,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const admin = await requireAdmin(req);
   if (!admin) return res.status(401).json({ error: "Unauthorized" });
 
-  const slug = (req.query.slug as string[]) ?? [];
-  const route = slug[0];
+  // Parse route from URL — more reliable than req.query.slug with rewrites
+  const pathname = (req.url ?? "").split("?")[0];
+  const route = pathname.replace(/^\/api\/admin\/?/, "").split("/")[0];
 
   // ── /api/admin/inventory ──────────────────────────────────────────────────
   if (route === "inventory") {
