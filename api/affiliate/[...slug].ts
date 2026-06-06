@@ -7,8 +7,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const affiliate = await requireAffiliate(req);
   if (!affiliate) return res.status(401).json({ error: "Unauthorized" });
 
-  const slug = (req.query.slug as string[]) ?? [];
-  const route = slug[0];
+  // Parse route from URL — more reliable than req.query.slug with rewrites
+  const pathname = (req.url ?? "").split("?")[0];
+  const route = pathname.replace(/^\/api\/affiliate\/?/, "").split("/")[0];
 
   // ── /api/affiliate/stats ──────────────────────────────────────────────────
   if (route === "stats") {
