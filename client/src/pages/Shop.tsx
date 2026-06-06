@@ -16,36 +16,16 @@ import { FileText, ShieldCheck, Truck, ArrowLeft, ShoppingCart, Check } from "lu
 import { useCart } from "@/contexts/CartContext";
 import { AnimatePresence, motion } from "framer-motion";
 import SEO from "@/components/SEO";
-import { products } from "@/lib/products";
+import { useProducts } from "@/hooks/useProducts";
 import { useInventory } from "@/hooks/useInventory";
 
-// ─── Slug → categorySlug / detailSlug mapping ─────────────────────────────────
+// ─── Slug → categorySlug mapping ─────────────────────────────────────────────
 const CATEGORY_SLUG_MAP: Record<string, string> = {
   "Metabolic Research": "metabolic",
   "Cosmetic / Tissue Research": "tissue",
   "Cellular Research": "cellular",
   "Reconstitution": "reconstitution",
 };
-
-// ─── Derive flat product list from PRODUCTS ───────────────────────────────────
-const allProducts = products.flatMap((product) =>
-  product.variants.map((variant, idx) => ({
-    id: variant.id,
-    name: product.name,
-    dose: variant.dose,
-    lot: variant.lot,
-    price: variant.price,
-    category: product.category,
-    categorySlug: CATEGORY_SLUG_MAP[product.category] ?? "other",
-    tagline: product.tagline,
-    description: product.description,
-    img: variant.img,
-    cardBg: product.cardBg,
-    cartCode: variant.cartCode,
-    badge: idx === 0 && product.badge ? (product.badge as string | null) : null,
-    detailSlug: product.slug,
-  }))
-);
 
 const categories = [
   { slug: "all", label: "All Products" },
@@ -65,8 +45,15 @@ const BADGE_STYLES: Record<string, string> = {
   "New": "bg-[oklch(0.35_0.15_260)] text-white",
 };
 
+type FlatProduct = {
+  id: string; name: string; dose: string; lot: string; price: number;
+  salePrice?: number; category: string; categorySlug: string; tagline: string;
+  description: string; img: string; cardBg: string; cartCode: string;
+  badge: string | null; detailSlug: string;
+};
+
 // ─── Product card with Added✓ feedback ───────────────────────────────────────
-function ProductCard({ p }: { p: typeof allProducts[0] }) {
+function ProductCard({ p }: { p: FlatProduct }) {
   const { addItem } = useCart();
   const { isAvailable, stockLabel } = useInventory();
   const [added, setAdded] = useState(false);
@@ -118,7 +105,14 @@ function ProductCard({ p }: { p: typeof allProducts[0] }) {
 
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${p.price}</span>
+            {p.salePrice != null ? (
+              <div className="flex items-baseline gap-2">
+                <span className="text-[1.25rem] font-bold text-[oklch(0.50_0.18_25)]">${p.salePrice}</span>
+                <span className="text-[0.875rem] line-through text-[oklch(0.60_0.01_260)]">${p.price}</span>
+              </div>
+            ) : (
+              <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${p.price}</span>
+            )}
             {label && available && (
               <p className="text-[0.6875rem] text-amber-600 font-semibold mt-0.5">{label}</p>
             )}
@@ -158,7 +152,28 @@ function ProductCard({ p }: { p: typeof allProducts[0] }) {
 // ─── Main Shop page ───────────────────────────────────────────────────────────
 export default function Shop() {
   const { totalItems, openCart } = useCart();
+  const { products } = useProducts();
   const [activeCategory, setActiveCategory] = useState("all");
+
+  const allProducts: FlatProduct[] = products.flatMap((product) =>
+    product.variants.map((variant, idx) => ({
+      id: variant.id,
+      name: product.name,
+      dose: variant.dose,
+      lot: variant.lot,
+      price: variant.price,
+      salePrice: variant.salePrice,
+      category: product.category,
+      categorySlug: CATEGORY_SLUG_MAP[product.category] ?? "other",
+      tagline: product.tagline,
+      description: product.description,
+      img: variant.img,
+      cardBg: product.cardBg,
+      cartCode: variant.cartCode,
+      badge: idx === 0 && product.badge ? product.badge : null,
+      detailSlug: product.slug,
+    }))
+  );
 
   // Read ?category= URL param on mount so footer links filter correctly
   useEffect(() => {
