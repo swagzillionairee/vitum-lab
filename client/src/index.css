@@ -300,6 +300,23 @@
     transform: scale(0.97);
   }
 
+  /* Small form input */
+  .input-sm {
+    border: 1px solid oklch(0.88 0.004 260);
+    border-radius: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    outline: none;
+    background: white;
+    color: oklch(0.13 0.01 260);
+    transition: box-shadow 120ms;
+  }
+  .input-sm:focus {
+    box-shadow: 0 0 0 2px oklch(0.40 0.16 260 / 0.35);
+    border-color: oklch(0.40 0.16 260);
+  }
+
   /* Secondary pill button — outlined */
   .btn-secondary {
     display: inline-flex;

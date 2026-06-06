@@ -6,6 +6,8 @@ export interface ProductVariant {
   dose: string;
   lot: string;
   price: number;
+  salePrice?: number;
+  saleEndsAt?: string;
   img: string;
   cartCode: string;
 }

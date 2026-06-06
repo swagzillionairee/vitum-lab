@@ -8,14 +8,15 @@ import { useState } from "react";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, FileText, Check, ChevronDown, ChevronUp, ShieldCheck, Truck, FlaskConical } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
-import { getProductBySlug } from "@/lib/products";
+import { useProducts } from "@/hooks/useProducts";
 import ReconstitutionCalculator from "@/components/ReconstitutionCalculator";
 import SEO from "@/components/SEO";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/shop/:slug");
   const slug = params?.slug ?? "";
-  const product = getProductBySlug(slug);
+  const { products } = useProducts();
+  const product = products.find((p) => p.slug === slug);
 
   const { addItem } = useCart();
   const [selectedIdx, setSelectedIdx] = useState(0);
