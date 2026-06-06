@@ -130,21 +130,39 @@ The Vercel-Supabase connector auto-injects `SUPABASE_URL` and `SUPABASE_SERVICE_
 
 ---
 
+## Authentication (built — Supabase Auth)
+
+Three login types share `AuthContext` (`client/src/contexts/AuthContext.tsx`) and the
+`authedFetch` helper (`client/src/lib/api.ts`, attaches the Supabase JWT as a Bearer token).
+Server routes validate the JWT via helpers in `server/lib/`:
+- `requireUser.ts` — any logged-in user (returns id + email)
+- `requireAdmin.ts` — checks `admins` table; links `user_id` on first login
+- `requireAffiliate.ts` — checks `affiliates` table; links `user_id` on first login
+
+| Login | Route | Methods | Redirect after auth | Gated by |
+|---|---|---|---|---|
+| Customer | `/login` → `/account` | Google + magic link | role-checked via `/api/me`: admin→`/admin`, affiliate→`/affiliate/dashboard`, else `/account` | — |
+| Affiliate | `/affiliate/login` → `/affiliate/dashboard` | magic link only | `/affiliate/dashboard` | `affiliates` table |
+| Admin | `/admin/login` → `/admin` | Google + magic link | `/admin` | `admins` table |
+
+Key detail: the customer login is the single entry point — an admin can sign in there with
+their normal credentials and gets routed to `/admin` automatically (via `/api/me`).
+
+**Endpoints:** `api/me.ts` (role), `api/account/orders.ts` (customer orders by email),
+`api/admin/inventory.ts` (GET/PATCH stock+active), `api/admin/orders.ts`,
+`api/affiliate/stats.ts`, `api/affiliate/orders.ts`.
+
+Customer order history matches orders by **email** (not `user_id`), so orders placed before
+the account existed still appear. `admins`/`affiliates` tables have `email` + nullable `user_id`.
+
+**Routing:** `/admin/*` and `/affiliate/*` render standalone (no Navbar/Footer, no age gate).
+`/login` and `/account` keep storefront chrome but skip the age gate. Navbar shows a User icon
+linking to `/account` when signed in, else `/login`.
+
+**Setup still required in Supabase dashboard:** enable Google provider (Auth → Providers) with a
+Google Cloud OAuth client. Magic-link works without it. To add an affiliate, insert a row into
+`affiliates` (email, code, discount_percent, commission_percent).
+
 ## Open Work
 
-**Authentication roadmap** (Supabase Auth — Google OAuth + magic link). Three independent login types, build in this order:
-
-1. **Admin login** (you) — single admin identified via `admins` table (or `is_admin` flag). Google login. Admin dashboard for inventory management (edit stock, toggle `is_active`), order overview, and affiliate management. Replaces editing inventory directly in the Supabase dashboard.
-2. **Affiliate login** — magic-link email only (small closed group, no Google). See affiliate dashboard files below.
-3. **Customer login** — Google OAuth + magic link. `profiles` table linked to `auth.users`; `orders` gets a `user_id` column; checkout optionally attaches the logged-in user's ID. "My Account" page with order history + status. Note: orders placed before an account exists cannot be retroactively linked.
-
-**Affiliate Dashboard files** (not yet built):
-- `server/lib/requireAffiliate.ts` — Supabase JWT validation middleware
-- `api/affiliate/stats.ts` + `api/affiliate/orders.ts` — protected endpoints
-- `client/src/pages/AffiliateLogin.tsx` — Supabase magic link login
-- `client/src/pages/AffiliateDashboard.tsx` — stats + recharts chart + orders table
-- `client/src/App.tsx` — add `/affiliate/login` and `/affiliate/dashboard` routes
-
 **Product management** (considered, not built): move catalog from `products.ts` into a Supabase `products` table with `sale_price`/`sale_ends_at` columns; store images in a Supabase Storage bucket and reference by URL. Enables price/sale/product edits without redeploying.
-
-To test discount codes end-to-end, insert a row into the `affiliates` table first.

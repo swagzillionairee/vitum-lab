@@ -9,9 +9,10 @@
 
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { ShoppingCart, Menu, X, Sun, Moon } from "lucide-react";
+import { ShoppingCart, Menu, X, Sun, Moon, User } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navLinks = [
   { label: "Shop", href: "/shop" },
@@ -33,6 +34,7 @@ export default function Navbar() {
   const [location] = useLocation();
   const { totalItems, openCart } = useCart();
   const { theme, toggleTheme } = useTheme();
+  const { session } = useAuth();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -134,6 +136,14 @@ export default function Navbar() {
               )}
             </button>
 
+            <Link
+              href={session ? "/account" : "/login"}
+              className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
+              aria-label={session ? "My account" : "Login"}
+            >
+              <User className="w-5 h-5 text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)]" />
+            </Link>
+
             <Link href="/shop" className="hidden md:block btn-primary text-sm py-2.5 px-5">
               Shop Now
             </Link>
@@ -171,6 +181,13 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
+            <Link
+              href={session ? "/account" : "/login"}
+              onClick={() => setMobileOpen(false)}
+              className="text-sm font-medium py-2.5 px-3 rounded-xl text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
+            >
+              {session ? "My Account" : "Login"}
+            </Link>
             <div className="pt-3 border-t border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] mt-2">
               <Link href="/shop" onClick={() => setMobileOpen(false)} className="btn-primary block text-center text-sm">
                 Shop Now
