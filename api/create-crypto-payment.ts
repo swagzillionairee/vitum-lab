@@ -1,5 +1,5 @@
 import { customAlphabet } from "nanoid";
-import { supabaseAdmin } from "../server/lib/supabase-admin";
+import { supabaseAdmin } from "./_lib/supabase-admin";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);

@@ -1,5 +1,5 @@
-import { supabaseAdmin } from "../../server/lib/supabase-admin";
-import { requireUser } from "../../server/lib/requireUser";
+import { supabaseAdmin } from "../_lib/supabase-admin";
+import { requireUser } from "../_lib/requireUser";
 
 /**
  * Returns the logged-in customer's orders, matched by email. This links
