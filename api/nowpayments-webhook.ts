@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import nodemailer from "nodemailer";
-import { supabaseAdmin } from "../server/lib/supabase-admin";
+import { supabaseAdmin } from "./_lib/supabase-admin";
 
 function sortKeys(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;

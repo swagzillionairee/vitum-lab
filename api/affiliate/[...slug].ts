@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireAffiliate } from "../../server/lib/requireAffiliate";
-import { supabaseAdmin } from "../../server/lib/supabase-admin";
+import { requireAffiliate } from "../_lib/requireAffiliate";
+import { supabaseAdmin } from "../_lib/supabase-admin";
 
 // Handles all /api/affiliate/* routes: stats, orders
 export default async function handler(req: VercelRequest, res: VercelResponse) {
