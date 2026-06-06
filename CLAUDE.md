@@ -1,149 +1,150 @@
-# Vitum Lab — Session Notes
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What This Project Is
 
-Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site. It sells GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. Crypto-only checkout via NowPayments. Orders confirmed via email. Deployed on Vercel.
+Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. Crypto-only checkout via NowPayments. Deployed on Vercel.
 
-**Stack:** React 19 + TypeScript + Tailwind CSS (oklch color space) + wouter routing + Vite frontend. Express backend (`server/index.ts`) + Vercel serverless functions (`/api/*.ts`). No database (yet).
+**Stack:** React 19 + TypeScript + Tailwind CSS v4 (oklch color space) + wouter routing + Vite. Express backend (`server/index.ts`) for local dev. Vercel serverless functions (`/api/*.ts`) in production. Supabase for inventory, orders, and affiliates.
+
+---
+
+## Commands
+
+```bash
+pnpm dev          # Start Vite dev server (port 3000) + Express API proxy
+pnpm build        # vite build → dist/public, then esbuild server → dist/index.js
+pnpm check        # TypeScript type-check (no emit)
+pnpm format       # Prettier
+```
+
+No test suite is configured (vitest is installed but unused). There is no lint script — use `pnpm check` for type errors.
+
+The Vite root is `client/` (not repo root). Path aliases: `@` → `client/src`, `@shared` → `shared/`, `@assets` → `attached_assets/`.
 
 ---
 
 ## Architecture
 
 ```
-client/src/         React SPA (Vite)
-  pages/            All page components
-  components/       Navbar, Footer, CartDrawer, LegalPage, etc.
-  lib/products.ts   Single source of truth for all product/variant data
-  contexts/         CartContext (sessionStorage), ThemeContext (localStorage)
-  hooks/            useInventory (stub — pending Supabase)
-api/                Vercel serverless functions
-  create-crypto-payment.ts   Creates NowPayments invoice
-  nowpayments-webhook.ts     Confirms payment, sends email, (soon) decrements stock
-  contact.ts                 Contact form → Gmail SMTP
-  inventory.ts               (stub — pending Supabase)
-  validate-discount.ts       (stub — pending Supabase)
-  affiliate/stats.ts         (stub — pending Supabase)
-  affiliate/orders.ts        (stub — pending Supabase)
-server/             Express server (local dev + fallback)
-lib/                Shared server utilities
-  supabase-admin.ts (stub — pending Supabase credentials)
+client/src/
+  pages/            Page components (Shop, ProductDetail, Home, COALibrary, etc.)
+  components/       Navbar, Footer, CartDrawer, LegalPage, ReconstitutionCalculator, etc.
+  lib/
+    products.ts     Single source of truth — all product/variant data and cartCodes
+    supabase.ts     Browser Supabase client (anon key via VITE_SUPABASE_ANON_KEY)
+  contexts/         CartContext (sessionStorage), ThemeContext (dark mode → localStorage)
+  hooks/
+    useInventory.ts Fetches /api/inventory, exposes isAvailable(cartCode)/stockLabel(cartCode)
+
+api/                Vercel serverless functions (each file = one route)
+  inventory.ts                GET  /api/inventory → {cartCode: stock} map
+  create-crypto-payment.ts   POST /api/create-crypto-payment
+  nowpayments-webhook.ts     POST /api/nowpayments-webhook (raw body, HMAC-verified)
+  validate-discount.ts       POST /api/validate-discount
+  contact.ts                 POST /api/contact
+
+server/
+  index.ts          Express server (local dev only — proxies /api/* to the same handlers)
+  lib/
+    supabase-admin.ts  Service-role Supabase client (SUPABASE_SERVICE_ROLE_KEY)
+    email.ts           Nodemailer/Gmail helpers
 ```
 
-**Product variants** (cartCode is the unique key):
-- `retatrutide-10mg` $129, `retatrutide-20mg` $189, `retatrutide-30mg` $249
-- `ghk-cu-50mg` $69, `ghk-cu-100mg` $109
-- `nad-500mg` $129 (Out of Stock)
-- `bac-water-10ml` $12
-
-**Order ID format:** `{10-char-alphanum}--{base64url(email)}` — email is encoded in the order ID so the webhook can send confirmation without a database.
+**Key data flow:**
+1. Cart items live in `CartContext` (sessionStorage). `CartItem.cartCode` is the inventory key.
+2. Checkout: CartDrawer → `POST /api/create-crypto-payment` → NowPayments invoice URL → redirect.
+3. Payment confirmed: NowPayments IPN → `POST /api/nowpayments-webhook` → `decrement_stock()` RPC → order status `confirmed` → confirmation email.
+4. Order ID encodes email: `{10-char-alphanum}--{base64url(email)}` — no DB lookup needed to send the email.
 
 ---
 
-## Environment Variables Required
+## Product Variants (cartCode is the unique key)
 
-```
-# Server-side (Vercel dashboard + .env)
+| cartCode | Price | Notes |
+|---|---|---|
+| `retatrutide-10mg` | $129 | |
+| `retatrutide-20mg` | $189 | |
+| `retatrutide-30mg` | $249 | |
+| `ghk-cu-50mg` | $69 | LOT: B031 |
+| `ghk-cu-100mg` | $109 | LOT: B031 |
+| `nad-500mg` | $129 | stock = 0 |
+| `bac-water-10ml` | $12 | |
+
+Free gift `bac-water-free` (price $0) auto-added when subtotal ≥ $150 — skip stock checks for it.
+
+---
+
+## Supabase Schema
+
+**Project ID:** `mddgtvwcwsmlbwiafdvq` (us-west-2)
+
+Tables in `public`:
+- `inventory(cart_code PK, stock INT CHECK >= 0, is_active BOOL, updated_at)`
+- `orders(id PK, email, items JSONB, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed, confirmed_at, created_at)`
+- `affiliates(id UUID PK, user_id → auth.users, code UNIQUE, discount_percent, commission_percent, name, created_at)`
+
+Key RPC: `decrement_stock(p_cart_code TEXT, p_qty INT) → INT` — atomic UPDATE WHERE stock >= qty, raises `P0001 insufficient_stock` on failure.
+
+RLS: `inventory` is publicly readable (anon). `orders` and `affiliates` are service-role only.
+
+---
+
+## Environment Variables
+
+```bash
+# Server-side (set in Vercel dashboard; auto-injected by Vercel-Supabase connector)
+SUPABASE_URL=https://mddgtvwcwsmlbwiafdvq.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=
 NOWPAYMENTS_API_KEY=
 NOWPAYMENTS_IPN_SECRET=
 GMAIL_USER=hello@vitumlab.com
 GMAIL_APP_PASSWORD=
 BASE_URL=https://vitum-lab.vercel.app
-SUPABASE_URL=                        ← PENDING (not yet set up)
-SUPABASE_SERVICE_ROLE_KEY=           ← PENDING
 
-# Browser (Vite, VITE_ prefix)
-VITE_SUPABASE_URL=                   ← PENDING
-VITE_SUPABASE_ANON_KEY=              ← PENDING
+# Browser (Vite needs VITE_ prefix — must be set manually in Vercel)
+VITE_SUPABASE_URL=https://mddgtvwcwsmlbwiafdvq.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
----
-
-## What Was Built / Changed This Session
-
-### Features
-- **Dark mode** — Sun/Moon toggle in Navbar, persists to localStorage. Comprehensive CSS overrides for all hardcoded oklch color values across every page. Active buttons use cobalt blue in dark mode. LegalPage converted from inline styles to Tailwind dark: variants.
-- **GHK-Cu lot fix** — Both 50mg and 100mg variants now show LOT: B031.
-- **NAD+ Out of Stock badge** — Grey badge added.
-- **Contact form** — Now POSTs to `/api/contact` (nodemailer/Gmail), no longer opens Outlook. Requires `GMAIL_USER` + `GMAIL_APP_PASSWORD` in Vercel env vars.
-
-### Dark Mode Details
-- `index.css` — `.dark` CSS variable overrides + targeted class overrides for all `oklch(...)` background, text, and border values used across the site.
-- All text minimum lightness `0.72` on `0.12` dark background for WCAG compliance.
-- Dark section headers (`bg-[oklch(0.13_0.01_260)]`) intentionally left alone — they stay dark in dark mode.
-- Active pills/buttons (dose selector, shop filter) use `dark:bg-[oklch(0.40_0.16_260)]` cobalt.
-
-### Previously Built (earlier sessions)
-- NowPayments crypto checkout with email-in-order-ID trick
-- Gmail confirmation email on webhook
-- COA Library with real PDFs (`/coa/Retatrutide_COA.pdf`, etc.)
-- Reconstitution calculator
-- Research Library page with real peer-reviewed studies
-- Affiliate/discount code UI stubs in CartDrawer (state exists, not wired)
-- Return Policy, LegalPage redesign, all legal pages
-- Age gate, cookie consent, back-to-top
-- USPS Priority Mail shipping copy everywhere (2 days East Coast, 3 days Central/West)
-- Store address: 1300 S Columbus Blvd, Philadelphia, PA 19147
+The Vercel-Supabase connector auto-injects `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` but **not** the `VITE_` prefixed vars — those must be added manually for the browser bundle to have Supabase access.
 
 ---
 
-## Known Issues / Open Items
+## Styling Conventions
 
-| Item | Status |
-|------|--------|
-| Contact form | Works once `GMAIL_USER` + `GMAIL_APP_PASSWORD` are set in Vercel dashboard |
-| Gmail App Password | Previous one was exposed in chat — user must regenerate at myaccount.google.com/apppasswords |
-| Supabase inventory + affiliates | **BLOCKED — waiting for user to create Supabase project** |
-
----
-
-## Next Logical Step — Supabase Integration (BLOCKED on credentials)
-
-A full implementation plan is at `/root/.claude/plans/sprightly-wobbling-cookie.md`.
-
-### What the user needs to do first:
-1. Create a Supabase project at supabase.com
-2. Run the SQL schema in Supabase SQL Editor (see plan file for full SQL)
-3. Provide: Project URL, anon key, service_role key
-
-### What gets built once credentials are provided (all planned, not yet coded):
-
-**Phase 1 — Supabase clients**
-- `lib/supabase-admin.ts` — server client (service role)
-- `client/src/lib/supabase.ts` — browser client (anon key)
-
-**Phase 2 — Inventory UI**
-- `api/inventory.ts` — public GET returning stock per cartCode
-- `client/src/hooks/useInventory.ts` — fetches stock, exposes `isAvailable()` + `stockLabel()`
-- `Shop.tsx` + `ProductDetail.tsx` — show "X left" badge, disable OOS buttons
-
-**Phase 3 — Order persistence + stock decrement**
-- `api/create-crypto-payment.ts` — validate stock before invoice, store pending order in Supabase
-- `api/nowpayments-webhook.ts` — decrement stock atomically on confirmed payment, update order status
-- CartDrawer — pass `cartCode` + `price` per item (currently only sends `name, dose, quantity`)
-- Supabase `decrement_stock()` RPC handles race conditions (atomic UPDATE WHERE stock >= qty)
-
-**Phase 4 — Discount codes**
-- `api/validate-discount.ts` — validates affiliate code, returns discount %
-- `CartDrawer.tsx` — wire existing `promoCode` state to the API, show discounted total
-
-**Phase 5 — Affiliate dashboard**
-- `lib/requireAffiliate.ts` — JWT validation middleware for protected routes
-- `api/affiliate/stats.ts` — total orders, revenue, commission (protected)
-- `api/affiliate/orders.ts` — paginated order list (protected)
-- `client/src/pages/AffiliateLogin.tsx` — Supabase magic link login
-- `client/src/pages/AffiliateDashboard.tsx` — stats cards + recharts line chart + orders table
-- `App.tsx` — add `/affiliate/login` and `/affiliate/dashboard` routes
-
-### Supabase SQL schema (copy-paste ready):
-Full schema is in the plan file. Tables: `inventory`, `orders`, `affiliates`. Key function: `decrement_stock(p_cart_code, p_qty)`.
+- Tailwind v4 with oklch color space throughout. No CSS variables for colors — values are inline oklch literals.
+- Dark mode: `class` strategy via `ThemeContext`. Dark overrides live in `client/src/index.css` as `.dark` class selectors targeting specific oklch values.
+- Dark section headers (`bg-[oklch(0.13_0.01_260)]`) intentionally stay dark in dark mode — don't add dark: overrides for them.
+- Active/selected pills use `dark:bg-[oklch(0.40_0.16_260)]` cobalt blue.
 
 ---
 
 ## Deployment
 
-- Vercel auto-deploys on push to `main`
-- Branch: `main` (all work committed here)
-- Static build: `vite build` → `dist/public`
-- API routes: `/api/*.ts` → Vercel serverless functions
-- All env vars must be set in Vercel Project Settings → Environment Variables
+- Vercel auto-deploys on push to `main`.
+- Build output: `dist/public` (static) + `dist/index.js` (Express fallback, unused in prod).
+- API routes: `/api/*.ts` → Vercel serverless functions (Node.js runtime).
+- COA PDFs are static assets in `public/coa/`.
+
+---
+
+## Open Work
+
+**Authentication roadmap** (Supabase Auth — Google OAuth + magic link). Three independent login types, build in this order:
+
+1. **Admin login** (you) — single admin identified via `admins` table (or `is_admin` flag). Google login. Admin dashboard for inventory management (edit stock, toggle `is_active`), order overview, and affiliate management. Replaces editing inventory directly in the Supabase dashboard.
+2. **Affiliate login** — magic-link email only (small closed group, no Google). See affiliate dashboard files below.
+3. **Customer login** — Google OAuth + magic link. `profiles` table linked to `auth.users`; `orders` gets a `user_id` column; checkout optionally attaches the logged-in user's ID. "My Account" page with order history + status. Note: orders placed before an account exists cannot be retroactively linked.
+
+**Affiliate Dashboard files** (not yet built):
+- `server/lib/requireAffiliate.ts` — Supabase JWT validation middleware
+- `api/affiliate/stats.ts` + `api/affiliate/orders.ts` — protected endpoints
+- `client/src/pages/AffiliateLogin.tsx` — Supabase magic link login
+- `client/src/pages/AffiliateDashboard.tsx` — stats + recharts chart + orders table
+- `client/src/App.tsx` — add `/affiliate/login` and `/affiliate/dashboard` routes
+
+**Product management** (considered, not built): move catalog from `products.ts` into a Supabase `products` table with `sale_price`/`sale_ends_at` columns; store images in a Supabase Storage bucket and reference by URL. Enables price/sale/product edits without redeploying.
+
+To test discount codes end-to-end, insert a row into the `affiliates` table first.

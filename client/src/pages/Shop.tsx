@@ -17,6 +17,7 @@ import { useCart } from "@/contexts/CartContext";
 import { AnimatePresence, motion } from "framer-motion";
 import SEO from "@/components/SEO";
 import { products } from "@/lib/products";
+import { useInventory } from "@/hooks/useInventory";
 
 // ─── Slug → categorySlug / detailSlug mapping ─────────────────────────────────
 const CATEGORY_SLUG_MAP: Record<string, string> = {
@@ -67,9 +68,14 @@ const BADGE_STYLES: Record<string, string> = {
 // ─── Product card with Added✓ feedback ───────────────────────────────────────
 function ProductCard({ p }: { p: typeof allProducts[0] }) {
   const { addItem } = useCart();
+  const { isAvailable, stockLabel } = useInventory();
   const [added, setAdded] = useState(false);
 
+  const available = isAvailable(p.cartCode);
+  const label = stockLabel(p.cartCode);
+
   const handleAdd = () => {
+    if (!available) return;
     addItem({ id: p.id, name: p.name, dose: p.dose, price: p.price, img: p.img, cartCode: p.cartCode });
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
@@ -84,6 +90,13 @@ function ProductCard({ p }: { p: typeof allProducts[0] }) {
             <span className={`absolute top-3 left-3 z-10 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md ${BADGE_STYLES[p.badge] ?? "bg-gray-800 text-white"}`}>
               {p.badge === "Best Seller" ? "★ " : ""}{p.badge}
             </span>
+          )}
+          {!available && (
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
+              <span className="bg-white/90 text-[oklch(0.13_0.01_260)] text-[0.75rem] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full">
+                Out of Stock
+              </span>
+            </div>
           )}
           <img
             src={p.img}
@@ -104,7 +117,12 @@ function ProductCard({ p }: { p: typeof allProducts[0] }) {
         <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{p.description}</p>
 
         <div className="flex items-center justify-between">
-          <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${p.price}</span>
+          <div>
+            <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${p.price}</span>
+            {label && available && (
+              <p className="text-[0.6875rem] text-amber-600 font-semibold mt-0.5">{label}</p>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <a
               href={`/coa-library#${p.cartCode}`}
@@ -112,18 +130,24 @@ function ProductCard({ p }: { p: typeof allProducts[0] }) {
             >
               <FileText className="w-3.5 h-3.5" /> COA
             </a>
-            <button
-              onClick={handleAdd}
-              className={`text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
-                added ? "bg-[oklch(0.40_0.14_155)] text-white" : "btn-primary"
-              }`}
-            >
-              {added ? (
-                <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Added</span>
-              ) : (
-                "Add to Cart"
-              )}
-            </button>
+            {available ? (
+              <button
+                onClick={handleAdd}
+                className={`text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
+                  added ? "bg-[oklch(0.40_0.14_155)] text-white" : "btn-primary"
+                }`}
+              >
+                {added ? (
+                  <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Added</span>
+                ) : (
+                  "Add to Cart"
+                )}
+              </button>
+            ) : (
+              <span className="text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.52_0.01_260)]">
+                Out of Stock
+              </span>
+            )}
           </div>
         </div>
       </div>
