@@ -163,6 +163,61 @@ linking to `/account` when signed in, else `/login`.
 Google Cloud OAuth client. Magic-link works without it. To add an affiliate, insert a row into
 `affiliates` (email, code, discount_percent, commission_percent).
 
-## Open Work
+## Current Architecture (post-refactor — differs from comments above)
 
-**Product management** (considered, not built): move catalog from `products.ts` into a Supabase `products` table with `sale_price`/`sale_ends_at` columns; store images in a Supabase Storage bucket and reference by URL. Enables price/sale/product edits without redeploying.
+The architecture section above is partially outdated. Here is what was actually built:
+
+### Serverless Functions (Vercel Hobby plan — max 12 functions)
+
+Current 10 functions in `api/`:
+- `contact.ts`, `inventory.ts`, `validate-discount.ts`, `create-crypto-payment.ts`, `nowpayments-webhook.ts`
+- `me.ts` — role check (admin/affiliate/customer)
+- `products.ts` — `GET /api/products` → all products from Supabase (30s cache)
+- `account/orders.ts` — customer order history by email
+- `admin/[...slug].ts` — catch-all for `/api/admin/inventory`, `/api/admin/orders`, `/api/admin/products`, `/api/admin/upload`
+- `affiliate/[...slug].ts` — catch-all for `/api/affiliate/stats`, `/api/affiliate/orders`
+
+**IMPORTANT:** All shared server utilities live in `api/_lib/` (NOT `server/lib/`). Vercel's bundler (`nft`) cannot reliably include files outside the `api/` tree. The `_` prefix means Vercel does not treat these as API endpoints.
+- `api/_lib/supabase-admin.ts` — service-role Supabase client
+- `api/_lib/requireUser.ts`, `requireAdmin.ts`, `requireAffiliate.ts`, `email.ts`
+
+Route parsing in catch-all handlers uses `req.url` directly (NOT `req.query.slug`) because `vercel.json` rewrites intercept before Vercel injects slug params.
+
+### Supabase Schema (additional table)
+
+- `products(id UUID PK, slug UNIQUE, name, full_name, category, tagline, description, long_description, card_bg, badge, variants JSONB, specs JSONB, storage_instructions, reconstitution_note, research_notes JSONB, coa_href, is_active BOOL, display_order INT, created_at, updated_at)`
+  - RLS: `public_read_active_products` — SELECT WHERE is_active = true (anon readable)
+  - Seeded with 4 products: retatrutide, ghkcu, nad, bacwater
+- `product-images` storage bucket — public, 5MB limit, images only
+
+### Client-side product loading
+
+`client/src/hooks/useProducts.ts` — fetches `/api/products`, falls back to static `products.ts` on error. Exports `invalidateProductsCache()` for post-edit refresh. Shop and ProductDetail pages use this hook instead of static import.
+
+`ProductVariant` in `client/src/lib/products.ts` has optional `salePrice?` and `saleEndsAt?` fields.
+
+### Admin Dashboard (`client/src/pages/AdminDashboard.tsx`)
+
+3-tab layout: **Products | Inventory | Orders**
+- Products tab: list with image preview, edit/delete, Add Product button, modal editor for all fields including variants (price, sale price, sale_ends_at, image upload via signed URL)
+- Inventory tab: stock editing + active/hidden toggle per cart code
+- Orders tab: paginated order table with status badges
+- Uses `authedFetch` from `@/lib/api` (attaches JWT Bearer token)
+
+## Open Work / Known Issues
+
+### Admin Products tab shows "No products yet" — UNRESOLVED
+
+**Symptom:** `/admin` → Products tab renders empty ("No products yet. Add one above.") even though 4 products exist in Supabase `products` table (all `is_active = true`).
+
+**What has been tried:**
+1. Products table exists and is seeded — confirmed via Supabase SQL.
+2. `api/_lib/` refactor — moved all shared utilities into `api/_lib/` to fix `ERR_MODULE_NOT_FOUND` (Vercel bundler issue). Latest deployment `dpl_59ZBmsRS4Jo9paVdAbCZznPSTZKC` is live.
+3. Vercel runtime logs show no new errors after the fix deployment — but admin Products tab still shows empty.
+
+**Next debugging steps:**
+- Check what `GET /api/admin/products` actually returns in production (Network tab in browser DevTools while on `/admin`).
+- Check whether the admin auth (`requireAdmin`) is succeeding — if it returns 401, `AdminDashboard.tsx` sets `authorized=false` and redirects away before products load.
+- Check `GET /api/products` (public, no auth) — if this also returns empty, the issue is with the `products` table query or RLS policy.
+- Inspect `AdminDashboard.tsx` fetch logic to ensure it calls `/api/admin/products` (not the old individual endpoint path).
+- Verify `api/admin/[...slug].ts` route parsing: `pathname.replace(/^\/api\/admin\/?/, "").split("/")[0]` should yield `"products"` for `/api/admin/products`.
