@@ -13,7 +13,7 @@ Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (
 ## Commands
 
 ```bash
-pnpm dev          # Start Vite dev server (port 3000) + Express API proxy
+pnpm dev          # Start Vite dev server (port 3000) — API routes handled inline via vitePluginLocalApi
 pnpm build        # vite build → dist/public, then esbuild server → dist/index.js
 pnpm check        # TypeScript type-check (no emit)
 pnpm format       # Prettier
@@ -163,6 +163,25 @@ linking to `/account` when signed in, else `/login`.
 Google Cloud OAuth client. Magic-link works without it. To add an affiliate, insert a row into
 `affiliates` (email, code, discount_percent, commission_percent).
 
+## Local Dev Setup
+
+`pnpm dev` starts Vite only. The `vitePluginLocalApi` plugin (in `vite.config.ts`) intercepts `/api/*` requests and routes them to the Vercel handler files via `server.ssrLoadModule`. This means TypeScript handlers run through Vite's esbuild pipeline — no separate API server needed.
+
+**Required env vars for local dev** (create `.env.local` at project root):
+```
+SUPABASE_URL=https://mddgtvwcwsmlbwiafdvq.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+VITE_SUPABASE_URL=https://mddgtvwcwsmlbwiafdvq.supabase.co
+VITE_SUPABASE_ANON_KEY=<your-anon-key>
+NOWPAYMENTS_API_KEY=<optional>
+GMAIL_USER=hello@vitumlab.com
+GMAIL_APP_PASSWORD=<optional>
+```
+
+Note: The old `server/index.ts` Express server handles `create-crypto-payment` and `nowpayments-webhook` for local testing, but those routes are also covered by `vitePluginLocalApi` via `api/create-crypto-payment.ts`.
+
+---
+
 ## Open Work
 
-**Product management** (considered, not built): move catalog from `products.ts` into a Supabase `products` table with `sale_price`/`sale_ends_at` columns; store images in a Supabase Storage bucket and reference by URL. Enables price/sale/product edits without redeploying.
+**Product management** — built and live. Products are stored in the Supabase `products` table and managed via the Admin → Products tab. Images are stored in the `product-images` Supabase Storage bucket.
