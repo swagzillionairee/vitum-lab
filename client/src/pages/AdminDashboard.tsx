@@ -372,6 +372,7 @@ export default function AdminDashboard() {
   const [, navigate] = useLocation();
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [tab, setTab] = useState<"products" | "inventory" | "orders">("products");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Products
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -389,18 +390,33 @@ export default function AdminDashboard() {
   }, [loading, session, navigate]);
 
   const loadData = useCallback(async () => {
-    const invRes = await authedFetch("/api/admin/inventory");
-    if (invRes.status === 401) { setAuthorized(false); return; }
-    setAuthorized(true);
-    setInventory(await invRes.json());
+    setLoadError(null);
+    try {
+      const invRes = await authedFetch("/api/admin/inventory");
+      if (invRes.status === 401) { setAuthorized(false); return; }
+      setAuthorized(true);
 
-    const [prodRes, ordRes] = await Promise.all([
-      authedFetch("/api/admin/products"),
-      authedFetch("/api/admin/orders"),
-    ]);
-    if (prodRes.ok) setProducts(await prodRes.json());
-    if (ordRes.ok) setOrders((await ordRes.json()).orders ?? []);
-  }, []);
+      if (!invRes.ok) throw new Error(`Inventory API returned ${invRes.status}`);
+      setInventory(await invRes.json());
+
+      const [prodRes, ordRes] = await Promise.all([
+        authedFetch("/api/admin/products"),
+        authedFetch("/api/admin/orders"),
+      ]);
+
+      if (prodRes.ok) {
+        setProducts(await prodRes.json());
+      } else {
+        const err = await prodRes.json().catch(() => ({ error: `HTTP ${prodRes.status}` }));
+        setLoadError(`Failed to load products: ${err.error ?? prodRes.status}`);
+      }
+
+      if (ordRes.ok) setOrders((await ordRes.json()).orders ?? []);
+    } catch (err) {
+      if (authorized === null) setAuthorized(false);
+      setLoadError(err instanceof Error ? err.message : "Failed to connect to the API. Are you running with the API server?");
+    }
+  }, [authorized]);
 
   useEffect(() => { if (session) loadData(); }, [session, loadData]);
 
@@ -496,6 +512,13 @@ export default function AdminDashboard() {
             </button>
           ))}
         </div>
+
+        {/* ── Load error banner ─────────────────────────────────────────── */}
+        {loadError && (
+          <div className="mb-6 bg-[oklch(0.96_0.02_25)] border border-[oklch(0.88_0.05_25)] rounded-xl px-5 py-3 text-[0.875rem] text-[oklch(0.45_0.18_25)]">
+            {loadError}
+          </div>
+        )}
 
         {/* ── Products tab ──────────────────────────────────────────────── */}
         {tab === "products" && (
