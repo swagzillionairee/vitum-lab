@@ -89,7 +89,7 @@
 2. "Research Use Only" disclaimer styled as a formal notice box with a left border accent
 3. COA download buttons styled as document icons with a navy border
 
-**Interaction Philosophy**: Clean, confident, direct. CTAs are clear and prominent. Trust signals are always visible. The age gate is formal and unambiguous. Cart interactions use Foxy.io's standard patterns.
+**Interaction Philosophy**: Clean, confident, direct. CTAs are clear and prominent. Trust signals are always visible. The age gate is formal and unambiguous. Checkout is a single path via NowPayments (crypto or card/Apple Pay through the fiat on-ramp).
 
 **Animation**: Subtle entrance animations on scroll (translateY 16px → 0, opacity 0 → 1, 250ms cubic-bezier(0.23, 1, 0.32, 1)). Stagger product cards at 60ms. Button hover: slight background darkening at 150ms. No parallax, no heavy motion.
 
