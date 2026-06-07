@@ -127,6 +127,7 @@ BASE_URL=https://vitum-lab.vercel.app
 # Browser (Vite needs VITE_ prefix — must be set manually in Vercel)
 VITE_SUPABASE_URL=https://mddgtvwcwsmlbwiafdvq.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+VITE_GOOGLE_MAPS_API_KEY=   # optional — enables Places address autocomplete at checkout; falls back to native browser autofill if unset
 ```
 
 The Vercel-Supabase connector auto-injects `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` but **not** the `VITE_` prefixed vars — those must be added manually for the browser bundle to have Supabase access.

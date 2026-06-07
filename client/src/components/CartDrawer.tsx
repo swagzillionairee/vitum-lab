@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, ChevronDown, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useLocation } from "wouter";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 const FREE_SHIPPING_THRESHOLD = 150;
 
@@ -358,9 +359,18 @@ export default function CartDrawer() {
                         onChange={(e) => setShipField("name", e.target.value)} placeholder="Full name"
                         className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
                       />
-                      <input
-                        type="text" autoComplete="address-line1" value={ship.line1}
-                        onChange={(e) => setShipField("line1", e.target.value)} placeholder="Street address"
+                      <AddressAutocomplete
+                        value={ship.line1}
+                        onChange={(v) => setShipField("line1", v)}
+                        onSelect={(p) => setShip((prev) => ({
+                          ...prev,
+                          line1: p.line1 || prev.line1,
+                          city: p.city || prev.city,
+                          state: p.state || prev.state,
+                          postal_code: p.postal_code || prev.postal_code,
+                          country: p.country || prev.country,
+                        }))}
+                        placeholder="Street address"
                         className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
                       />
                       <input
