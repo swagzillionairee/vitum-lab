@@ -6,11 +6,12 @@
  * - Orders: paginated order table with status badges
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import { useLocation } from "wouter";
 import {
   Package, ClipboardList, LogOut, Loader2, Check, Plus,
   Pencil, Trash2, X, Upload, ShoppingBag, ImageOff,
+  Truck, RefreshCw, Ban, CheckCircle2, ChevronDown,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
@@ -25,12 +26,25 @@ interface InventoryRow {
   updated_at: string;
 }
 
+interface OrderItem {
+  name: string;
+  dose: string;
+  quantity: number;
+  cartCode: string;
+  price: number;
+}
+
 interface OrderRow {
   id: string;
   email: string;
   net_amount: number;
   status: string;
   created_at: string;
+  items?: OrderItem[];
+  fulfillment_status?: string;
+  tracking_number?: string | null;
+  carrier?: string | null;
+  cancel_reason?: string | null;
 }
 
 interface Variant {
@@ -78,6 +92,13 @@ const STATUS_COLORS: Record<string, string> = {
   finished: "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]",
   failed: "bg-[oklch(0.93_0.04_25)] text-[oklch(0.50_0.18_25)]",
   pending: "bg-[oklch(0.95_0.04_85)] text-[oklch(0.50_0.12_85)]",
+  cancelled: "bg-[oklch(0.92_0.005_260)] text-[oklch(0.45_0.01_260)]",
+};
+
+const FULFILLMENT_COLORS: Record<string, string> = {
+  unfulfilled: "bg-[oklch(0.95_0.04_85)] text-[oklch(0.50_0.12_85)]",
+  shipped: "bg-[oklch(0.93_0.05_260)] text-[oklch(0.40_0.16_260)]",
+  delivered: "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]",
 };
 
 // ─── Variant editor sub-component ─────────────────────────────────────────────
@@ -384,10 +405,49 @@ export default function AdminDashboard() {
 
   // Orders
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [orderBusy, setOrderBusy] = useState<string | null>(null);
+  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !session) navigate("/admin/login");
   }, [loading, session, navigate]);
+
+  const orderAction = async (id: string, action: string, extra?: Record<string, unknown>) => {
+    setOrderBusy(id);
+    try {
+      const res = await authedFetch("/api/admin/orders", {
+        method: "PATCH",
+        body: JSON.stringify({ id, action, ...extra }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...data } : o)));
+        if (action === "recheck") {
+          alert(data.recheck === "confirmed" ? "Payment found — order confirmed." :
+            data.recheck === "no_payment_found" ? "No matching payment found on NowPayments." :
+            data.recheck === "failed" ? "Payment failed/expired — order marked failed." :
+            `NowPayments status: ${data.recheck ?? "unchanged"}`);
+        }
+      } else {
+        alert(data.error ?? "Action failed");
+      }
+    } finally {
+      setOrderBusy(null);
+    }
+  };
+
+  const handleCancel = (id: string) => {
+    const reason = prompt("Cancel this order? Optionally enter a reason:", "Cancelled by admin");
+    if (reason === null) return;
+    orderAction(id, "cancel", { reason: reason || "Cancelled by admin" });
+  };
+
+  const handleShip = (id: string) => {
+    const tracking = prompt("Tracking number:");
+    if (!tracking?.trim()) return;
+    const carrier = prompt("Carrier (optional, e.g. USPS):") || undefined;
+    orderAction(id, "ship", { tracking_number: tracking.trim(), carrier });
+  };
 
   const loadData = useCallback(async () => {
     setLoadError(null);
@@ -669,24 +729,102 @@ export default function AdminDashboard() {
                       <th className="py-2 pr-4">Order</th>
                       <th className="py-2 pr-4">Email</th>
                       <th className="py-2 pr-4">Amount</th>
-                      <th className="py-2 pr-4">Status</th>
-                      <th className="py-2">Date</th>
+                      <th className="py-2 pr-4">Payment</th>
+                      <th className="py-2 pr-4">Fulfillment</th>
+                      <th className="py-2 pr-4">Date</th>
+                      <th className="py-2 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {orders.map((o) => (
-                      <tr key={o.id} className="border-b border-[oklch(0.95_0.003_260)]">
-                        <td className="py-3 pr-4 font-mono text-[0.75rem] text-[oklch(0.20_0.01_260)]">{o.id.slice(0, 10)}</td>
-                        <td className="py-3 pr-4 text-[oklch(0.40_0.01_260)]">{o.email}</td>
-                        <td className="py-3 pr-4 font-semibold text-[oklch(0.13_0.01_260)]">${Number(o.net_amount).toFixed(2)}</td>
-                        <td className="py-3 pr-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_COLORS[o.status] ?? STATUS_COLORS.pending}`}>
-                            {o.status}
-                          </span>
-                        </td>
-                        <td className="py-3 text-[0.8125rem] text-[oklch(0.52_0.01_260)]">{new Date(o.created_at).toLocaleDateString()}</td>
-                      </tr>
-                    ))}
+                    {orders.map((o) => {
+                      const isPaid = o.status === "confirmed" || o.status === "finished";
+                      const isClosed = o.status === "cancelled" || o.status === "failed";
+                      const fulfillment = o.fulfillment_status ?? "unfulfilled";
+                      const busy = orderBusy === o.id;
+                      const expanded = expandedOrder === o.id;
+                      return (
+                        <Fragment key={o.id}>
+                          <tr className="border-b border-[oklch(0.95_0.003_260)] align-top">
+                            <td className="py-3 pr-4">
+                              <button
+                                onClick={() => setExpandedOrder(expanded ? null : o.id)}
+                                className="flex items-center gap-1 font-mono text-[0.75rem] text-[oklch(0.20_0.01_260)] hover:text-[oklch(0.40_0.16_260)]"
+                              >
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? "" : "-rotate-90"}`} />
+                                {o.id.slice(0, 10)}
+                              </button>
+                            </td>
+                            <td className="py-3 pr-4 text-[oklch(0.40_0.01_260)]">{o.email}</td>
+                            <td className="py-3 pr-4 font-semibold text-[oklch(0.13_0.01_260)]">${Number(o.net_amount).toFixed(2)}</td>
+                            <td className="py-3 pr-4">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_COLORS[o.status] ?? STATUS_COLORS.pending}`}>
+                                {o.status}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-4">
+                              {isPaid ? (
+                                <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${FULFILLMENT_COLORS[fulfillment] ?? FULFILLMENT_COLORS.unfulfilled}`}>
+                                  {fulfillment}
+                                </span>
+                              ) : (
+                                <span className="text-[0.75rem] text-[oklch(0.65_0.01_260)]">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 pr-4 text-[0.8125rem] text-[oklch(0.52_0.01_260)] whitespace-nowrap">{new Date(o.created_at).toLocaleDateString()}</td>
+                            <td className="py-3">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {busy && <Loader2 className="w-3.5 h-3.5 animate-spin text-[oklch(0.52_0.01_260)]" />}
+                                {o.status === "pending" && (
+                                  <button onClick={() => orderAction(o.id, "recheck")} disabled={busy} title="Re-check payment on NowPayments"
+                                    className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.40_0.16_260)] border border-[oklch(0.40_0.16_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.02_260)] disabled:opacity-50">
+                                    <RefreshCw className="w-3 h-3" /> Re-check
+                                  </button>
+                                )}
+                                {isPaid && fulfillment === "unfulfilled" && (
+                                  <button onClick={() => handleShip(o.id)} disabled={busy} title="Mark shipped"
+                                    className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.40_0.16_260)] border border-[oklch(0.40_0.16_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.02_260)] disabled:opacity-50">
+                                    <Truck className="w-3 h-3" /> Ship
+                                  </button>
+                                )}
+                                {isPaid && fulfillment === "shipped" && (
+                                  <button onClick={() => orderAction(o.id, "deliver")} disabled={busy} title="Mark delivered"
+                                    className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.35_0.14_155)] border border-[oklch(0.70_0.10_155)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.03_155)] disabled:opacity-50">
+                                    <CheckCircle2 className="w-3 h-3" /> Delivered
+                                  </button>
+                                )}
+                                {!isClosed && (
+                                  <button onClick={() => handleCancel(o.id)} disabled={busy} title="Cancel order"
+                                    className="flex items-center gap-1 text-[0.7rem] font-semibold text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50 disabled:opacity-50">
+                                    <Ban className="w-3 h-3" /> Cancel
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                          {expanded && (
+                            <tr className="border-b border-[oklch(0.95_0.003_260)] bg-[oklch(0.98_0.002_260)]">
+                              <td colSpan={7} className="px-4 py-3">
+                                <div className="text-[0.8125rem] text-[oklch(0.35_0.01_260)] space-y-1">
+                                  <p className="font-mono text-[0.7rem] text-[oklch(0.55_0.01_260)]">{o.id}</p>
+                                  <div>
+                                    <span className="font-semibold">Items:</span>{" "}
+                                    {(o.items ?? []).length === 0
+                                      ? "—"
+                                      : (o.items ?? []).map((it) => `${it.name} ${it.dose} ×${it.quantity}`).join(", ")}
+                                  </div>
+                                  {o.tracking_number && (
+                                    <div><span className="font-semibold">Tracking:</span> {o.carrier ? `${o.carrier} ` : ""}{o.tracking_number}</div>
+                                  )}
+                                  {o.cancel_reason && (
+                                    <div><span className="font-semibold">Cancel reason:</span> {o.cancel_reason}</div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

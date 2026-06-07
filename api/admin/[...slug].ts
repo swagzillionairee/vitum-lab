@@ -42,17 +42,151 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── /api/admin/orders ────────────────────────────────────────────────────
   if (route === "orders") {
-    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-    const page = Math.max(1, parseInt((req.query?.page as string) || "1", 10));
-    const perPage = 25;
-    const from = (page - 1) * perPage;
-    const { data, error, count } = await supabaseAdmin
-      .from("orders")
-      .select("id, email, items, gross_amount, discount_amount, net_amount, discount_code, status, created_at, confirmed_at", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(from, from + perPage - 1);
-    if (error) return res.status(500).json({ error: "Failed to fetch orders" });
-    return res.json({ orders: data, total: count ?? 0, page, perPage });
+    const orderSelect =
+      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, status, fulfillment_status, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, created_at, confirmed_at";
+
+    if (req.method === "GET") {
+      const page = Math.max(1, parseInt((req.query?.page as string) || "1", 10));
+      const perPage = 25;
+      const from = (page - 1) * perPage;
+      const { data, error, count } = await supabaseAdmin
+        .from("orders")
+        .select(orderSelect, { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, from + perPage - 1);
+      if (error) return res.status(500).json({ error: "Failed to fetch orders" });
+      return res.json({ orders: data, total: count ?? 0, page, perPage });
+    }
+
+    // Order actions: cancel | ship | deliver | recheck | notes
+    if (req.method === "PATCH") {
+      const body = req.body as {
+        id?: string;
+        action?: "cancel" | "ship" | "deliver" | "recheck" | "notes";
+        reason?: string;
+        tracking_number?: string;
+        carrier?: string;
+        admin_notes?: string;
+      };
+      const { id, action } = body;
+      if (!id || !action) return res.status(400).json({ error: "id and action are required" });
+
+      const { data: order, error: fetchErr } = await supabaseAdmin
+        .from("orders")
+        .select("id, items, status, fulfillment_status")
+        .eq("id", id)
+        .maybeSingle();
+      if (fetchErr || !order) return res.status(404).json({ error: "Order not found" });
+
+      const PAID = ["confirmed", "finished"];
+      type OrderItem = { cartCode: string; quantity: number; price: number };
+      const paidItems = ((order.items as OrderItem[]) ?? []).filter(
+        (i) => i.price > 0 && i.cartCode !== "bac-water-free",
+      );
+
+      if (action === "cancel") {
+        if (order.status === "cancelled") return res.status(409).json({ error: "Order is already cancelled" });
+        // Restock only if the order was paid (stock was decremented on confirm).
+        if (PAID.includes(order.status)) {
+          for (const item of paidItems) {
+            await supabaseAdmin.rpc("increment_stock", { p_cart_code: item.cartCode, p_qty: item.quantity });
+          }
+        }
+        const { data, error } = await supabaseAdmin
+          .from("orders")
+          .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: body.reason ?? "Cancelled by admin" })
+          .eq("id", id)
+          .select(orderSelect)
+          .single();
+        if (error) return res.status(500).json({ error: "Failed to cancel order" });
+        return res.json(data);
+      }
+
+      if (action === "ship") {
+        if (!body.tracking_number?.trim()) return res.status(400).json({ error: "tracking_number is required" });
+        const { data, error } = await supabaseAdmin
+          .from("orders")
+          .update({
+            fulfillment_status: "shipped",
+            tracking_number: body.tracking_number.trim(),
+            carrier: body.carrier?.trim() || null,
+            shipped_at: new Date().toISOString(),
+          })
+          .eq("id", id)
+          .select(orderSelect)
+          .single();
+        if (error) return res.status(500).json({ error: "Failed to mark shipped" });
+        return res.json(data);
+      }
+
+      if (action === "deliver") {
+        const { data, error } = await supabaseAdmin
+          .from("orders")
+          .update({ fulfillment_status: "delivered", delivered_at: new Date().toISOString() })
+          .eq("id", id)
+          .select(orderSelect)
+          .single();
+        if (error) return res.status(500).json({ error: "Failed to mark delivered" });
+        return res.json(data);
+      }
+
+      if (action === "notes") {
+        const { data, error } = await supabaseAdmin
+          .from("orders")
+          .update({ admin_notes: body.admin_notes ?? null })
+          .eq("id", id)
+          .select(orderSelect)
+          .single();
+        if (error) return res.status(500).json({ error: "Failed to save notes" });
+        return res.json(data);
+      }
+
+      if (action === "recheck") {
+        // Reconcile against NowPayments in case an IPN webhook was missed.
+        const apiKey = process.env.NOWPAYMENTS_API_KEY;
+        if (!apiKey) return res.status(500).json({ error: "NOWPAYMENTS_API_KEY not configured" });
+
+        const np = await fetch(
+          "https://api.nowpayments.io/v1/payment/?limit=500&page=0&sortBy=created_at&orderBy=desc",
+          { headers: { "x-api-key": apiKey } },
+        );
+        if (!np.ok) return res.status(502).json({ error: "Failed to reach NowPayments" });
+
+        const list = (await np.json()) as { data?: { order_id?: string; payment_status?: string }[] };
+        const matches = (list.data ?? []).filter((p) => p.order_id === id);
+        if (matches.length === 0) return res.json({ ...order, recheck: "no_payment_found" });
+
+        const statuses = matches.map((m) => m.payment_status ?? "");
+        const isPaid = statuses.some((s) => s === "finished" || s === "confirmed");
+        const isFailed = statuses.every((s) => s === "failed" || s === "expired" || s === "refunded");
+
+        if (isPaid && order.status === "pending") {
+          for (const item of paidItems) {
+            await supabaseAdmin.rpc("decrement_stock", { p_cart_code: item.cartCode, p_qty: item.quantity });
+          }
+          const { data, error } = await supabaseAdmin
+            .from("orders")
+            .update({ status: "confirmed", confirmed_at: new Date().toISOString() })
+            .eq("id", id)
+            .select(orderSelect)
+            .single();
+          if (error) return res.status(500).json({ error: "Failed to update order" });
+          return res.json({ ...data, recheck: "confirmed" });
+        }
+
+        if (isFailed && order.status === "pending") {
+          const { data } = await supabaseAdmin
+            .from("orders").update({ status: "failed" }).eq("id", id).select(orderSelect).single();
+          return res.json({ ...data, recheck: "failed" });
+        }
+
+        return res.json({ ...order, recheck: statuses.join(",") || "unchanged" });
+      }
+
+      return res.status(400).json({ error: "Unknown action" });
+    }
+
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   // ── /api/admin/products ──────────────────────────────────────────────────
