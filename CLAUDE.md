@@ -47,7 +47,9 @@ api/                Vercel serverless functions — ALL relative imports MUST us
   contact.ts                 POST /api/contact
   me.ts                      GET  /api/me → {email, isAdmin, isAffiliate}
   products.ts                GET  /api/products → product list (public)
-  admin/[...slug].ts         Catch-all for /api/admin/* (inventory, orders, products CRUD, upload)
+  admin/[...slug].ts         Catch-all for /api/admin/* (inventory, orders GET + PATCH actions, products CRUD, upload)
+                             Order actions (PATCH /api/admin/orders): cancel (restocks paid orders),
+                             ship (tracking+carrier), deliver, recheck (reconciles vs NowPayments), notes
   affiliate/[...slug].ts     Catch-all for /api/affiliate/* (stats, orders)
   account/orders.ts          GET  /api/account/orders → orders for logged-in user by email
   _lib/
@@ -97,10 +99,14 @@ Free gift `bac-water-free` (price $0) auto-added when subtotal ≥ $150 — skip
 
 Tables in `public`:
 - `inventory(cart_code PK, stock INT CHECK >= 0, is_active BOOL, updated_at)`
-- `orders(id PK, email, items JSONB, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed, confirmed_at, created_at)`
+- `orders(id PK, email, items JSONB, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed/cancelled, fulfillment_status CHECK IN unfulfilled/shipped/delivered, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, confirmed_at, created_at)` — `status` is the payment lifecycle, `fulfillment_status` is the shipping state (orthogonal).
 - `affiliates(id UUID PK, user_id → auth.users, code UNIQUE, discount_percent, commission_percent, name, created_at)`
 
-Key RPC: `decrement_stock(p_cart_code TEXT, p_qty INT) → INT` — atomic UPDATE WHERE stock >= qty, raises `P0001 insufficient_stock` on failure.
+Key RPCs:
+- `decrement_stock(p_cart_code TEXT, p_qty INT) → INT` — atomic UPDATE WHERE stock >= qty, raises `P0001 insufficient_stock` on failure.
+- `increment_stock(p_cart_code TEXT, p_qty INT) → INT` — restocks (used when an admin cancels a *paid* order).
+
+**Scheduled job (pg_cron):** `expire-stale-orders` runs hourly — sets `status='cancelled'` (reason `auto-expired…`) on `pending` orders older than 24h. Pending orders never decremented stock, so no restock needed.
 
 RLS: `inventory` is publicly readable (anon). `orders` and `affiliates` are service-role only.
 
