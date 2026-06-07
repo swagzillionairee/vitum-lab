@@ -43,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── /api/admin/orders ────────────────────────────────────────────────────
   if (route === "orders") {
     const orderSelect =
-      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, status, fulfillment_status, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, created_at, confirmed_at";
+      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, status, fulfillment_status, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, created_at, confirmed_at";
 
     if (req.method === "GET") {
       const page = Math.max(1, parseInt((req.query?.page as string) || "1", 10));
@@ -152,7 +152,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
         if (!np.ok) return res.status(502).json({ error: "Failed to reach NowPayments" });
 
-        const list = (await np.json()) as { data?: { order_id?: string; payment_status?: string }[] };
+        const list = (await np.json()) as {
+          data?: { order_id?: string; payment_status?: string; pay_currency?: string; pay_amount?: number; actually_paid?: number; payment_id?: number | string }[];
+        };
         const matches = (list.data ?? []).filter((p) => p.order_id === id);
         if (matches.length === 0) return res.json({ ...order, recheck: "no_payment_found" });
 
@@ -164,9 +166,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           for (const item of paidItems) {
             await supabaseAdmin.rpc("decrement_stock", { p_cart_code: item.cartCode, p_qty: item.quantity });
           }
+          const paid = matches.find((m) => m.payment_status === "finished" || m.payment_status === "confirmed");
           const { data, error } = await supabaseAdmin
             .from("orders")
-            .update({ status: "confirmed", confirmed_at: new Date().toISOString() })
+            .update({
+              status: "confirmed",
+              confirmed_at: new Date().toISOString(),
+              pay_currency: paid?.pay_currency ?? null,
+              pay_amount: paid?.actually_paid ?? paid?.pay_amount ?? null,
+              payment_id: paid?.payment_id != null ? String(paid.payment_id) : null,
+            })
             .eq("id", id)
             .select(orderSelect)
             .single();

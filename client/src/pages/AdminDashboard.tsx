@@ -45,6 +45,9 @@ interface OrderRow {
   tracking_number?: string | null;
   carrier?: string | null;
   cancel_reason?: string | null;
+  pay_currency?: string | null;
+  pay_amount?: number | null;
+  confirmed_at?: string | null;
 }
 
 interface Variant {
@@ -100,6 +103,26 @@ const FULFILLMENT_COLORS: Record<string, string> = {
   shipped: "bg-[oklch(0.93_0.05_260)] text-[oklch(0.40_0.16_260)]",
   delivered: "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]",
 };
+
+// Eastern time, 12-hour with AM/PM (auto-handles EST/EDT). e.g. "Jun 7, 2026, 1:32 PM ET"
+function formatDateEST(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit", hour12: true,
+  }) + " ET";
+}
+
+const PAY_CURRENCY_LABELS: Record<string, string> = {
+  btc: "Bitcoin (BTC)", eth: "Ethereum (ETH)", ltc: "Litecoin (LTC)",
+  sol: "Solana (SOL)", bnb: "BNB", xrp: "XRP", doge: "Dogecoin (DOGE)",
+  usdc: "USDC", usdttrc20: "USDT (TRC-20)", usdterc20: "USDT (ERC-20)",
+  usdtsol: "USDT (Solana)", usdtbsc: "USDT (BSC)", usdcsol: "USDC (Solana)",
+};
+function payLabel(code?: string | null): string | null {
+  if (!code) return null;
+  return PAY_CURRENCY_LABELS[code.toLowerCase()] ?? code.toUpperCase();
+}
 
 // ─── Variant editor sub-component ─────────────────────────────────────────────
 function VariantEditor({
@@ -770,7 +793,7 @@ export default function AdminDashboard() {
                                 <span className="text-[0.75rem] text-[oklch(0.65_0.01_260)]">—</span>
                               )}
                             </td>
-                            <td className="py-3 pr-4 text-[0.8125rem] text-[oklch(0.52_0.01_260)] whitespace-nowrap">{new Date(o.created_at).toLocaleDateString()}</td>
+                            <td className="py-3 pr-4 text-[0.8125rem] text-[oklch(0.52_0.01_260)] whitespace-nowrap">{formatDateEST(o.created_at)}</td>
                             <td className="py-3">
                               <div className="flex items-center justify-end gap-1.5">
                                 {busy && <Loader2 className="w-3.5 h-3.5 animate-spin text-[oklch(0.52_0.01_260)]" />}
@@ -812,6 +835,16 @@ export default function AdminDashboard() {
                                       ? "—"
                                       : (o.items ?? []).map((it) => `${it.name} ${it.dose} ×${it.quantity}`).join(", ")}
                                   </div>
+                                  <div><span className="font-semibold">Ordered:</span> {formatDateEST(o.created_at)}</div>
+                                  {o.confirmed_at && (
+                                    <div><span className="font-semibold">Paid:</span> {formatDateEST(o.confirmed_at)}</div>
+                                  )}
+                                  {payLabel(o.pay_currency) && (
+                                    <div>
+                                      <span className="font-semibold">Paid with:</span> {payLabel(o.pay_currency)}
+                                      {o.pay_amount ? ` (${o.pay_amount} ${(o.pay_currency ?? "").toUpperCase()})` : ""}
+                                    </div>
+                                  )}
                                   {o.tracking_number && (
                                     <div><span className="font-semibold">Tracking:</span> {o.carrier ? `${o.carrier} ` : ""}{o.tracking_number}</div>
                                   )}

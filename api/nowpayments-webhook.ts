@@ -141,7 +141,13 @@ export default async function handler(req: any, res: any) {
 
           await supabaseAdmin
             .from("orders")
-            .update({ status: "confirmed", confirmed_at: new Date().toISOString() })
+            .update({
+              status: "confirmed",
+              confirmed_at: new Date().toISOString(),
+              pay_currency: payload.pay_currency ?? null,
+              pay_amount: payload.actually_paid ?? payload.pay_amount ?? null,
+              payment_id: payload.payment_id != null ? String(payload.payment_id) : null,
+            })
             .eq("id", payload.order_id);
         }
       } catch (err) {
