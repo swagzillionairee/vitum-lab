@@ -74,8 +74,11 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
       if (!cancelled) {
         placesRef.current = lib;
         readyRef.current = true;
+        if (!(lib as { AutocompleteSuggestion?: unknown }).AutocompleteSuggestion) {
+          console.error("[AddressAutocomplete] Places (New) AutocompleteSuggestion not available — is 'Places API (New)' enabled for this key?");
+        }
       }
-    }).catch(() => { /* fall back to plain input */ });
+    }).catch((e) => { console.error("[AddressAutocomplete] Google Maps failed to load:", e); });
     return () => { cancelled = true; };
   }, []);
 
@@ -110,7 +113,11 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
         setOpen(mapped.length > 0);
         setActive(-1);
       })
-      .catch(() => { setSuggestions([]); setOpen(false); });
+      .catch((e: unknown) => {
+        console.error("[AddressAutocomplete] fetchAutocompleteSuggestions failed:", e);
+        setSuggestions([]);
+        setOpen(false);
+      });
   };
 
   const handleInput = (input: string) => {
@@ -146,7 +153,10 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
     <div ref={boxRef} className="relative">
       <input
         type="text"
-        autoComplete="address-line1"
+        // Suppress the browser's native autofill so the Google Places dropdown
+        // (rendered in-page) isn't covered by Chrome's own address popup.
+        autoComplete="off"
+        name="vitum-shipping-street"
         value={value}
         onChange={(e) => handleInput(e.target.value)}
         onFocus={() => { if (suggestions.length > 0) setOpen(true); }}
