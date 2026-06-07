@@ -43,17 +43,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── /api/admin/orders ────────────────────────────────────────────────────
   if (route === "orders") {
     const orderSelect =
-      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, status, fulfillment_status, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, created_at, confirmed_at";
+      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at";
 
     if (req.method === "GET") {
       const page = Math.max(1, parseInt((req.query?.page as string) || "1", 10));
-      const perPage = 25;
+      const perPage = Math.min(2000, Math.max(1, parseInt((req.query?.perPage as string) || "25", 10)));
+      const search = ((req.query?.search as string) || "").trim();
+      const statusFilter = (req.query?.status as string) || "";
+      const fulfillmentFilter = (req.query?.fulfillment as string) || "";
       const from = (page - 1) * perPage;
-      const { data, error, count } = await supabaseAdmin
+
+      let query = supabaseAdmin
         .from("orders")
         .select(orderSelect, { count: "exact" })
-        .order("created_at", { ascending: false })
-        .range(from, from + perPage - 1);
+        .order("created_at", { ascending: false });
+
+      if (search) query = query.or(`email.ilike.%${search}%,id.ilike.%${search}%`);
+      if (statusFilter) query = query.eq("status", statusFilter);
+      if (fulfillmentFilter) query = query.eq("fulfillment_status", fulfillmentFilter);
+
+      const { data, error, count } = await query.range(from, from + perPage - 1);
       if (error) return res.status(500).json({ error: "Failed to fetch orders" });
       return res.json({ orders: data, total: count ?? 0, page, perPage });
     }

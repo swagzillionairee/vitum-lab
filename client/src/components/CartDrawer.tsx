@@ -31,6 +31,13 @@ export default function CartDrawer() {
   const [email, setEmail] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+  const [ship, setShip] = useState({
+    name: "", line1: "", line2: "", city: "", state: "", postal_code: "", country: "US", phone: "",
+  });
+  const setShipField = (field: keyof typeof ship, value: string) => {
+    setShip((prev) => ({ ...prev, [field]: value }));
+    setCheckoutError("");
+  };
 
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) return;
@@ -327,19 +334,74 @@ export default function CartDrawer() {
                   )}
                 </div>
 
-                {/* Email capture step */}
+                {/* Email + shipping address capture step */}
                 {checkoutStep && (
-                  <div className="space-y-2">
-                    <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)]">
-                      Your email for order confirmation
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => { setEmail(e.target.value); setCheckoutError(""); }}
-                      placeholder="you@example.com"
-                      className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                    />
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)]">
+                        Email for order confirmation
+                      </label>
+                      <input
+                        type="email" autoComplete="email" value={email}
+                        onChange={(e) => { setEmail(e.target.value); setCheckoutError(""); }}
+                        placeholder="you@example.com"
+                        className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)]">
+                        Shipping address
+                      </label>
+                      <input
+                        type="text" autoComplete="name" value={ship.name}
+                        onChange={(e) => setShipField("name", e.target.value)} placeholder="Full name"
+                        className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                      />
+                      <input
+                        type="text" autoComplete="address-line1" value={ship.line1}
+                        onChange={(e) => setShipField("line1", e.target.value)} placeholder="Street address"
+                        className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                      />
+                      <input
+                        type="text" autoComplete="address-line2" value={ship.line2}
+                        onChange={(e) => setShipField("line2", e.target.value)} placeholder="Apt, suite, unit (optional)"
+                        className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="text" autoComplete="address-level2" value={ship.city}
+                          onChange={(e) => setShipField("city", e.target.value)} placeholder="City"
+                          className="flex-1 min-w-0 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                        />
+                        <input
+                          type="text" autoComplete="address-level1" value={ship.state}
+                          onChange={(e) => setShipField("state", e.target.value)} placeholder="State"
+                          className="w-20 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text" autoComplete="postal-code" inputMode="numeric" value={ship.postal_code}
+                          onChange={(e) => setShipField("postal_code", e.target.value)} placeholder="ZIP code"
+                          className="w-28 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                        />
+                        <select
+                          autoComplete="country" value={ship.country}
+                          onChange={(e) => setShipField("country", e.target.value)}
+                          className="flex-1 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] bg-white focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                        >
+                          <option value="US">United States</option>
+                          <option value="CA">Canada</option>
+                        </select>
+                      </div>
+                      <input
+                        type="tel" autoComplete="tel" value={ship.phone}
+                        onChange={(e) => setShipField("phone", e.target.value)} placeholder="Phone (for delivery, optional)"
+                        className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
+                      />
+                    </div>
+
                     <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)]">
                       Pay with crypto, card, or Apple Pay on the next step.
                     </p>
@@ -366,6 +428,10 @@ export default function CartDrawer() {
                             setCheckoutError("Please enter a valid email address.");
                             return;
                           }
+                          if (!ship.name.trim() || !ship.line1.trim() || !ship.city.trim() || !ship.state.trim() || !ship.postal_code.trim()) {
+                            setCheckoutError("Please fill in your full shipping address.");
+                            return;
+                          }
                           setCheckoutLoading(true);
                           setCheckoutError("");
                           try {
@@ -375,6 +441,11 @@ export default function CartDrawer() {
                               body: JSON.stringify({
                                 items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price })),
                                 email,
+                                shipping: {
+                                  name: ship.name.trim(), line1: ship.line1.trim(), line2: ship.line2.trim(),
+                                  city: ship.city.trim(), state: ship.state.trim().toUpperCase(),
+                                  postal_code: ship.postal_code.trim(), country: ship.country, phone: ship.phone.trim(),
+                                },
                                 total: discountedTotal,
                                 discountCode: promoApplied ? promoCode : undefined,
                                 affiliateId: promoApplied ? affiliateId : undefined,

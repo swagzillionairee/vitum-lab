@@ -15,17 +15,26 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { items, email, total, discountCode, affiliateId, discountAmount } = req.body as {
+    const { items, email, total, discountCode, affiliateId, discountAmount, shipping } = req.body as {
       items: { name: string; dose: string; quantity: number; cartCode: string; price: number }[];
       email: string;
       total: number;
       discountCode?: string;
       affiliateId?: string;
       discountAmount?: number;
+      shipping?: {
+        name: string; line1: string; line2?: string; city: string;
+        state: string; postal_code: string; country: string; phone?: string;
+      };
     };
 
     if (!items?.length || !email || !total) {
       res.status(400).json({ error: "Missing required fields" });
+      return;
+    }
+
+    if (!shipping?.name || !shipping?.line1 || !shipping?.city || !shipping?.state || !shipping?.postal_code) {
+      res.status(400).json({ error: "A complete shipping address is required" });
       return;
     }
 
@@ -63,6 +72,7 @@ export default async function handler(req: any, res: any) {
       net_amount: netAmount,
       discount_code: discountCode ?? null,
       affiliate_id: affiliateId ?? null,
+      shipping_address: shipping,
     });
 
     const nowRes = await fetch(`${NOWPAYMENTS_API}/invoice`, {
