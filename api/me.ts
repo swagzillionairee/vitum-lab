@@ -1,5 +1,5 @@
-import { supabaseAdmin } from "./_lib/supabase-admin";
-import { requireUser } from "./_lib/requireUser";
+import { supabaseAdmin } from "./_lib/supabase-admin.js";
+import { requireUser } from "./_lib/requireUser.js";
 
 /**
  * Returns the role of the logged-in user so the client can route them
