@@ -5,32 +5,16 @@
  * - Framer Motion slide + fade for panel and backdrop
  * - Per-item quantity stepper and remove button
  * - Subtotal + free shipping threshold indicator
- * - Checkout via Foxy.io multi-item cart URL
+ * - Checkout via NowPayments invoice (crypto + card/Apple Pay on-ramp)
  */
 
 import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, ChevronDown, Check, Coins, CreditCard } from "lucide-react";
+import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, ChevronDown, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useLocation } from "wouter";
 
-const FOXY_STORE = "vitum-lab.foxycart.com";
 const FREE_SHIPPING_THRESHOLD = 150;
-
-function buildFoxyUrl(items: { name: string; dose: string; price: number; cartCode: string; quantity: number }[]): string {
-  // Foxy.io supports multi-item cart via repeated query params
-  const base = `https://${FOXY_STORE}/cart?`;
-  const params = items.map((item, i) => {
-    const prefix = i === 0 ? "" : `h:`;
-    return [
-      `${prefix}name=${encodeURIComponent(item.name + " " + item.dose)}`,
-      `${prefix}price=${item.price}`,
-      `${prefix}code=${item.cartCode}`,
-      `${prefix}quantity=${item.quantity}`,
-    ].join("&");
-  });
-  return base + params.join("&");
-}
 
 export default function CartDrawer() {
   const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, totalItems } = useCart();
@@ -43,10 +27,10 @@ export default function CartDrawer() {
   const [promoLoading, setPromoLoading] = useState(false);
   const [discountPct, setDiscountPct] = useState(0);
   const [affiliateId, setAffiliateId] = useState<string | undefined>();
-  const [cryptoStep, setCryptoStep] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState(false);
   const [email, setEmail] = useState("");
-  const [cryptoLoading, setCryptoLoading] = useState(false);
-  const [cryptoError, setCryptoError] = useState("");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
 
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) return;
@@ -97,7 +81,6 @@ export default function CartDrawer() {
   const discountedTotal = subtotal - discountAmount;
   const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
   const freeShippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
-  const checkoutUrl = buildFoxyUrl(items);
 
   return (
     <AnimatePresence>
@@ -344,8 +327,8 @@ export default function CartDrawer() {
                   )}
                 </div>
 
-                {/* Crypto email capture step */}
-                {cryptoStep && (
+                {/* Email capture step */}
+                {checkoutStep && (
                   <div className="space-y-2">
                     <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)]">
                       Your email for order confirmation
@@ -353,45 +336,38 @@ export default function CartDrawer() {
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => { setEmail(e.target.value); setCryptoError(""); }}
+                      onChange={(e) => { setEmail(e.target.value); setCheckoutError(""); }}
                       placeholder="you@example.com"
                       className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
                     />
-                    {cryptoError && (
-                      <p className="text-[0.75rem] text-red-500">{cryptoError}</p>
+                    <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)]">
+                      Pay with crypto, card, or Apple Pay on the next step.
+                    </p>
+                    {checkoutError && (
+                      <p className="text-[0.75rem] text-red-500">{checkoutError}</p>
                     )}
                   </div>
                 )}
 
                 {/* Checkout buttons */}
                 <div className="flex flex-col gap-2.5">
-                  {!cryptoStep ? (
-                    <>
-                      <button
-                        onClick={() => setCryptoStep(true)}
-                        className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem]"
-                      >
-                        <Coins className="w-4 h-4" />
-                        Pay with Crypto
-                      </button>
-                      <a
-                        href={checkoutUrl}
-                        className="flex items-center justify-center gap-2 w-full py-3 text-[0.875rem] font-semibold rounded-xl border-2 border-[oklch(0.88_0.004_260)] text-[oklch(0.35_0.01_260)] hover:border-[oklch(0.70_0.01_260)] hover:bg-[oklch(0.98_0.002_260)] transition-colors"
-                      >
-                        <CreditCard className="w-4 h-4" />
-                        Pay with Card
-                      </a>
-                    </>
+                  {!checkoutStep ? (
+                    <button
+                      onClick={() => setCheckoutStep(true)}
+                      className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem]"
+                    >
+                      Proceed to Checkout <ArrowRight className="w-4 h-4" />
+                    </button>
                   ) : (
                     <>
                       <button
                         onClick={async () => {
                           if (!email.trim() || !email.includes("@")) {
-                            setCryptoError("Please enter a valid email address.");
+                            setCheckoutError("Please enter a valid email address.");
                             return;
                           }
-                          setCryptoLoading(true);
-                          setCryptoError("");
+                          setCheckoutLoading(true);
+                          setCheckoutError("");
                           try {
                             const response = await fetch("/api/create-crypto-payment", {
                               method: "POST",
@@ -407,25 +383,25 @@ export default function CartDrawer() {
                             });
                             const data = await response.json();
                             if (!response.ok) {
-                              setCryptoError(data.error || "Failed to create payment. Please try again.");
+                              setCheckoutError(data.error || "Failed to create payment. Please try again.");
                             } else {
                               window.location.href = data.invoiceUrl;
                             }
                           } catch {
-                            setCryptoError("Failed to create payment. Please try again.");
+                            setCheckoutError("Failed to create payment. Please try again.");
                           } finally {
-                            setCryptoLoading(false);
+                            setCheckoutLoading(false);
                           }
                         }}
-                        disabled={cryptoLoading}
+                        disabled={checkoutLoading}
                         className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {cryptoLoading ? "Creating Payment…" : (
-                          <>Continue to Crypto Payment <ArrowRight className="w-4 h-4" /></>
+                        {checkoutLoading ? "Creating Payment…" : (
+                          <>Continue to Payment <ArrowRight className="w-4 h-4" /></>
                         )}
                       </button>
                       <button
-                        onClick={() => { setCryptoStep(false); setCryptoError(""); }}
+                        onClick={() => { setCheckoutStep(false); setCheckoutError(""); }}
                         className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] hover:underline"
                       >
                         ← Back

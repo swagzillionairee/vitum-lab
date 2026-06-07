@@ -44,7 +44,7 @@ const faqCategories = [
       },
       {
         q: "What payment methods do you accept?",
-        a: "We accept major credit cards and cryptocurrency payments via NOWPayments. Cryptocurrency payments are processed securely and confirmed before order fulfillment.",
+        a: "All payments are processed securely through NOWPayments. At checkout you can pay with cryptocurrency, or use a credit/debit card or Apple Pay, which is converted to crypto automatically. Payments are confirmed before order fulfillment.",
       },
       {
         q: "Can I place a bulk or institutional order?",
