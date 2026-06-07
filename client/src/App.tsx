@@ -41,6 +41,7 @@ import Account from "./pages/Account";
 import AffiliateLogin from "./pages/AffiliateLogin";
 import AffiliateDashboard from "./pages/AffiliateDashboard";
 import { AuthProvider } from "./contexts/AuthContext";
+import { Analytics } from "@vercel/analytics/react";
 
 // ─── Scroll to top on every route change ─────────────────────────────────────
 function ScrollToTop() {
@@ -156,6 +157,7 @@ function App() {
               <Toaster />
               <AppLayout />
               <CartDrawer />
+              <Analytics />
             </CartProvider>
           </AuthProvider>
         </TooltipProvider>

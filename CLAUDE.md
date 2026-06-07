@@ -29,21 +29,32 @@ The Vite root is `client/` (not repo root). Path aliases: `@` → `client/src`, 
 
 ```
 client/src/
-  pages/            Page components (Shop, ProductDetail, Home, COALibrary, etc.)
+  pages/            Page components (Shop, ProductDetail, Home, COALibrary, AdminDashboard, etc.)
   components/       Navbar, Footer, CartDrawer, LegalPage, ReconstitutionCalculator, etc.
   lib/
     products.ts     Single source of truth — all product/variant data and cartCodes
     supabase.ts     Browser Supabase client (anon key via VITE_SUPABASE_ANON_KEY)
-  contexts/         CartContext (sessionStorage), ThemeContext (dark mode → localStorage)
+    api.ts          authedFetch helper — attaches Supabase JWT as Bearer token
+  contexts/         CartContext (sessionStorage), ThemeContext (dark mode), AuthContext (Supabase Auth)
   hooks/
     useInventory.ts Fetches /api/inventory, exposes isAvailable(cartCode)/stockLabel(cartCode)
 
-api/                Vercel serverless functions (each file = one route)
+api/                Vercel serverless functions — ALL relative imports MUST use .js extensions (ESM)
   inventory.ts                GET  /api/inventory → {cartCode: stock} map
   create-crypto-payment.ts   POST /api/create-crypto-payment
   nowpayments-webhook.ts     POST /api/nowpayments-webhook (raw body, HMAC-verified)
   validate-discount.ts       POST /api/validate-discount
   contact.ts                 POST /api/contact
+  me.ts                      GET  /api/me → {email, isAdmin, isAffiliate}
+  products.ts                GET  /api/products → product list (public)
+  admin/[...slug].ts         Catch-all for /api/admin/* (inventory, orders, products CRUD, upload)
+  affiliate/[...slug].ts     Catch-all for /api/affiliate/* (stats, orders)
+  account/orders.ts          GET  /api/account/orders → orders for logged-in user by email
+  _lib/
+    supabase-admin.js  Service-role Supabase client
+    requireUser.ts     Validates Bearer JWT, returns {id, email}
+    requireAdmin.ts    requireUser + checks admins table
+    requireAffiliate.ts requireUser + checks affiliates table
 
 server/
   index.ts          Express server (local dev only — proxies /api/* to the same handlers)
@@ -51,6 +62,10 @@ server/
     supabase-admin.ts  Service-role Supabase client (SUPABASE_SERVICE_ROLE_KEY)
     email.ts           Nodemailer/Gmail helpers
 ```
+
+**ESM import rule:** `package.json` has `"type": "module"`. All relative imports inside `api/` **must** include `.js` extension (e.g. `import { x } from "./_lib/supabase-admin.js"`). Missing extensions cause `ERR_MODULE_NOT_FOUND` at runtime on Vercel.
+
+**Vercel function limit (Hobby plan):** 12 serverless functions max. Admin and affiliate routes are consolidated into two catch-all handlers (`api/admin/[...slug].ts`, `api/affiliate/[...slug].ts`) to stay under the limit.
 
 **Key data flow:**
 1. Cart items live in `CartContext` (sessionStorage). `CartItem.cartCode` is the inventory key.
@@ -149,8 +164,8 @@ Key detail: the customer login is the single entry point — an admin can sign i
 their normal credentials and gets routed to `/admin` automatically (via `/api/me`).
 
 **Endpoints:** `api/me.ts` (role), `api/account/orders.ts` (customer orders by email),
-`api/admin/inventory.ts` (GET/PATCH stock+active), `api/admin/orders.ts`,
-`api/affiliate/stats.ts`, `api/affiliate/orders.ts`.
+`api/admin/[...slug].ts` (inventory GET/PATCH, orders GET, products CRUD, image upload),
+`api/affiliate/[...slug].ts` (stats, orders).
 
 Customer order history matches orders by **email** (not `user_id`), so orders placed before
 the account existed still appear. `admins`/`affiliates` tables have `email` + nullable `user_id`.
@@ -179,6 +194,14 @@ GMAIL_APP_PASSWORD=<optional>
 ```
 
 Note: The old `server/index.ts` Express server handles `create-crypto-payment` and `nowpayments-webhook` for local testing, but those routes are also covered by `vitePluginLocalApi` via `api/create-crypto-payment.ts`.
+
+---
+
+## Known Gotchas
+
+- **`vercel.json` SPA rewrite** uses a negative lookahead `/((?!api/).*)` so that `/api/*` requests reach serverless functions instead of falling through to `index.html`. Do not change this to `(.*)` or catch-all dynamic routes (e.g. `api/admin/[...slug].ts`) will break.
+- **`api/` is excluded from `tsconfig.json`** — `pnpm check` does not type-check serverless functions. ESM extension errors will not surface locally; test against Vercel preview before merging.
+- **`vitePluginLocalApi`** in `vite.config.ts` intercepts `/api/*` in local dev via `server.ssrLoadModule` — no separate API server needed for `pnpm dev`.
 
 ---
 
