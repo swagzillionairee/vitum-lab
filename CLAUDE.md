@@ -215,3 +215,5 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 ## Open Work
 
 **Product management** — built and live. Products are stored in the Supabase `products` table and managed via the Admin → Products tab. Images are stored in the `product-images` Supabase Storage bucket.
+
+**Admin dashboard summary (requested, not yet built)** — add a summary/overview to the Admin dashboard showing key metrics: total revenue (sum of `net_amount` for paid orders), pending order count, low-stock items (inventory at/below a threshold), and similar at-a-glance stats.
