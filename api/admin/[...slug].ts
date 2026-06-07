@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireAdmin } from "../_lib/requireAdmin";
-import { supabaseAdmin } from "../_lib/supabase-admin";
+import { requireAdmin } from "../_lib/requireAdmin.js";
+import { supabaseAdmin } from "../_lib/supabase-admin.js";
 
 // Handles all /api/admin/* routes: inventory, orders, products, upload
 export default async function handler(req: VercelRequest, res: VercelResponse) {

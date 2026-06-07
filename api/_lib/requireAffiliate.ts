@@ -1,5 +1,5 @@
-import { supabaseAdmin } from "./supabase-admin";
-import { requireUser } from "./requireUser";
+import { supabaseAdmin } from "./supabase-admin.js";
+import { requireUser } from "./requireUser.js";
 
 export interface Affiliate {
   id: string;
