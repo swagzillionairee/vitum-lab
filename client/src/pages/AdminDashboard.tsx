@@ -34,10 +34,19 @@ interface OrderItem {
   price: number;
 }
 
+interface ShippingAddress {
+  name?: string; line1?: string; line2?: string; city?: string;
+  state?: string; postal_code?: string; country?: string; phone?: string;
+}
+
 interface OrderRow {
   id: string;
   email: string;
   net_amount: number;
+  gross_amount?: number;
+  discount_amount?: number;
+  discount_code?: string | null;
+  commission_amount?: number | null;
   status: string;
   created_at: string;
   items?: OrderItem[];
@@ -48,6 +57,7 @@ interface OrderRow {
   pay_currency?: string | null;
   pay_amount?: number | null;
   confirmed_at?: string | null;
+  shipping_address?: ShippingAddress | null;
 }
 
 interface Variant {
@@ -122,6 +132,18 @@ const PAY_CURRENCY_LABELS: Record<string, string> = {
 function payLabel(code?: string | null): string | null {
   if (!code) return null;
   return PAY_CURRENCY_LABELS[code.toLowerCase()] ?? code.toUpperCase();
+}
+
+function addressLines(a?: ShippingAddress | null): string[] {
+  if (!a || !a.line1) return [];
+  return [
+    a.name,
+    a.line1,
+    a.line2,
+    [a.city, a.state].filter(Boolean).join(", ") + (a.postal_code ? ` ${a.postal_code}` : ""),
+    a.country,
+    a.phone,
+  ].filter((l): l is string => Boolean(l && l.trim()));
 }
 
 // ─── Variant editor sub-component ─────────────────────────────────────────────
@@ -427,13 +449,77 @@ export default function AdminDashboard() {
   const [savedCode, setSavedCode] = useState<string | null>(null);
 
   // Orders
+  const ORDERS_PER_PAGE = 25;
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [orderBusy, setOrderBusy] = useState<string | null>(null);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [orderTotal, setOrderTotal] = useState(0);
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderStatus, setOrderStatus] = useState("");
+  const [orderFulfillment, setOrderFulfillment] = useState("");
+  const [copiedOrder, setCopiedOrder] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !session) navigate("/admin/login");
   }, [loading, session, navigate]);
+
+  const orderQueryString = useCallback((overrides?: Record<string, string>) => {
+    const params = new URLSearchParams({ page: String(orderPage), perPage: String(ORDERS_PER_PAGE) });
+    if (orderSearch.trim()) params.set("search", orderSearch.trim());
+    if (orderStatus) params.set("status", orderStatus);
+    if (orderFulfillment) params.set("fulfillment", orderFulfillment);
+    for (const [k, v] of Object.entries(overrides ?? {})) params.set(k, v);
+    return params.toString();
+  }, [orderPage, orderSearch, orderStatus, orderFulfillment]);
+
+  const loadOrders = useCallback(async () => {
+    if (!session) return;
+    const res = await authedFetch(`/api/admin/orders?${orderQueryString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      setOrders(data.orders ?? []);
+      setOrderTotal(data.total ?? 0);
+    }
+  }, [session, orderQueryString]);
+
+  // Reload orders (debounced) when page/filters/search change.
+  useEffect(() => {
+    const t = setTimeout(loadOrders, 250);
+    return () => clearTimeout(t);
+  }, [loadOrders]);
+
+  const exportOrdersCsv = async () => {
+    const res = await authedFetch(`/api/admin/orders?${orderQueryString({ page: "1", perPage: "2000" })}`);
+    if (!res.ok) { alert("Export failed"); return; }
+    const { orders: rows } = (await res.json()) as { orders: OrderRow[] };
+    const header = ["Order ID", "Email", "Payment", "Fulfillment", "Gross", "Discount", "Net", "Pay Currency", "Name", "Address", "City", "State", "ZIP", "Country", "Phone", "Tracking", "Created (ET)"];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [header.map(esc).join(",")];
+    for (const o of rows) {
+      const a = o.shipping_address ?? {};
+      lines.push([
+        o.id, o.email, o.status, o.fulfillment_status ?? "", o.gross_amount ?? "", o.discount_amount ?? "", o.net_amount,
+        o.pay_currency ?? "", a.name ?? "", [a.line1, a.line2].filter(Boolean).join(" "), a.city ?? "", a.state ?? "",
+        a.postal_code ?? "", a.country ?? "", a.phone ?? "", o.tracking_number ?? "", formatDateEST(o.created_at),
+      ].map(esc).join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `vitumlab-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const copyAddress = (o: OrderRow) => {
+    const lines = addressLines(o.shipping_address);
+    if (lines.length === 0) return;
+    navigator.clipboard.writeText(lines.join("\n"));
+    setCopiedOrder(o.id);
+    setTimeout(() => setCopiedOrder((c) => (c === o.id ? null : c)), 1500);
+  };
 
   const orderAction = async (id: string, action: string, extra?: Record<string, unknown>) => {
     setOrderBusy(id);
@@ -482,19 +568,14 @@ export default function AdminDashboard() {
       if (!invRes.ok) throw new Error(`Inventory API returned ${invRes.status}`);
       setInventory(await invRes.json());
 
-      const [prodRes, ordRes] = await Promise.all([
-        authedFetch("/api/admin/products"),
-        authedFetch("/api/admin/orders"),
-      ]);
-
+      const prodRes = await authedFetch("/api/admin/products");
       if (prodRes.ok) {
         setProducts(await prodRes.json());
       } else {
         const err = await prodRes.json().catch(() => ({ error: `HTTP ${prodRes.status}` }));
         setLoadError(`Failed to load products: ${err.error ?? prodRes.status}`);
       }
-
-      if (ordRes.ok) setOrders((await ordRes.json()).orders ?? []);
+      // Orders are loaded separately by loadOrders (supports search/filter/pagination).
     } catch (err) {
       if (authorized === null) setAuthorized(false);
       setLoadError(err instanceof Error ? err.message : "Failed to connect to the API. Are you running with the API server?");
@@ -738,12 +819,54 @@ export default function AdminDashboard() {
         {/* ── Orders tab ────────────────────────────────────────────────── */}
         {tab === "orders" && (
           <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <ClipboardList className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
-              <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Orders</h2>
+            <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
+                <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Orders</h2>
+                <span className="text-[0.75rem] text-[oklch(0.60_0.01_260)]">({orderTotal})</span>
+              </div>
+              <button
+                onClick={exportOrdersCsv}
+                className="flex items-center gap-1.5 text-[0.75rem] font-semibold text-[oklch(0.35_0.15_260)] border border-[oklch(0.35_0.15_260)] px-3 py-1.5 rounded-lg hover:bg-[oklch(0.96_0.008_260)]"
+              >
+                <Upload className="w-3.5 h-3.5" /> Export CSV
+              </button>
             </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-2 mb-5">
+              <input
+                type="text" value={orderSearch}
+                onChange={(e) => { setOrderSearch(e.target.value); setOrderPage(1); }}
+                placeholder="Search email or order ID…"
+                className="flex-1 min-w-[180px] border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2 text-[0.8125rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)]"
+              />
+              <select
+                value={orderStatus} onChange={(e) => { setOrderStatus(e.target.value); setOrderPage(1); }}
+                className="border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2 text-[0.8125rem] bg-white focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)]"
+              >
+                <option value="">All payments</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="finished">Finished</option>
+                <option value="failed">Failed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <select
+                value={orderFulfillment} onChange={(e) => { setOrderFulfillment(e.target.value); setOrderPage(1); }}
+                className="border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2 text-[0.8125rem] bg-white focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)]"
+              >
+                <option value="">All fulfillment</option>
+                <option value="unfulfilled">Unfulfilled</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+              </select>
+            </div>
+
             {orders.length === 0 ? (
-              <p className="text-[0.875rem] text-[oklch(0.52_0.01_260)] py-4">No orders yet.</p>
+              <p className="text-[0.875rem] text-[oklch(0.52_0.01_260)] py-4">
+                {orderSearch || orderStatus || orderFulfillment ? "No orders match your filters." : "No orders yet."}
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-[0.875rem]">
@@ -827,30 +950,68 @@ export default function AdminDashboard() {
                           {expanded && (
                             <tr className="border-b border-[oklch(0.95_0.003_260)] bg-[oklch(0.98_0.002_260)]">
                               <td colSpan={7} className="px-4 py-3">
-                                <div className="text-[0.8125rem] text-[oklch(0.35_0.01_260)] space-y-1">
-                                  <p className="font-mono text-[0.7rem] text-[oklch(0.55_0.01_260)]">{o.id}</p>
-                                  <div>
-                                    <span className="font-semibold">Items:</span>{" "}
-                                    {(o.items ?? []).length === 0
-                                      ? "—"
-                                      : (o.items ?? []).map((it) => `${it.name} ${it.dose} ×${it.quantity}`).join(", ")}
-                                  </div>
-                                  <div><span className="font-semibold">Ordered:</span> {formatDateEST(o.created_at)}</div>
-                                  {o.confirmed_at && (
-                                    <div><span className="font-semibold">Paid:</span> {formatDateEST(o.confirmed_at)}</div>
-                                  )}
-                                  {payLabel(o.pay_currency) && (
+                                <div className="flex flex-wrap gap-8 text-[0.8125rem] text-[oklch(0.35_0.01_260)]">
+                                  {/* Order details + totals */}
+                                  <div className="space-y-1 min-w-[240px]">
+                                    <p className="font-mono text-[0.7rem] text-[oklch(0.55_0.01_260)]">{o.id}</p>
                                     <div>
-                                      <span className="font-semibold">Paid with:</span> {payLabel(o.pay_currency)}
-                                      {o.pay_amount ? ` (${o.pay_amount} ${(o.pay_currency ?? "").toUpperCase()})` : ""}
+                                      <span className="font-semibold">Items:</span>{" "}
+                                      {(o.items ?? []).length === 0
+                                        ? "—"
+                                        : (o.items ?? []).map((it) => `${it.name} ${it.dose} ×${it.quantity}`).join(", ")}
                                     </div>
-                                  )}
-                                  {o.tracking_number && (
-                                    <div><span className="font-semibold">Tracking:</span> {o.carrier ? `${o.carrier} ` : ""}{o.tracking_number}</div>
-                                  )}
-                                  {o.cancel_reason && (
-                                    <div><span className="font-semibold">Cancel reason:</span> {o.cancel_reason}</div>
-                                  )}
+                                    <div><span className="font-semibold">Ordered:</span> {formatDateEST(o.created_at)}</div>
+                                    {o.confirmed_at && (
+                                      <div><span className="font-semibold">Paid:</span> {formatDateEST(o.confirmed_at)}</div>
+                                    )}
+                                    {payLabel(o.pay_currency) && (
+                                      <div>
+                                        <span className="font-semibold">Paid with:</span> {payLabel(o.pay_currency)}
+                                        {o.pay_amount ? ` (${o.pay_amount} ${(o.pay_currency ?? "").toUpperCase()})` : ""}
+                                      </div>
+                                    )}
+                                    {o.tracking_number && (
+                                      <div><span className="font-semibold">Tracking:</span> {o.carrier ? `${o.carrier} ` : ""}{o.tracking_number}</div>
+                                    )}
+                                    {o.cancel_reason && (
+                                      <div><span className="font-semibold">Cancel reason:</span> {o.cancel_reason}</div>
+                                    )}
+                                  </div>
+
+                                  {/* Totals breakdown */}
+                                  <div className="space-y-1 min-w-[180px]">
+                                    <p className="font-semibold text-[oklch(0.20_0.01_260)]">Totals</p>
+                                    <div className="flex justify-between gap-6"><span>Subtotal</span><span>${Number(o.gross_amount ?? o.net_amount).toFixed(2)}</span></div>
+                                    {Number(o.discount_amount) > 0 && (
+                                      <div className="flex justify-between gap-6 text-[oklch(0.35_0.14_155)]">
+                                        <span>Discount{o.discount_code ? ` (${o.discount_code})` : ""}</span>
+                                        <span>−${Number(o.discount_amount).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between gap-6 font-semibold text-[oklch(0.13_0.01_260)] border-t border-[oklch(0.90_0.004_260)] pt-1">
+                                      <span>Total</span><span>${Number(o.net_amount).toFixed(2)}</span>
+                                    </div>
+                                    {Number(o.commission_amount) > 0 && (
+                                      <div className="flex justify-between gap-6 text-[oklch(0.52_0.01_260)]"><span>Commission</span><span>${Number(o.commission_amount).toFixed(2)}</span></div>
+                                    )}
+                                  </div>
+
+                                  {/* Shipping address */}
+                                  <div className="space-y-1 min-w-[200px]">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-semibold text-[oklch(0.20_0.01_260)]">Ship to</p>
+                                      {addressLines(o.shipping_address).length > 0 && (
+                                        <button onClick={() => copyAddress(o)} className="text-[0.7rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">
+                                          {copiedOrder === o.id ? "Copied!" : "Copy"}
+                                        </button>
+                                      )}
+                                    </div>
+                                    {addressLines(o.shipping_address).length === 0 ? (
+                                      <p className="text-[oklch(0.60_0.01_260)]">No address on file</p>
+                                    ) : (
+                                      <div className="whitespace-pre-line leading-snug">{addressLines(o.shipping_address).join("\n")}</div>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                             </tr>
@@ -860,6 +1021,31 @@ export default function AdminDashboard() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {orderTotal > ORDERS_PER_PAGE && (
+              <div className="flex items-center justify-between mt-5 text-[0.8125rem]">
+                <span className="text-[oklch(0.52_0.01_260)]">
+                  Page {orderPage} of {Math.ceil(orderTotal / ORDERS_PER_PAGE)} · {orderTotal} orders
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setOrderPage((p) => Math.max(1, p - 1))}
+                    disabled={orderPage <= 1}
+                    className="px-3 py-1.5 rounded-lg border border-[oklch(0.88_0.004_260)] font-semibold text-[oklch(0.35_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] disabled:opacity-40"
+                  >
+                    ← Prev
+                  </button>
+                  <button
+                    onClick={() => setOrderPage((p) => (p < Math.ceil(orderTotal / ORDERS_PER_PAGE) ? p + 1 : p))}
+                    disabled={orderPage >= Math.ceil(orderTotal / ORDERS_PER_PAGE)}
+                    className="px-3 py-1.5 rounded-lg border border-[oklch(0.88_0.004_260)] font-semibold text-[oklch(0.35_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] disabled:opacity-40"
+                  >
+                    Next →
+                  </button>
+                </div>
               </div>
             )}
           </section>
