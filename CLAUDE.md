@@ -47,7 +47,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
   contact.ts                 POST /api/contact
   me.ts                      GET  /api/me → {email, isAdmin, isAffiliate}
   products.ts                GET  /api/products → product list (public)
-  admin/[...slug].ts         Catch-all for /api/admin/* (inventory, orders GET + PATCH actions, products CRUD, upload)
+  admin/[...slug].ts         Catch-all for /api/admin/* (summary, inventory, orders GET + PATCH actions, products CRUD, upload)
                              Order actions (PATCH /api/admin/orders): cancel (restocks paid orders),
                              ship (tracking+carrier), deliver, recheck (reconciles vs NowPayments), notes
   affiliate/[...slug].ts     Catch-all for /api/affiliate/* (stats, orders)
@@ -216,4 +216,4 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 **Product management** — built and live. Products are stored in the Supabase `products` table and managed via the Admin → Products tab. Images are stored in the `product-images` Supabase Storage bucket.
 
-**Admin dashboard summary (requested, not yet built)** — add a summary/overview to the Admin dashboard showing key metrics: total revenue (sum of `net_amount` for paid orders), pending order count, low-stock items (inventory at/below a threshold), and similar at-a-glance stats.
+**Admin dashboard summary** — built. Admin → **Overview** tab (default) shows revenue (30d + all-time), orders-to-fulfill (paid + unfulfilled), pending-payment count, low/out-of-stock list, orders-this-week, AOV, top sellers, and recent orders. Backed by `GET /api/admin/summary` (computed in the admin catch-all). KPI tiles deep-link into the Orders tab with filters pre-applied.
