@@ -167,7 +167,7 @@ export default function CartDrawer() {
             </div>
 
             {/* ── Items list ─────────────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
               {items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center py-16">
                   <ShoppingBag className="w-12 h-12 text-[oklch(0.85_0.003_260)] mb-4" />
@@ -261,7 +261,7 @@ export default function CartDrawer() {
 
             {/* ── Footer: subtotal + checkout ─────────────────────── */}
             {items.length > 0 && (
-              <div className="border-t border-[oklch(0.91_0.004_260)] px-6 py-5 space-y-4 bg-white">
+              <div className={`border-t border-[oklch(0.91_0.004_260)] px-6 py-5 space-y-4 bg-white ${checkoutStep ? "flex-1 min-h-0 overflow-y-auto" : ""}`}>
                 {/* Subtotal */}
                 <div className="flex items-center justify-between">
                   <span className="text-[0.875rem] text-[oklch(0.52_0.01_260)]">Subtotal</span>
