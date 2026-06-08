@@ -9,8 +9,7 @@ export default async function handler(req: any, res: any) {
   try {
     const { data, error } = await supabaseAdmin
       .from("inventory")
-      .select("cart_code, stock, is_active")
-      .eq("is_active", true);
+      .select("cart_code, stock");
 
     if (error) throw error;
 

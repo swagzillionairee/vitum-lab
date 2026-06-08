@@ -9,6 +9,7 @@ import { Link, useRoute } from "wouter";
 import { ArrowLeft, FileText, Check, ChevronDown, ChevronUp, ShieldCheck, Truck, FlaskConical } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useProducts } from "@/hooks/useProducts";
+import { useInventory } from "@/hooks/useInventory";
 import ReconstitutionCalculator from "@/components/ReconstitutionCalculator";
 import SEO from "@/components/SEO";
 
@@ -19,6 +20,7 @@ export default function ProductDetail() {
   const product = products.find((p) => p.slug === slug);
 
   const { addItem } = useCart();
+  const { isAvailable, stockLabel } = useInventory();
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [added, setAdded] = useState(false);
   const [specsOpen, setSpecsOpen] = useState(true);
@@ -36,8 +38,11 @@ export default function ProductDetail() {
   }
 
   const selected = product.variants[selectedIdx];
+  const available = isAvailable(selected.cartCode);
+  const stockMsg = stockLabel(selected.cartCode);
 
   const handleAdd = () => {
+    if (!available) return;
     addItem({
       id: selected.id,
       name: product.name,
@@ -141,25 +146,44 @@ export default function ProductDetail() {
             </p>
 
             {/* Price + Add to Cart */}
-            <div className="flex items-center gap-5 mb-6">
+            <div className="flex items-center gap-5 mb-2">
               <span className="text-[2rem] font-bold text-[oklch(0.13_0.01_260)]">${selected.price}</span>
-              <button
-                onClick={handleAdd}
-                className={`flex-1 py-3.5 rounded-full font-semibold text-[0.9375rem] transition-all duration-200 active:scale-95 ${
-                  added
-                    ? "bg-[oklch(0.40_0.14_155)] text-white"
-                    : "btn-primary"
-                }`}
-              >
-                {added ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Check className="w-4 h-4" /> Added to Cart
-                  </span>
-                ) : (
-                  "Add to Cart"
-                )}
-              </button>
+              {available ? (
+                <button
+                  onClick={handleAdd}
+                  className={`flex-1 py-3.5 rounded-full font-semibold text-[0.9375rem] transition-all duration-200 active:scale-95 ${
+                    added
+                      ? "bg-[oklch(0.40_0.14_155)] text-white"
+                      : "btn-primary"
+                  }`}
+                >
+                  {added ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Check className="w-4 h-4" /> Added to Cart
+                    </span>
+                  ) : (
+                    "Add to Cart"
+                  )}
+                </button>
+              ) : (
+                <button
+                  disabled
+                  className="flex-1 py-3.5 rounded-full font-semibold text-[0.9375rem] bg-[oklch(0.93_0.003_260)] text-[oklch(0.55_0.01_260)] cursor-not-allowed"
+                >
+                  Out of Stock
+                </button>
+              )}
             </div>
+            {/* Stock label */}
+            {available && stockMsg && (
+              <p className="text-[0.8125rem] font-semibold text-amber-600 mb-6">{stockMsg}</p>
+            )}
+            {!available && (
+              <p className="text-[0.8125rem] font-semibold text-[oklch(0.50_0.18_25)] mb-6">
+                This dose is currently out of stock.
+              </p>
+            )}
+            {available && !stockMsg && <div className="mb-6" />}
 
             {/* COA link */}
             {product.coaHref !== "/coa-library#bacwater" && (
