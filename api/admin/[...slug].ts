@@ -11,6 +11,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pathname = (req.url ?? "").split("?")[0];
   const route = pathname.replace(/^\/api\/admin\/?/, "").split("/")[0];
 
+  // ── /api/admin/summary ────────────────────────────────────────────────────
+  if (route === "summary") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+
+    const LOW_STOCK_THRESHOLD = 5;
+    const now = Date.now();
+    const since = (days: number) => new Date(now - days * 86400000).toISOString();
+
+    const [{ data: orders }, { data: inventory }] = await Promise.all([
+      supabaseAdmin
+        .from("orders")
+        .select("status, fulfillment_status, net_amount, items, created_at")
+        .order("created_at", { ascending: false }),
+      supabaseAdmin.from("inventory").select("cart_code, stock"),
+    ]);
+
+    type OrderItem = { name: string; dose: string; quantity: number; cartCode: string; price: number };
+    type SummaryOrder = {
+      status: string; fulfillment_status: string | null; net_amount: number | string;
+      items: OrderItem[] | null; created_at: string;
+    };
+    const rows = (orders ?? []) as SummaryOrder[];
+    const isPaid = (s: string) => s === "confirmed" || s === "finished";
+    const num = (v: number | string) => Number(v) || 0;
+
+    const paid = rows.filter((o) => isPaid(o.status));
+    const revenueAll = paid.reduce((sum, o) => sum + num(o.net_amount), 0);
+    const since30 = since(30);
+    const since7 = since(7);
+    const revenue30 = paid.filter((o) => o.created_at >= since30).reduce((sum, o) => sum + num(o.net_amount), 0);
+
+    const ordersToFulfill = paid.filter((o) => (o.fulfillment_status ?? "unfulfilled") === "unfulfilled").length;
+    const pendingPayment = rows.filter((o) => o.status === "pending").length;
+    const ordersThisWeek = rows.filter((o) => o.created_at >= since7).length;
+    const aov = paid.length > 0 ? revenueAll / paid.length : 0;
+
+    // Top sellers by quantity (from paid order line items)
+    const productTally: Record<string, { name: string; dose: string; qty: number; revenue: number }> = {};
+    for (const o of paid) {
+      for (const it of o.items ?? []) {
+        if (it.cartCode === "bac-water-free") continue;
+        const key = it.cartCode || `${it.name} ${it.dose}`;
+        if (!productTally[key]) productTally[key] = { name: it.name, dose: it.dose, qty: 0, revenue: 0 };
+        productTally[key].qty += it.quantity;
+        productTally[key].revenue += (it.price || 0) * it.quantity;
+      }
+    }
+    const topProducts = Object.values(productTally).sort((a, b) => b.qty - a.qty).slice(0, 5);
+
+    const lowStock = (inventory ?? [])
+      .filter((r) => r.stock <= LOW_STOCK_THRESHOLD)
+      .sort((a, b) => a.stock - b.stock)
+      .map((r) => ({ cartCode: r.cart_code, stock: r.stock }));
+    const outOfStockCount = (inventory ?? []).filter((r) => r.stock === 0).length;
+
+    const recentOrders = rows.slice(0, 5).map((o) => ({
+      status: o.status,
+      fulfillment_status: o.fulfillment_status,
+      net_amount: num(o.net_amount),
+      created_at: o.created_at,
+    }));
+
+    return res.json({
+      revenue30, revenueAll, paidOrders: paid.length, aov,
+      ordersToFulfill, pendingPayment, ordersThisWeek,
+      lowStock, outOfStockCount, lowStockThreshold: LOW_STOCK_THRESHOLD,
+      topProducts, recentOrders,
+    });
+  }
+
   // ── /api/admin/inventory ──────────────────────────────────────────────────
   if (route === "inventory") {
     if (req.method === "GET") {

@@ -12,6 +12,7 @@ import {
   Package, ClipboardList, LogOut, Loader2, Check, Plus,
   Pencil, Trash2, X, Upload, ShoppingBag, ImageOff,
   Truck, RefreshCw, Ban, CheckCircle2, ChevronDown,
+  LayoutDashboard, DollarSign, Clock, AlertTriangle, TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
@@ -132,6 +133,10 @@ const PAY_CURRENCY_LABELS: Record<string, string> = {
 function payLabel(code?: string | null): string | null {
   if (!code) return null;
   return PAY_CURRENCY_LABELS[code.toLowerCase()] ?? code.toUpperCase();
+}
+
+function money(n: number): string {
+  return (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 }
 
 function addressLines(a?: ShippingAddress | null): string[] {
@@ -416,12 +421,27 @@ function ProductModal({
   );
 }
 
+interface Summary {
+  revenue30: number;
+  revenueAll: number;
+  paidOrders: number;
+  aov: number;
+  ordersToFulfill: number;
+  pendingPayment: number;
+  ordersThisWeek: number;
+  lowStock: { cartCode: string; stock: number }[];
+  outOfStockCount: number;
+  lowStockThreshold: number;
+  topProducts: { name: string; dose: string; qty: number; revenue: number }[];
+  recentOrders: { status: string; fulfillment_status: string | null; net_amount: number; created_at: string }[];
+}
+
 // ─── Main dashboard ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { session, loading, signOut } = useAuth();
   const [, navigate] = useLocation();
   const [authorized, setAuthorized] = useState<boolean | null>(null);
-  const [tab, setTab] = useState<"products" | "inventory" | "orders">("products");
+  const [tab, setTab] = useState<"overview" | "products" | "inventory" | "orders">("overview");
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Products
@@ -431,6 +451,9 @@ export default function AdminDashboard() {
   // Inventory
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
   const [savedCode, setSavedCode] = useState<string | null>(null);
+
+  // Overview summary
+  const [summary, setSummary] = useState<Summary | null>(null);
 
   // Orders
   const ORDERS_PER_PAGE = 25;
@@ -552,13 +575,17 @@ export default function AdminDashboard() {
       if (!invRes.ok) throw new Error(`Inventory API returned ${invRes.status}`);
       setInventory(await invRes.json());
 
-      const prodRes = await authedFetch("/api/admin/products");
+      const [prodRes, sumRes] = await Promise.all([
+        authedFetch("/api/admin/products"),
+        authedFetch("/api/admin/summary"),
+      ]);
       if (prodRes.ok) {
         setProducts(await prodRes.json());
       } else {
         const err = await prodRes.json().catch(() => ({ error: `HTTP ${prodRes.status}` }));
         setLoadError(`Failed to load products: ${err.error ?? prodRes.status}`);
       }
+      if (sumRes.ok) setSummary(await sumRes.json());
       // Orders are loaded separately by loadOrders (supports search/filter/pagination).
     } catch (err) {
       if (authorized === null) setAuthorized(false);
@@ -608,6 +635,7 @@ export default function AdminDashboard() {
   }
 
   const tabs = [
+    { key: "overview" as const, label: "Overview", icon: LayoutDashboard },
     { key: "products" as const, label: "Products", icon: ShoppingBag },
     { key: "inventory" as const, label: "Inventory", icon: Package },
     { key: "orders" as const, label: "Orders", icon: ClipboardList },
@@ -666,6 +694,124 @@ export default function AdminDashboard() {
           <div className="mb-6 bg-[oklch(0.96_0.02_25)] border border-[oklch(0.88_0.05_25)] rounded-xl px-5 py-3 text-[0.875rem] text-[oklch(0.45_0.18_25)]">
             {loadError}
           </div>
+        )}
+
+        {/* ── Overview tab ──────────────────────────────────────────────── */}
+        {tab === "overview" && (
+          !summary ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-[oklch(0.52_0.01_260)]" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* KPI cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
+                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2">
+                    <DollarSign className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Revenue (30d)</span>
+                  </div>
+                  <p className="text-[1.75rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{money(summary.revenue30)}</p>
+                  <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-2">{money(summary.revenueAll)} all-time</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
+                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2">
+                    <Truck className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">To Fulfill</span>
+                  </div>
+                  <p className="text-[1.75rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{summary.ordersToFulfill}</p>
+                  <button onClick={() => { setOrderStatus(""); setOrderFulfillment("unfulfilled"); setOrderPage(1); setTab("orders"); }} className="text-[0.75rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline mt-2">Paid &amp; unshipped →</button>
+                </div>
+                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
+                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2">
+                    <Clock className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Pending Payment</span>
+                  </div>
+                  <p className="text-[1.75rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{summary.pendingPayment}</p>
+                  <button onClick={() => { setOrderFulfillment(""); setOrderStatus("pending"); setOrderPage(1); setTab("orders"); }} className="text-[0.75rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline mt-2">Awaiting crypto →</button>
+                </div>
+                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
+                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2">
+                    <AlertTriangle className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Low Stock</span>
+                  </div>
+                  <p className="text-[1.75rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{summary.lowStock.length}</p>
+                  <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-2">{summary.outOfStockCount} out of stock</p>
+                </div>
+              </div>
+
+              {/* Secondary stats */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
+                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2"><TrendingUp className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Orders (7d)</span></div>
+                  <p className="text-[1.5rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{summary.ordersThisWeek}</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
+                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2"><DollarSign className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Avg Order</span></div>
+                  <p className="text-[1.5rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{money(summary.aov)}</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
+                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2"><CheckCircle2 className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Paid Orders</span></div>
+                  <p className="text-[1.5rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{summary.paidOrders}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Low stock list */}
+                <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6">
+                  <h3 className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)] mb-3">Low / Out of Stock</h3>
+                  {summary.lowStock.length === 0 ? (
+                    <p className="text-[0.8125rem] text-[oklch(0.55_0.01_260)]">All products are above {summary.lowStockThreshold} units.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {summary.lowStock.map((s) => (
+                        <li key={s.cartCode} className="flex items-center justify-between text-[0.8125rem]">
+                          <span className="font-mono text-[oklch(0.30_0.01_260)]">{s.cartCode}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold ${s.stock === 0 ? "bg-[oklch(0.93_0.04_25)] text-[oklch(0.50_0.18_25)]" : "bg-[oklch(0.95_0.04_85)] text-[oklch(0.50_0.12_85)]"}`}>{s.stock} left</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                {/* Top sellers */}
+                <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6">
+                  <h3 className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)] mb-3">Top Sellers</h3>
+                  {summary.topProducts.length === 0 ? (
+                    <p className="text-[0.8125rem] text-[oklch(0.55_0.01_260)]">No paid orders yet.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {summary.topProducts.map((p, i) => (
+                        <li key={i} className="flex items-center justify-between text-[0.8125rem]">
+                          <span className="text-[oklch(0.30_0.01_260)] truncate pr-2">{p.name} <span className="text-[oklch(0.55_0.01_260)]">{p.dose}</span></span>
+                          <span className="font-semibold text-[oklch(0.13_0.01_260)] whitespace-nowrap">{p.qty} · {money(p.revenue)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                {/* Recent orders */}
+                <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)]">Recent Orders</h3>
+                    <button onClick={() => setTab("orders")} className="text-[0.75rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline">View all</button>
+                  </div>
+                  {summary.recentOrders.length === 0 ? (
+                    <p className="text-[0.8125rem] text-[oklch(0.55_0.01_260)]">No orders yet.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {summary.recentOrders.map((o, i) => (
+                        <li key={i} className="flex items-center justify-between text-[0.8125rem]">
+                          <span className="text-[oklch(0.52_0.01_260)]">{new Date(o.created_at).toLocaleDateString()}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="font-semibold text-[oklch(0.13_0.01_260)]">{money(o.net_amount)}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[0.625rem] font-semibold ${STATUS_COLORS[o.status] ?? STATUS_COLORS.pending}`}>{o.status}</span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </div>
+            </div>
+          )
         )}
 
         {/* ── Products tab ──────────────────────────────────────────────── */}
