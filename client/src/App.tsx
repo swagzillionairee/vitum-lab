@@ -31,6 +31,7 @@ import FAQ from "./pages/FAQ";
 import ProductDetail from "./pages/ProductDetail";
 import OrderSuccess from "./pages/OrderSuccess";
 import OrderCancel from "./pages/OrderCancel";
+import Checkout from "./pages/Checkout";
 import DoseCalculator from "./pages/DoseCalculator";
 import COALibrary from "./pages/COALibrary";
 import Research from "./pages/Research";
@@ -89,6 +90,7 @@ function Router() {
       <Route path="/research-disclaimer" component={ResearchDisclaimer} />
       <Route path="/dose-calculator" component={DoseCalculator} />
       <Route path="/research" component={Research} />
+      <Route path="/checkout" component={Checkout} />
       <Route path="/order-success" component={OrderSuccess} />
       <Route path="/order-cancel" component={OrderCancel} />
       <Route path="/login" component={Login} />

@@ -2,69 +2,25 @@
  * CartDrawer.tsx — Vitum Lab
  * Design: Contemporary Clinical
  * Slide-out cart drawer from the right side.
- * - Framer Motion slide + fade for panel and backdrop
- * - Per-item quantity stepper and remove button
+ * - Shows the products in the cart (scrollable) with quantity steppers
  * - Subtotal + free shipping threshold indicator
- * - Checkout via NowPayments invoice (crypto + card/Apple Pay on-ramp)
+ * - "Proceed to Checkout" routes to the dedicated /checkout page
+ *   (forces sign-in first if the customer is not authenticated)
  */
 
-import { useRef, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Tag, ChevronDown, Check } from "lucide-react";
+import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 const FREE_SHIPPING_THRESHOLD = 150;
 
 export default function CartDrawer() {
   const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, totalItems } = useCart();
+  const { session } = useAuth();
   const [, navigate] = useLocation();
-  const drawerRef = useRef<HTMLDivElement>(null);
-  const [promoOpen, setPromoOpen] = useState(false);
-  const [promoCode, setPromoCode] = useState("");
-  const [promoApplied, setPromoApplied] = useState(false);
-  const [promoError, setPromoError] = useState(false);
-  const [promoLoading, setPromoLoading] = useState(false);
-  const [discountPct, setDiscountPct] = useState(0);
-  const [affiliateId, setAffiliateId] = useState<string | undefined>();
-  const [checkoutStep, setCheckoutStep] = useState(false);
-  const [email, setEmail] = useState("");
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [checkoutError, setCheckoutError] = useState("");
-  const [ship, setShip] = useState({
-    name: "", line1: "", line2: "", city: "", state: "", postal_code: "", country: "US", phone: "",
-  });
-  const setShipField = (field: keyof typeof ship, value: string) => {
-    setShip((prev) => ({ ...prev, [field]: value }));
-    setCheckoutError("");
-  };
-
-  const handleApplyPromo = async () => {
-    if (!promoCode.trim()) return;
-    setPromoLoading(true);
-    setPromoError(false);
-    setPromoApplied(false);
-    try {
-      const res = await fetch("/api/validate-discount", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: promoCode.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.valid) {
-        setPromoError(true);
-      } else {
-        setPromoApplied(true);
-        setDiscountPct(data.discountPct);
-        setAffiliateId(data.affiliateId);
-      }
-    } catch {
-      setPromoError(true);
-    } finally {
-      setPromoLoading(false);
-    }
-  };
 
   // Close on Escape
   useEffect(() => {
@@ -85,10 +41,18 @@ export default function CartDrawer() {
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
-  const discountAmount = promoApplied ? parseFloat((subtotal * discountPct / 100).toFixed(2)) : 0;
-  const discountedTotal = subtotal - discountAmount;
   const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
   const freeShippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
+
+  const handleCheckout = () => {
+    closeCart();
+    // Force sign-in before checkout; return to /checkout afterward.
+    if (!session) {
+      navigate("/login?redirect=/checkout");
+    } else {
+      navigate("/checkout");
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -109,7 +73,6 @@ export default function CartDrawer() {
           {/* Drawer panel */}
           <motion.div
             key="cart-drawer"
-            ref={drawerRef}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -166,7 +129,7 @@ export default function CartDrawer() {
               </div>
             </div>
 
-            {/* ── Items list ─────────────────────────────────────────── */}
+            {/* ── Items list (scrollable) ────────────────────────────── */}
             <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
               {items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center py-16">
@@ -261,237 +224,24 @@ export default function CartDrawer() {
 
             {/* ── Footer: subtotal + checkout ─────────────────────── */}
             {items.length > 0 && (
-              <div className={`border-t border-[oklch(0.91_0.004_260)] px-6 py-5 space-y-4 bg-white ${checkoutStep ? "flex-1 min-h-0 overflow-y-auto" : ""}`}>
-                {/* Subtotal */}
+              <div className="border-t border-[oklch(0.91_0.004_260)] px-6 py-5 space-y-4 bg-white">
                 <div className="flex items-center justify-between">
                   <span className="text-[0.875rem] text-[oklch(0.52_0.01_260)]">Subtotal</span>
                   <span className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">
                     ${subtotal.toFixed(2)}
                   </span>
                 </div>
-                {promoApplied && discountAmount > 0 && (
-                  <>
-                    <div className="flex items-center justify-between text-[0.875rem] text-[oklch(0.35_0.14_155)] font-semibold">
-                      <span>Discount ({discountPct}%)</span>
-                      <span>−${discountAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center justify-between border-t border-[oklch(0.91_0.004_260)] pt-2">
-                      <span className="text-[0.875rem] font-bold text-[oklch(0.13_0.01_260)]">Total</span>
-                      <span className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">
-                        ${discountedTotal.toFixed(2)}
-                      </span>
-                    </div>
-                  </>
-                )}
-
-                {subtotal >= FREE_SHIPPING_THRESHOLD && (
-                  <div className="flex items-center justify-between text-[0.75rem] text-[oklch(0.35_0.12_155)] font-semibold">
-                    <span>Free Shipping</span>
-                    <span>$0.00</span>
-                  </div>
-                )}
-
                 <p className="text-[0.6875rem] text-[oklch(0.65_0.01_260)]">
-                  Taxes and final shipping calculated at checkout.
+                  Shipping &amp; any discounts applied at checkout.
                 </p>
 
-                {/* Promo code */}
-                <div>
-                  <button
-                    onClick={() => setPromoOpen(!promoOpen)}
-                    className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline"
-                  >
-                    <Tag className="w-3.5 h-3.5" />
-                    Have a promo code?
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${promoOpen ? "rotate-180" : ""}`} />
-                  </button>
-                  {promoOpen && (
-                    <div className="mt-2 flex gap-2">
-                      <input
-                        type="text"
-                        value={promoCode}
-                        onChange={(e) => { setPromoCode(e.target.value); setPromoError(false); setPromoApplied(false); setDiscountPct(0); setAffiliateId(undefined); }}
-                        placeholder="Enter code"
-                        className="flex-1 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2 text-[0.8125rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                      />
-                      <button
-                        onClick={handleApplyPromo}
-                        disabled={promoLoading}
-                        className="flex-shrink-0 px-4 py-2 rounded-lg bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors active:scale-95 disabled:opacity-60"
-                      >
-                        {promoLoading ? "…" : "Apply"}
-                      </button>
-                    </div>
-                  )}
-                  {promoApplied && (
-                    <p className="mt-1.5 text-[0.75rem] text-[oklch(0.35_0.14_155)] flex items-center gap-1">
-                      <Check className="w-3 h-3" /> Promo code applied!
-                    </p>
-                  )}
-                  {promoError && (
-                    <p className="mt-1.5 text-[0.75rem] text-red-500">
-                      Invalid or expired promo code.
-                    </p>
-                  )}
-                </div>
+                <button
+                  onClick={handleCheckout}
+                  className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem]"
+                >
+                  Proceed to Checkout <ArrowRight className="w-4 h-4" />
+                </button>
 
-                {/* Email + shipping address capture step */}
-                {checkoutStep && (
-                  <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)]">
-                        Email for order confirmation
-                      </label>
-                      <input
-                        type="email" autoComplete="email" value={email}
-                        onChange={(e) => { setEmail(e.target.value); setCheckoutError(""); }}
-                        placeholder="you@example.com"
-                        className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)]">
-                        Shipping address
-                      </label>
-                      <input
-                        type="text" autoComplete="name" value={ship.name}
-                        onChange={(e) => setShipField("name", e.target.value)} placeholder="Full name"
-                        className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                      />
-                      <AddressAutocomplete
-                        value={ship.line1}
-                        onChange={(v) => setShipField("line1", v)}
-                        onSelect={(p) => setShip((prev) => ({
-                          ...prev,
-                          line1: p.line1 || prev.line1,
-                          city: p.city || prev.city,
-                          state: p.state || prev.state,
-                          postal_code: p.postal_code || prev.postal_code,
-                          country: p.country || prev.country,
-                        }))}
-                        placeholder="Street address"
-                        className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                      />
-                      <input
-                        type="text" autoComplete="address-line2" value={ship.line2}
-                        onChange={(e) => setShipField("line2", e.target.value)} placeholder="Apt, suite, unit (optional)"
-                        className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                      />
-                      <div className="flex gap-2">
-                        <input
-                          type="text" autoComplete="address-level2" value={ship.city}
-                          onChange={(e) => setShipField("city", e.target.value)} placeholder="City"
-                          className="flex-1 min-w-0 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                        />
-                        <input
-                          type="text" autoComplete="address-level1" value={ship.state}
-                          onChange={(e) => setShipField("state", e.target.value)} placeholder="State"
-                          className="w-20 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text" autoComplete="postal-code" inputMode="numeric" value={ship.postal_code}
-                          onChange={(e) => setShipField("postal_code", e.target.value)} placeholder="ZIP code"
-                          className="w-28 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                        />
-                        <select
-                          autoComplete="country" value={ship.country}
-                          onChange={(e) => setShipField("country", e.target.value)}
-                          className="flex-1 border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] bg-white focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                        >
-                          <option value="US">United States</option>
-                          <option value="CA">Canada</option>
-                        </select>
-                      </div>
-                      <input
-                        type="tel" autoComplete="tel" value={ship.phone}
-                        onChange={(e) => setShipField("phone", e.target.value)} placeholder="Phone (for delivery, optional)"
-                        className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
-                      />
-                    </div>
-
-                    <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)]">
-                      Pay with crypto, card, or Apple Pay on the next step.
-                    </p>
-                    {checkoutError && (
-                      <p className="text-[0.75rem] text-red-500">{checkoutError}</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Checkout buttons */}
-                <div className="flex flex-col gap-2.5">
-                  {!checkoutStep ? (
-                    <button
-                      onClick={() => setCheckoutStep(true)}
-                      className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem]"
-                    >
-                      Proceed to Checkout <ArrowRight className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={async () => {
-                          if (!email.trim() || !email.includes("@")) {
-                            setCheckoutError("Please enter a valid email address.");
-                            return;
-                          }
-                          if (!ship.name.trim() || !ship.line1.trim() || !ship.city.trim() || !ship.state.trim() || !ship.postal_code.trim()) {
-                            setCheckoutError("Please fill in your full shipping address.");
-                            return;
-                          }
-                          setCheckoutLoading(true);
-                          setCheckoutError("");
-                          try {
-                            const response = await fetch("/api/create-crypto-payment", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price })),
-                                email,
-                                shipping: {
-                                  name: ship.name.trim(), line1: ship.line1.trim(), line2: ship.line2.trim(),
-                                  city: ship.city.trim(), state: ship.state.trim().toUpperCase(),
-                                  postal_code: ship.postal_code.trim(), country: ship.country, phone: ship.phone.trim(),
-                                },
-                                total: discountedTotal,
-                                discountCode: promoApplied ? promoCode : undefined,
-                                affiliateId: promoApplied ? affiliateId : undefined,
-                                discountAmount: promoApplied ? discountAmount : undefined,
-                              }),
-                            });
-                            const data = await response.json();
-                            if (!response.ok) {
-                              setCheckoutError(data.error || "Failed to create payment. Please try again.");
-                            } else {
-                              window.location.href = data.invoiceUrl;
-                            }
-                          } catch {
-                            setCheckoutError("Failed to create payment. Please try again.");
-                          } finally {
-                            setCheckoutLoading(false);
-                          }
-                        }}
-                        disabled={checkoutLoading}
-                        className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        {checkoutLoading ? "Creating Payment…" : (
-                          <>Continue to Payment <ArrowRight className="w-4 h-4" /></>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => { setCheckoutStep(false); setCheckoutError(""); }}
-                        className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] hover:underline"
-                      >
-                        ← Back
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {/* Research disclaimer */}
                 <p className="text-[0.625rem] text-center text-[oklch(0.70_0.01_260)] leading-relaxed">
                   Research use only — not for human consumption.
                 </p>
