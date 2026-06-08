@@ -15,6 +15,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { ArrowRight, CheckCircle2, Shield, FileText, ChevronDown, ChevronUp, FlaskConical, Truck, BookOpen, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { useInventory } from "@/hooks/useInventory";
 import SEO from "@/components/SEO";
 import { products } from "@/lib/products";
 
@@ -152,11 +153,14 @@ interface DoseSelectorCardProps {
 
 function DoseSelectorCard({ name, category, description, cardBg, variants, badge, detailHref, fixedLot }: DoseSelectorCardProps) {
   const { addItem } = useCart();
+  const { isAvailable } = useInventory();
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [added, setAdded] = useState(false);
   const selected = variants[selectedIdx];
+  const available = isAvailable(selected.cartCode);
 
   const handleAdd = () => {
+    if (!available) return;
     addItem({ id: selected.id, name, dose: selected.dose, price: selected.price, img: selected.img, cartCode: selected.cartCode });
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
@@ -167,10 +171,17 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
       {/* Image area */}
       <Link href={detailHref}>
         <div className="relative overflow-hidden cursor-pointer" style={{ backgroundColor: cardBg, height: "320px" }}>
-          {badge && (
+          {badge && badge !== "Out of Stock" && available && (
             <span className={`absolute top-3 left-3 z-10 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md ${badge === "Best Seller" ? "bg-[#1a3a2a] text-white" : "bg-[oklch(0.35_0.15_260)] text-white"}`}>
               {badge === "Best Seller" ? "★ " : ""}{badge}
             </span>
+          )}
+          {!available && (
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
+              <span className="bg-white/90 text-[oklch(0.13_0.01_260)] text-[0.75rem] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full">
+                Out of Stock
+              </span>
+            </div>
           )}
           <img
             src={selected.img}
@@ -216,20 +227,26 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
             >
               <FileText className="w-3.5 h-3.5" /> COA
             </a>
-            <button
-              onClick={handleAdd}
-              className={`text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
-                added
-                  ? "bg-[oklch(0.40_0.14_155)] text-white"
-                  : "btn-primary"
-              }`}
-            >
-              {added ? (
-                <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Added</span>
-              ) : (
-                "Add to Cart"
-              )}
-            </button>
+            {available ? (
+              <button
+                onClick={handleAdd}
+                className={`text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
+                  added
+                    ? "bg-[oklch(0.40_0.14_155)] text-white"
+                    : "btn-primary"
+                }`}
+              >
+                {added ? (
+                  <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Added</span>
+                ) : (
+                  "Add to Cart"
+                )}
+              </button>
+            ) : (
+              <button disabled className="text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.55_0.01_260)] cursor-not-allowed">
+                Out of Stock
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -245,9 +262,12 @@ interface StaticCardProps {
 
 function StaticCard({ p, detailHref }: StaticCardProps) {
   const { addItem } = useCart();
+  const { isAvailable } = useInventory();
   const [added, setAdded] = useState(false);
+  const available = isAvailable(p.cartCode);
 
   const handleAdd = () => {
+    if (!available) return;
     addItem({ id: p.id, name: p.name, dose: p.dose, price: p.price, img: p.img, cartCode: p.cartCode });
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
@@ -257,10 +277,17 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
     <div className="rounded-2xl overflow-hidden group shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200">
       <Link href={detailHref}>
         <div className="relative overflow-hidden cursor-pointer" style={{ backgroundColor: p.cardBg, height: "320px" }}>
-          {p.badge && (
+          {p.badge && p.badge !== "Out of Stock" && available && (
             <span className="absolute top-3 left-3 z-10 bg-[oklch(0.35_0.15_260)] text-white text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md">
               {p.badge}
             </span>
+          )}
+          {!available && (
+            <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
+              <span className="bg-white/90 text-[oklch(0.13_0.01_260)] text-[0.75rem] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full">
+                Out of Stock
+              </span>
+            </div>
           )}
           <img
             src={p.img}
@@ -286,14 +313,20 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
             >
               <FileText className="w-3.5 h-3.5" /> COA
             </a>
-            <button
-              onClick={handleAdd}
-              className={`text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
-                added ? "bg-[oklch(0.40_0.14_155)] text-white" : "btn-primary"
-              }`}
-            >
-              {added ? <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Added</span> : "Add to Cart"}
-            </button>
+            {available ? (
+              <button
+                onClick={handleAdd}
+                className={`text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
+                  added ? "bg-[oklch(0.40_0.14_155)] text-white" : "btn-primary"
+                }`}
+              >
+                {added ? <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Added</span> : "Add to Cart"}
+              </button>
+            ) : (
+              <button disabled className="text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.55_0.01_260)] cursor-not-allowed">
+                Out of Stock
+              </button>
+            )}
           </div>
         </div>
       </div>
