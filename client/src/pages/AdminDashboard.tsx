@@ -396,22 +396,6 @@ function ProductModal({
             <input value={form.coa_href} onChange={(e) => set({ coa_href: e.target.value })} className="input-sm w-full font-mono" />
           </Field>
 
-          {/* Visibility */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => set({ is_active: !form.is_active })}
-              className={`px-4 py-1.5 rounded-full text-[0.8125rem] font-semibold transition-colors ${
-                form.is_active
-                  ? "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]"
-                  : "bg-[oklch(0.93_0.003_260)] text-[oklch(0.52_0.01_260)]"
-              }`}
-            >
-              {form.is_active ? "Visible on Shop" : "Hidden from Shop"}
-            </button>
-            <span className="text-[0.75rem] text-[oklch(0.60_0.01_260)]">Click to toggle</span>
-          </div>
-
           {/* Variants */}
           <div>
             <p className="text-[0.75rem] font-bold uppercase tracking-wider text-[oklch(0.40_0.01_260)] mb-3">Variants</p>
@@ -719,9 +703,6 @@ export default function AdminDashboard() {
                       {p.badge && (
                         <span className="text-[0.625rem] uppercase tracking-wider font-bold px-2 py-0.5 bg-[oklch(0.95_0.04_260)] text-[oklch(0.35_0.15_260)] rounded-full">{p.badge}</span>
                       )}
-                      <span className={`text-[0.625rem] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${p.is_active ? "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]" : "bg-[oklch(0.93_0.003_260)] text-[oklch(0.52_0.01_260)]"}`}>
-                        {p.is_active ? "Visible" : "Hidden"}
-                      </span>
                     </div>
                     <p className="text-[0.75rem] text-[oklch(0.52_0.01_260)] mt-0.5">{p.category} · {p.variants.length} variant{p.variants.length !== 1 ? "s" : ""}</p>
                     <div className="flex flex-wrap gap-2 mt-1.5">
@@ -764,14 +745,14 @@ export default function AdminDashboard() {
               <Package className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
               <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Inventory</h2>
             </div>
-            <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-4">Edit stock and toggle visibility per cart code. Changes save automatically on blur.</p>
+            <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-4">Edit stock per cart code. Set a product to 0 to mark it out of stock (its Add to Cart button is disabled on the storefront). Changes save automatically on blur.</p>
             <div className="overflow-x-auto">
               <table className="w-full text-[0.875rem]">
                 <thead>
                   <tr className="text-left text-[0.6875rem] uppercase tracking-wider text-[oklch(0.60_0.01_260)] border-b border-[oklch(0.93_0.004_260)]">
                     <th className="py-2 pr-4">Cart Code</th>
                     <th className="py-2 pr-4">Stock</th>
-                    <th className="py-2 pr-4">Visibility</th>
+                    <th className="py-2 pr-4">Status</th>
                     <th className="py-2"></th>
                   </tr>
                 </thead>
@@ -792,16 +773,13 @@ export default function AdminDashboard() {
                         />
                       </td>
                       <td className="py-3 pr-4">
-                        <button
-                          onClick={() => updateInventory(row.cart_code, { isActive: !row.is_active })}
-                          className={`px-3 py-1 rounded-full text-[0.75rem] font-semibold ${
-                            row.is_active
-                              ? "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]"
-                              : "bg-[oklch(0.93_0.003_260)] text-[oklch(0.52_0.01_260)]"
-                          }`}
-                        >
-                          {row.is_active ? "Active" : "Hidden"}
-                        </button>
+                        <span className={`px-3 py-1 rounded-full text-[0.75rem] font-semibold ${
+                          row.stock > 0
+                            ? "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]"
+                            : "bg-[oklch(0.93_0.04_25)] text-[oklch(0.50_0.18_25)]"
+                        }`}>
+                          {row.stock > 0 ? "In stock" : "Out of stock"}
+                        </span>
                       </td>
                       <td className="py-3 text-[oklch(0.35_0.14_155)]">
                         {savedCode === row.cart_code && (
