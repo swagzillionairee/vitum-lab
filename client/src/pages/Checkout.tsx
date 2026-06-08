@@ -122,7 +122,8 @@ export default function Checkout() {
     }
   };
 
-  const inputClass = "w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent";
+  const inputBase = "border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent";
+  const inputClass = `${inputBase} w-full`;
 
   if (loading || !session) {
     return (
@@ -179,17 +180,12 @@ export default function Checkout() {
               />
               <input type="text" autoComplete="address-line2" value={ship.line2} onChange={(e) => setShipField("line2", e.target.value)} placeholder="Apt, suite, unit (optional)" className={inputClass} />
               <div className="flex gap-3">
-                <input type="text" autoComplete="address-level2" value={ship.city} onChange={(e) => setShipField("city", e.target.value)} placeholder="City" className={`${inputClass} flex-1 min-w-0`} />
-                <input type="text" autoComplete="address-level1" value={ship.state} onChange={(e) => setShipField("state", e.target.value)} placeholder="State" className={`${inputClass} w-24`} />
-              </div>
-              <div className="flex gap-3">
-                <input type="text" autoComplete="postal-code" inputMode="numeric" value={ship.postal_code} onChange={(e) => setShipField("postal_code", e.target.value)} placeholder="ZIP code" className={`${inputClass} w-32`} />
-                <select autoComplete="country" value={ship.country} onChange={(e) => setShipField("country", e.target.value)} className={`${inputClass} flex-1 bg-white`}>
-                  <option value="US">United States</option>
-                  <option value="CA">Canada</option>
-                </select>
+                <input type="text" autoComplete="address-level2" value={ship.city} onChange={(e) => setShipField("city", e.target.value)} placeholder="City" className={`${inputBase} flex-1 min-w-0`} />
+                <input type="text" autoComplete="address-level1" maxLength={2} value={ship.state} onChange={(e) => setShipField("state", e.target.value)} placeholder="State" className={`${inputBase} w-20`} />
+                <input type="text" autoComplete="postal-code" inputMode="numeric" value={ship.postal_code} onChange={(e) => setShipField("postal_code", e.target.value)} placeholder="ZIP" className={`${inputBase} w-28`} />
               </div>
               <input type="tel" autoComplete="tel" value={ship.phone} onChange={(e) => setShipField("phone", e.target.value)} placeholder="Phone (for delivery, optional)" className={inputClass} />
+              <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)]">Ships within the United States only.</p>
             </div>
           </section>
         </div>
@@ -227,7 +223,7 @@ export default function Checkout() {
               </button>
               {promoOpen && (
                 <div className="mt-2 flex gap-2">
-                  <input type="text" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(false); setPromoApplied(false); setDiscountPct(0); setAffiliateId(undefined); }} placeholder="Enter code" className={`${inputClass} flex-1 py-2`} />
+                  <input type="text" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(false); setPromoApplied(false); setDiscountPct(0); setAffiliateId(undefined); }} placeholder="Enter code" className={`${inputBase} flex-1 min-w-0 py-2`} />
                   <button onClick={handleApplyPromo} disabled={promoLoading} className="flex-shrink-0 px-4 py-2 rounded-lg bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors disabled:opacity-60">
                     {promoLoading ? "…" : "Apply"}
                   </button>
