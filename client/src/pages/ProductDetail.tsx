@@ -40,6 +40,7 @@ export default function ProductDetail() {
   const selected = product.variants[selectedIdx];
   const available = isAvailable(selected.cartCode);
   const stockMsg = stockLabel(selected.cartCode);
+  const effectivePrice = selected.salePrice ?? selected.price;
 
   const handleAdd = () => {
     if (!available) return;
@@ -47,7 +48,7 @@ export default function ProductDetail() {
       id: selected.id,
       name: product.name,
       dose: selected.dose,
-      price: selected.price,
+      price: effectivePrice,
       img: selected.img,
       cartCode: selected.cartCode,
     });
@@ -147,7 +148,14 @@ export default function ProductDetail() {
 
             {/* Price + Add to Cart */}
             <div className="flex items-center gap-5 mb-2">
-              <span className="text-[2rem] font-bold text-[oklch(0.13_0.01_260)]">${selected.price}</span>
+              {selected.salePrice != null ? (
+                <span className="flex items-baseline gap-2">
+                  <span className="text-[2rem] font-bold text-[oklch(0.50_0.18_25)]">${selected.salePrice}</span>
+                  <span className="text-[1.125rem] line-through text-[oklch(0.60_0.01_260)]">${selected.price}</span>
+                </span>
+              ) : (
+                <span className="text-[2rem] font-bold text-[oklch(0.13_0.01_260)]">${selected.price}</span>
+              )}
               {available ? (
                 <button
                   onClick={handleAdd}
