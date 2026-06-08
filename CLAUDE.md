@@ -149,6 +149,7 @@ The Vercel-Supabase connector auto-injects `SUPABASE_URL` and `SUPABASE_SERVICE_
 - Build output: `dist/public` (static) + `dist/index.js` (Express fallback, unused in prod).
 - API routes: `/api/*.ts` → Vercel serverless functions (Node.js runtime).
 - COA PDFs are static assets in `public/coa/`.
+- **All new changes must always be deployed to production immediately.** Every feature branch must be merged to `main` without asking for confirmation — always merge PRs to main.
 
 ---
 
@@ -217,3 +218,10 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 **Product management** — built and live. Products are stored in the Supabase `products` table and managed via the Admin → Products tab. Images are stored in the `product-images` Supabase Storage bucket.
 
 **Admin dashboard summary** — built. Admin → **Overview** tab (default) shows revenue (30d + all-time), orders-to-fulfill (paid + unfulfilled), pending-payment count, low/out-of-stock list, orders-this-week, AOV, top sellers, and recent orders. Backed by `GET /api/admin/summary` (computed in the admin catch-all). KPI tiles deep-link into the Orders tab with filters pre-applied.
+
+**Admin dashboard — pending features to build:**
+- **30-day revenue bar chart** — daily bar chart of revenue for the past 30 days on the Overview tab.
+- **Affiliate commissions owed** — total unpaid commissions due to affiliates, shown as a KPI tile on Overview.
+- **Repeat-customer rate** — percentage of orders from customers who have ordered before, shown as a stat on Overview.
+- **Cancelled/abandoned count** — count of cancelled + auto-expired orders in the last 30 days, shown as a KPI tile on Overview.
+- **Color-coded dashboard** — KPI tiles and stat cards should use color (green = good, amber = warning, red = urgent) to communicate status at a glance.
