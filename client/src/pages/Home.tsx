@@ -16,6 +16,7 @@ import { Link } from "wouter";
 import { ArrowRight, CheckCircle2, Shield, FileText, ChevronDown, ChevronUp, FlaskConical, Truck, BookOpen, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useInventory } from "@/hooks/useInventory";
+import { useProducts } from "@/hooks/useProducts";
 import SEO from "@/components/SEO";
 import { products } from "@/lib/products";
 
@@ -145,7 +146,7 @@ interface DoseSelectorCardProps {
   category: string;
   description: string;
   cardBg: string;
-  variants: { dose: string; lot: string; price: number; img: string; cartCode: string; id: string }[];
+  variants: { dose: string; lot: string; price: number; salePrice?: number; img: string; cartCode: string; id: string }[];
   badge?: string;
   detailHref: string;
   fixedLot?: string;
@@ -158,10 +159,11 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
   const [added, setAdded] = useState(false);
   const selected = variants[selectedIdx];
   const available = isAvailable(selected.cartCode);
+  const effectivePrice = selected.salePrice ?? selected.price;
 
   const handleAdd = () => {
     if (!available) return;
-    addItem({ id: selected.id, name, dose: selected.dose, price: selected.price, img: selected.img, cartCode: selected.cartCode });
+    addItem({ id: selected.id, name, dose: selected.dose, price: effectivePrice, img: selected.img, cartCode: selected.cartCode });
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };
@@ -219,7 +221,14 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
         <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{description}</p>
 
         <div className="flex items-center justify-between">
-          <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${selected.price}</span>
+          {selected.salePrice != null ? (
+            <div className="flex items-baseline gap-2">
+              <span className="text-[1.25rem] font-bold text-[oklch(0.50_0.18_25)]">${selected.salePrice}</span>
+              <span className="text-[0.875rem] line-through text-[oklch(0.60_0.01_260)]">${selected.price}</span>
+            </div>
+          ) : (
+            <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${selected.price}</span>
+          )}
           <div className="flex items-center gap-2">
             <a
               href={`/coa-library#${selected.cartCode}`}
@@ -256,7 +265,10 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
 
 // ─── Static product card ──────────────────────────────────────────────────────
 interface StaticCardProps {
-  p: typeof staticProducts[0];
+  p: {
+    id: string; name: string; dose: string; lot: string; price: number; salePrice?: number;
+    category: string; description: string; img: string; cardBg: string; cartCode: string; badge: string | null;
+  };
   detailHref: string;
 }
 
@@ -265,10 +277,11 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
   const { isAvailable } = useInventory();
   const [added, setAdded] = useState(false);
   const available = isAvailable(p.cartCode);
+  const effectivePrice = p.salePrice ?? p.price;
 
   const handleAdd = () => {
     if (!available) return;
-    addItem({ id: p.id, name: p.name, dose: p.dose, price: p.price, img: p.img, cartCode: p.cartCode });
+    addItem({ id: p.id, name: p.name, dose: p.dose, price: effectivePrice, img: p.img, cartCode: p.cartCode });
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };
@@ -305,7 +318,14 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
         <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-3">LOT: {p.lot}</p>
         <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{p.description}</p>
         <div className="flex items-center justify-between">
-          <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${p.price}</span>
+          {p.salePrice != null ? (
+            <div className="flex items-baseline gap-2">
+              <span className="text-[1.25rem] font-bold text-[oklch(0.50_0.18_25)]">${p.salePrice}</span>
+              <span className="text-[0.875rem] line-through text-[oklch(0.60_0.01_260)]">${p.price}</span>
+            </div>
+          ) : (
+            <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${p.price}</span>
+          )}
           <div className="flex items-center gap-2">
             <a
               href={`/coa-library#${p.cartCode}`}
@@ -345,6 +365,32 @@ export default function Home() {
   const featuresRef = useReveal();
   const qualityRef = useReveal();
   const faqRef = useReveal();
+
+  // Live product/pricing data from the DB (falls back to static catalog).
+  const { products: liveProducts } = useProducts();
+  const liveBySlug = (slug: string) => liveProducts.find((p) => p.slug === slug);
+  const liveVariants = (slug: string) =>
+    (liveBySlug(slug)?.variants ?? []).map((v) => ({
+      dose: v.dose, lot: v.lot, price: v.price, salePrice: v.salePrice, img: v.img, cartCode: v.cartCode, id: v.id,
+    }));
+  const liveStaticCards = ["nad", "bacwater"].map((slug) => {
+    const p = liveBySlug(slug);
+    const v = p?.variants[0];
+    return {
+      id: slug,
+      name: p?.name ?? "",
+      dose: v?.dose ?? "",
+      lot: v?.lot ?? "",
+      price: v?.price ?? 0,
+      salePrice: v?.salePrice,
+      category: p?.category ?? "",
+      description: p?.description ?? "",
+      img: v?.img ?? "",
+      cardBg: p?.cardBg ?? "#f5f5f5",
+      cartCode: v?.cartCode ?? "",
+      badge: (p?.badge as string | undefined) ?? null,
+    };
+  }).filter((c) => c.cartCode);
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -474,7 +520,7 @@ export default function Home() {
               category="Metabolic Research"
               description="GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models."
               cardBg="#f5e8e8"
-              variants={retatrutideVariants}
+              variants={liveVariants("retatrutide")}
               badge="Best Seller"
               detailHref="/shop/retatrutide"
               fixedLot="A003"
@@ -485,11 +531,11 @@ export default function Home() {
               category="Cosmetic / Tissue Research"
               description="Glycyl-L-histidyl-L-lysine copper(II) complex studied for tissue remodeling and extracellular matrix research."
               cardBg="#e0f0ec"
-              variants={ghkcuVariants}
+              variants={liveVariants("ghkcu")}
               detailHref="/shop/ghkcu"
             />
             {/* NAD+ and BAC Water — static cards */}
-            {staticProducts.map((p) => (
+            {liveStaticCards.map((p) => (
               <StaticCard key={p.id} p={p} detailHref={`/shop/${p.id}`} />
             ))}
           </div>

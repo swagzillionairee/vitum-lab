@@ -63,7 +63,7 @@ function ProductCard({ p }: { p: FlatProduct }) {
 
   const handleAdd = () => {
     if (!available) return;
-    addItem({ id: p.id, name: p.name, dose: p.dose, price: p.price, img: p.img, cartCode: p.cartCode });
+    addItem({ id: p.id, name: p.name, dose: p.dose, price: p.salePrice ?? p.price, img: p.img, cartCode: p.cartCode });
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };

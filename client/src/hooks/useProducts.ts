@@ -16,18 +16,24 @@ function dbRowToProduct(row: Record<string, unknown>): Product {
     longDescription: row.long_description as string,
     cardBg: row.card_bg as string,
     badge: (row.badge as string | null) ?? undefined,
-    variants: variants.map((v) => ({
-      id: v.id as string,
-      dose: v.dose as string,
-      lot: v.lot as string,
-      price: (v.sale_price != null && v.sale_ends_at != null && new Date(v.sale_ends_at as string) > new Date()
-        ? v.sale_price
-        : v.price) as number,
-      salePrice: v.sale_price as number | undefined,
-      saleEndsAt: v.sale_ends_at as string | undefined,
-      img: v.image_url as string,
-      cartCode: v.cart_code as string,
-    })),
+    variants: variants.map((v) => {
+      const basePrice = v.price as number;
+      const rawSale = (v.sale_price ?? null) as number | null;
+      const endsAt = (v.sale_ends_at ?? null) as string | null;
+      // On sale when a lower sale price is set and the sale hasn't expired.
+      // A missing end date means the sale is ongoing.
+      const onSale = rawSale != null && rawSale < basePrice && (endsAt == null || new Date(endsAt) > new Date());
+      return {
+        id: v.id as string,
+        dose: v.dose as string,
+        lot: v.lot as string,
+        price: basePrice,
+        salePrice: onSale ? rawSale : undefined,
+        saleEndsAt: endsAt ?? undefined,
+        img: v.image_url as string,
+        cartCode: v.cart_code as string,
+      };
+    }),
     specs: (row.specs as { label: string; value: string }[]) ?? [],
     storageInstructions: row.storage_instructions as string,
     reconstitutionNote: (row.reconstitution_note as string | null) ?? undefined,
