@@ -5,11 +5,13 @@ import SEO from "@/components/SEO";
 
 export default function OrderSuccess() {
   const [orderId, setOrderId] = useState("");
+  const [isFree, setIsFree] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setOrderId(params.get("order") ?? "");
+    setIsFree(params.get("free") === "1");
   }, []);
 
   const handleCopy = () => {
@@ -27,9 +29,11 @@ export default function OrderSuccess() {
             <CheckCircle2 className="w-8 h-8 text-[oklch(0.45_0.14_155)]" />
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-[oklch(0.13_0.01_260)] mb-2">Payment Received</h1>
+        <h1 className="text-2xl font-bold text-[oklch(0.13_0.01_260)] mb-2">{isFree ? "Order Confirmed" : "Payment Received"}</h1>
         <p className="text-[oklch(0.45_0.01_260)] text-[0.9375rem] leading-relaxed mb-6">
-          Your crypto payment is being confirmed on the blockchain. This typically takes a few minutes depending on the network and coin selected.
+          {isFree
+            ? "Your order is confirmed and is being prepared for shipment. A confirmation email is on its way."
+            : "Your crypto payment is being confirmed on the blockchain. This typically takes a few minutes depending on the network and coin selected."}
         </p>
 
         {orderId && (
@@ -46,7 +50,9 @@ export default function OrderSuccess() {
         )}
 
         <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-8">
-          Once payment is fully confirmed, you will receive an email confirmation. If you have any questions contact{" "}
+          {isFree
+            ? "A confirmation email has been sent. If you have any questions contact "
+            : "Once payment is fully confirmed, you will receive an email confirmation. If you have any questions contact "}
           <a href="mailto:hello@vitumlab.com" className="text-[oklch(0.40_0.16_260)] hover:underline font-semibold">hello@vitumlab.com</a>.
         </p>
 
