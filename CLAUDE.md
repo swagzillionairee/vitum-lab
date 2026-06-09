@@ -49,7 +49,8 @@ api/                Vercel serverless functions — ALL relative imports MUST us
   products.ts                GET  /api/products → product list (public)
   cron.ts                    GET/POST /api/cron — hourly maintenance (expire stale orders + email sweep), CRON_SECRET-protected
   admin/[...slug].ts         Catch-all for /api/admin/* (summary, inventory, orders GET + PATCH actions, products CRUD, upload,
-                             affiliates GET/POST/PATCH, payouts POST/DELETE, promos CRUD)
+                             affiliates GET/POST/PATCH, payouts POST/DELETE, promos CRUD,
+                             users GET → Supabase Auth list for the Customers tab)
                              Order actions (PATCH /api/admin/orders): cancel (restocks paid orders + email),
                              ship (tracking+carrier + email), deliver (+email), recheck (reconciles vs NowPayments + emails),
                              notes, resend_email {event}
