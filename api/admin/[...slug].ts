@@ -12,6 +12,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pathname = (req.url ?? "").split("?")[0];
   const route = pathname.replace(/^\/api\/admin\/?/, "").split("/")[0];
 
+  // ── /api/admin/users — everyone who has signed in (Supabase Auth) ──────────
+  if (route === "users") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    const page = Math.max(1, parseInt((req.query?.page as string) || "1", 10));
+    const perPage = 100;
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+    if (error) return res.status(500).json({ error: "Failed to fetch users" });
+
+    const users = (data.users ?? []).map((u) => ({
+      id: u.id,
+      email: u.email ?? null,
+      created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at ?? null,
+      provider: (u.app_metadata?.provider as string) ?? null,
+    }));
+    return res.json({
+      users,
+      page,
+      perPage,
+      total: (data as { total?: number }).total ?? null,
+      hasMore: users.length === perPage,
+    });
+  }
+
   // ── /api/admin/summary ────────────────────────────────────────────────────
   if (route === "summary") {
     if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });

@@ -111,7 +111,7 @@ export default function AffiliateDashboard() {
               <LineChart data={stats?.series ?? []} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.93 0.004 260)" />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d) => d.slice(5)} interval={4} />
-                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} domain={[0, (dataMax: number) => Math.max(4, dataMax)]} />
                 <Tooltip />
                 <Line type="monotone" dataKey="count" stroke="oklch(0.35 0.15 260)" strokeWidth={2} dot={false} />
               </LineChart>
