@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireAdmin } from "../_lib/requireAdmin.js";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
+import { sendOrderEvent, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
 
 // Handles all /api/admin/* routes: inventory, orders, products, upload
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -53,15 +54,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let rows: SummaryOrder[];
     let inventory: { cart_code: string; stock: number }[] | null;
     let affiliates: { id: string; code: string | null; name: string | null }[] | null;
+    let payouts: { affiliate_id: string; amount: number | string }[] | null;
     try {
-      const [orderRows, invRes, affRes] = await Promise.all([
+      const [orderRows, invRes, affRes, payRes] = await Promise.all([
         fetchAllOrders(),
         supabaseAdmin.from("inventory").select("cart_code, stock"),
         supabaseAdmin.from("affiliates").select("id, code, name"),
+        supabaseAdmin.from("affiliate_payouts").select("affiliate_id, amount"),
       ]);
       rows = orderRows;
       inventory = invRes.data;
       affiliates = affRes.data;
+      payouts = payRes.data;
     } catch {
       return res.status(500).json({ error: "Failed to load summary data" });
     }
@@ -123,33 +127,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     dayKeys.reverse();
     const dailyRevenue = dayKeys.map((d) => ({ date: d, revenue: Math.round((revByDay[d] ?? 0) * 100) / 100 }));
 
-    // ── Affiliate commissions owed (total + per affiliate), from paid orders ─────
+    // ── Affiliate commissions owed = earned (paid orders) − recorded payouts ─────
     const affList = (affiliates ?? []) as { id: string; code: string | null; name: string | null }[];
     const affById = new Map(affList.map((a) => [a.id, a]));
     const commTally: Record<string, { amount: number; orders: number }> = {};
-    let commissionsOwed = 0;
     for (const o of paid) {
       const aid = o.affiliate_id;
       const c = num(o.commission_amount);
       if (!aid || c <= 0) continue;
-      commissionsOwed += c;
       if (!commTally[aid]) commTally[aid] = { amount: 0, orders: 0 };
       commTally[aid].amount += c;
       commTally[aid].orders += 1;
     }
-    commissionsOwed = Math.round(commissionsOwed * 100) / 100;
-    const commissionsByAffiliate = Object.entries(commTally)
-      .map(([id, v]) => {
+    const paidOutTally: Record<string, number> = {};
+    for (const p of payouts ?? []) {
+      paidOutTally[p.affiliate_id] = (paidOutTally[p.affiliate_id] ?? 0) + num(p.amount);
+    }
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const commissionsByAffiliate = [...new Set([...Object.keys(commTally), ...Object.keys(paidOutTally)])]
+      .map((id) => {
         const a = affById.get(id);
+        const earned = commTally[id]?.amount ?? 0;
+        const paidOut = paidOutTally[id] ?? 0;
         return {
           id,
           name: a?.name || a?.code || "Unknown affiliate",
           code: a?.code || "",
-          amount: Math.round(v.amount * 100) / 100,
-          orders: v.orders,
+          amount: round2(earned),
+          paid: round2(paidOut),
+          owed: round2(earned - paidOut),
+          orders: commTally[id]?.orders ?? 0,
         };
       })
-      .sort((a, b) => b.amount - a.amount);
+      .sort((a, b) => b.owed - a.owed);
+    const commissionsOwed = round2(commissionsByAffiliate.reduce((s, a) => s + Math.max(0, a.owed), 0));
 
     // ── Repeat-customer rate (share of paid orders from a returning email) ───────
     const paidAsc = [...paid].sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -218,7 +229,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── /api/admin/orders ────────────────────────────────────────────────────
   if (route === "orders") {
     const orderSelect =
-      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at";
+      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
+
+    // Sends an order email and reloads emails_sent so the response reflects the
+    // new stamp. Email failures never fail the admin action.
+    const emailAndRefresh = async <T extends { id: string; emails_sent?: Record<string, string> | null }>(
+      order: T,
+      event: OrderEmailEvent,
+      opts?: { force?: boolean; wasPending?: boolean },
+    ): Promise<T> => {
+      try {
+        await sendOrderEvent(order as unknown as EmailOrder, event, opts);
+        const { data } = await supabaseAdmin.from("orders").select("emails_sent").eq("id", order.id).maybeSingle();
+        if (data) order.emails_sent = data.emails_sent;
+      } catch (err) {
+        console.error(`admin: ${event} email failed for ${order.id}:`, err);
+      }
+      return order;
+    };
 
     if (req.method === "GET") {
       const page = Math.max(1, parseInt((req.query?.page as string) || "1", 10));
@@ -246,18 +274,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "PATCH") {
       const body = req.body as {
         id?: string;
-        action?: "cancel" | "ship" | "deliver" | "recheck" | "notes";
+        action?: "cancel" | "ship" | "deliver" | "recheck" | "notes" | "resend_email";
         reason?: string;
         tracking_number?: string;
         carrier?: string;
         admin_notes?: string;
+        event?: string;
       };
       const { id, action } = body;
       if (!id || !action) return res.status(400).json({ error: "id and action are required" });
 
       const { data: order, error: fetchErr } = await supabaseAdmin
         .from("orders")
-        .select("id, items, status, fulfillment_status")
+        .select(orderSelect)
         .eq("id", id)
         .maybeSingle();
       if (fetchErr || !order) return res.status(404).json({ error: "Order not found" });
@@ -270,6 +299,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (action === "cancel") {
         if (order.status === "cancelled") return res.status(409).json({ error: "Order is already cancelled" });
+        const wasPending = order.status === "pending";
         // Restock only if the order was paid (stock was decremented on confirm).
         if (PAID.includes(order.status)) {
           for (const item of paidItems) {
@@ -283,7 +313,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .select(orderSelect)
           .single();
         if (error) return res.status(500).json({ error: "Failed to cancel order" });
-        return res.json(data);
+        return res.json(await emailAndRefresh(data, "cancelled", { wasPending }));
       }
 
       if (action === "ship") {
@@ -300,7 +330,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .select(orderSelect)
           .single();
         if (error) return res.status(500).json({ error: "Failed to mark shipped" });
-        return res.json(data);
+        return res.json(await emailAndRefresh(data, "shipped"));
       }
 
       if (action === "deliver") {
@@ -311,7 +341,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .select(orderSelect)
           .single();
         if (error) return res.status(500).json({ error: "Failed to mark delivered" });
-        return res.json(data);
+        return res.json(await emailAndRefresh(data, "delivered"));
+      }
+
+      if (action === "resend_email") {
+        const allowed: OrderEmailEvent[] = ["order_created", "confirmed", "shipped", "delivered", "cancelled", "failed", "admin_new_order"];
+        const event = body.event as OrderEmailEvent;
+        if (!allowed.includes(event)) return res.status(400).json({ error: "Unknown email event" });
+        const refreshed = await emailAndRefresh({ ...order }, event, { force: true });
+        return res.json(refreshed);
       }
 
       if (action === "notes") {
@@ -364,12 +402,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .select(orderSelect)
             .single();
           if (error) return res.status(500).json({ error: "Failed to update order" });
+          if (data.discount_code) {
+            await supabaseAdmin.rpc("increment_promo_use", { p_code: data.discount_code }).then(() => {}, () => {});
+          }
+          await emailAndRefresh(data, "confirmed");
+          await emailAndRefresh(data, "admin_new_order");
           return res.json({ ...data, recheck: "confirmed" });
         }
 
         if (isFailed && order.status === "pending") {
           const { data } = await supabaseAdmin
             .from("orders").update({ status: "failed" }).eq("id", id).select(orderSelect).single();
+          if (data) await emailAndRefresh(data, "failed");
           return res.json({ ...data, recheck: "failed" });
         }
 
@@ -377,6 +421,163 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       return res.status(400).json({ error: "Unknown action" });
+    }
+
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── /api/admin/affiliates ────────────────────────────────────────────────
+  if (route === "affiliates") {
+    if (req.method === "GET") {
+      const [{ data: affs, error }, { data: payouts }] = await Promise.all([
+        supabaseAdmin.from("affiliates").select("id, email, code, name, discount_percent, commission_percent, created_at").order("created_at"),
+        supabaseAdmin.from("affiliate_payouts").select("id, affiliate_id, amount, note, created_at").order("created_at", { ascending: false }),
+      ]);
+      if (error) return res.status(500).json({ error: "Failed to fetch affiliates" });
+
+      // Earned = commission on paid orders, paged past the 1000-row cap.
+      const earnedTally: Record<string, { earned: number; orders: number }> = {};
+      for (let from = 0; ; from += 1000) {
+        const { data: batch } = await supabaseAdmin
+          .from("orders")
+          .select("affiliate_id, commission_amount")
+          .in("status", ["confirmed", "finished"])
+          .not("affiliate_id", "is", null)
+          .range(from, from + 999);
+        for (const o of batch ?? []) {
+          const aid = o.affiliate_id as string;
+          if (!earnedTally[aid]) earnedTally[aid] = { earned: 0, orders: 0 };
+          earnedTally[aid].earned += Number(o.commission_amount) || 0;
+          earnedTally[aid].orders += 1;
+        }
+        if (!batch || batch.length < 1000) break;
+      }
+
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const result = (affs ?? []).map((a) => {
+        const rows = (payouts ?? []).filter((p) => p.affiliate_id === a.id);
+        const paidOut = rows.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const earned = earnedTally[a.id]?.earned ?? 0;
+        return {
+          ...a,
+          orders: earnedTally[a.id]?.orders ?? 0,
+          earned: round2(earned),
+          paid: round2(paidOut),
+          owed: round2(earned - paidOut),
+          payouts: rows,
+        };
+      });
+      return res.json(result);
+    }
+
+    if (req.method === "POST") {
+      const { email, code, name, discount_percent, commission_percent } = req.body ?? {};
+      if (!email || !code) return res.status(400).json({ error: "email and code are required" });
+      const { data, error } = await supabaseAdmin
+        .from("affiliates")
+        .insert({
+          email: String(email).toLowerCase().trim(),
+          code: String(code).toUpperCase().trim(),
+          name: name || null,
+          discount_percent: Number(discount_percent) || 0,
+          commission_percent: Number(commission_percent) || 0,
+        })
+        .select()
+        .single();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json(data);
+    }
+
+    if (req.method === "PATCH") {
+      const { id, ...patch } = req.body ?? {};
+      if (!id) return res.status(400).json({ error: "id required" });
+      const allowed: Record<string, unknown> = {};
+      for (const k of ["name", "code", "email", "discount_percent", "commission_percent"]) {
+        if (patch[k] !== undefined) allowed[k] = k === "code" ? String(patch[k]).toUpperCase().trim() : patch[k];
+      }
+      const { data, error } = await supabaseAdmin.from("affiliates").update(allowed).eq("id", id).select().single();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json(data);
+    }
+
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── /api/admin/payouts ───────────────────────────────────────────────────
+  if (route === "payouts") {
+    if (req.method === "POST") {
+      const { affiliateId, amount, note } = req.body ?? {};
+      const amt = Number(amount);
+      if (!affiliateId || !(amt > 0)) return res.status(400).json({ error: "affiliateId and a positive amount are required" });
+      const { data, error } = await supabaseAdmin
+        .from("affiliate_payouts")
+        .insert({ affiliate_id: affiliateId, amount: amt, note: note || null })
+        .select()
+        .single();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json(data);
+    }
+
+    if (req.method === "DELETE") {
+      const { id } = req.body ?? {};
+      if (!id) return res.status(400).json({ error: "id required" });
+      const { error } = await supabaseAdmin.from("affiliate_payouts").delete().eq("id", id);
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json({ ok: true });
+    }
+
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── /api/admin/promos ────────────────────────────────────────────────────
+  if (route === "promos") {
+    if (req.method === "GET") {
+      const { data, error } = await supabaseAdmin
+        .from("promo_codes")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) return res.status(500).json({ error: "Failed to fetch promo codes" });
+      return res.json(data);
+    }
+
+    if (req.method === "POST") {
+      const { code, percent_off, min_subtotal, max_uses, expires_at, is_active } = req.body ?? {};
+      const pct = Number(percent_off);
+      if (!code || !(pct >= 1 && pct <= 100)) return res.status(400).json({ error: "code and percent_off (1-100) are required" });
+      const { data, error } = await supabaseAdmin
+        .from("promo_codes")
+        .insert({
+          code: String(code).toUpperCase().trim(),
+          percent_off: pct,
+          min_subtotal: Number(min_subtotal) || 0,
+          max_uses: max_uses != null && max_uses !== "" ? Number(max_uses) : null,
+          expires_at: expires_at || null,
+          is_active: is_active ?? true,
+        })
+        .select()
+        .single();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json(data);
+    }
+
+    if (req.method === "PATCH") {
+      const { id, ...patch } = req.body ?? {};
+      if (!id) return res.status(400).json({ error: "id required" });
+      const allowed: Record<string, unknown> = {};
+      for (const k of ["code", "percent_off", "min_subtotal", "max_uses", "expires_at", "is_active"]) {
+        if (patch[k] !== undefined) allowed[k] = k === "code" ? String(patch[k]).toUpperCase().trim() : patch[k];
+      }
+      const { data, error } = await supabaseAdmin.from("promo_codes").update(allowed).eq("id", id).select().single();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json(data);
+    }
+
+    if (req.method === "DELETE") {
+      const { id } = req.body ?? {};
+      if (!id) return res.status(400).json({ error: "id required" });
+      const { error } = await supabaseAdmin.from("promo_codes").delete().eq("id", id);
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json({ ok: true });
     }
 
     return res.status(405).json({ error: "Method not allowed" });

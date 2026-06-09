@@ -1,38 +1,63 @@
 /*
  * Account.tsx — Vitum Lab customer account (/account)
- * Order history + shipping status for the logged-in customer.
- * Orders are matched by the account email, so past orders appear too.
+ * Order history with a status timeline (Placed → Paid → Shipped → Delivered,
+ * incl. tracking link), and one-click reorder. Orders are matched by the
+ * account email, so past orders appear too.
  */
 
 import { useEffect, useState, useCallback } from "react";
 import { useLocation, Link } from "wouter";
-import { Package, LogOut, Loader2, HelpCircle } from "lucide-react";
+import { Package, LogOut, Loader2, HelpCircle, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCart } from "@/contexts/CartContext";
+import { useProducts } from "@/hooks/useProducts";
+import { useInventory } from "@/hooks/useInventory";
 import { authedFetch } from "@/lib/api";
+import OrderTimeline from "@/components/OrderTimeline";
 import SEO from "@/components/SEO";
 
-interface OrderItem { name: string; dose: string; quantity: number }
+interface OrderItem { name: string; dose: string; quantity: number; cartCode: string; price: number }
 interface Order {
   id: string;
   items: OrderItem[];
   net_amount: number;
   status: string;
+  fulfillment_status: string | null;
+  tracking_number: string | null;
+  carrier: string | null;
   created_at: string;
   confirmed_at: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Awaiting Payment",
   confirmed: "Confirmed — Preparing Shipment",
-  finished: "Shipped",
+  finished: "Confirmed — Preparing Shipment",
   failed: "Payment Failed",
+  cancelled: "Cancelled",
 };
+
+function statusLabel(o: Order): string {
+  if (o.status === "confirmed" || o.status === "finished") {
+    if (o.fulfillment_status === "delivered") return "Delivered";
+    if (o.fulfillment_status === "shipped") return "Shipped";
+  }
+  return STATUS_LABEL[o.status] ?? o.status;
+}
 
 export default function Account() {
   const { session, loading, user, signOut } = useAuth();
   const [, navigate] = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [fetching, setFetching] = useState(true);
+  const { products } = useProducts();
+  const { isAvailable } = useInventory();
+  const { addItem, closeCart } = useCart();
 
   useEffect(() => {
     if (!loading && !session) navigate("/login");
@@ -47,6 +72,39 @@ export default function Account() {
   useEffect(() => {
     if (session) load();
   }, [session, load]);
+
+  // Re-add a past order's items to the cart at CURRENT prices/availability.
+  const reorder = (o: Order) => {
+    const skipped: string[] = [];
+    let added = 0;
+    for (const it of o.items ?? []) {
+      if (it.cartCode === "bac-water-free") continue; // free gift re-applies automatically
+      let found: { id: string; name: string; dose: string; price: number; img: string; cartCode: string } | null = null;
+      for (const p of products) {
+        const v = p.variants.find((vv) => vv.cartCode === it.cartCode);
+        if (v) {
+          found = { id: v.id, name: p.name, dose: v.dose, price: v.salePrice ?? v.price, img: v.img, cartCode: v.cartCode };
+          break;
+        }
+      }
+      if (!found || !isAvailable(it.cartCode)) {
+        skipped.push(`${it.name} ${it.dose}`);
+        continue;
+      }
+      for (let k = 0; k < it.quantity; k++) addItem(found);
+      added += it.quantity;
+    }
+    closeCart();
+    if (skipped.length > 0) {
+      toast.warning(`No longer available: ${skipped.join(", ")}`);
+    }
+    if (added > 0) {
+      toast.success("Items added to your cart at current prices.");
+      navigate("/checkout");
+    } else if (skipped.length > 0) {
+      toast.error("None of those items are currently available.");
+    }
+  };
 
   if (loading) {
     return (
@@ -87,7 +145,7 @@ export default function Account() {
           <div className="space-y-4">
             {orders.map((o) => (
               <div key={o.id} className="bg-white rounded-2xl p-5 shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)]">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="font-mono text-[0.75rem] text-[oklch(0.52_0.01_260)]">#{o.id.slice(0, 10)}</p>
                     <p className="text-[0.75rem] text-[oklch(0.60_0.01_260)]">{new Date(o.created_at).toLocaleDateString()}</p>
@@ -97,19 +155,34 @@ export default function Account() {
                       ? "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]"
                       : o.status === "failed"
                       ? "bg-[oklch(0.93_0.04_25)] text-[oklch(0.50_0.18_25)]"
+                      : o.status === "cancelled"
+                      ? "bg-[oklch(0.92_0.005_260)] text-[oklch(0.45_0.01_260)]"
                       : "bg-[oklch(0.95_0.04_85)] text-[oklch(0.50_0.12_85)]"
                   }`}>
-                    {STATUS_LABEL[o.status] ?? o.status}
+                    {statusLabel(o)}
                   </span>
                 </div>
+
+                {/* Status timeline */}
+                <div className="mb-4 bg-[oklch(0.98_0.002_260)] rounded-xl px-4 py-3">
+                  <OrderTimeline order={o} />
+                </div>
+
                 <ul className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] space-y-0.5 mb-3">
                   {(o.items ?? []).map((it, i) => (
                     <li key={i}>{it.name} {it.dose} × {it.quantity}</li>
                   ))}
                 </ul>
-                <div className="flex justify-between border-t border-[oklch(0.95_0.003_260)] pt-3">
-                  <span className="text-[0.8125rem] text-[oklch(0.52_0.01_260)]">Total</span>
-                  <span className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)]">${Number(o.net_amount).toFixed(2)}</span>
+                <div className="flex items-center justify-between border-t border-[oklch(0.95_0.003_260)] pt-3">
+                  <span className="text-[0.8125rem] text-[oklch(0.52_0.01_260)]">
+                    Total <span className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)] ml-1">${Number(o.net_amount).toFixed(2)}</span>
+                  </span>
+                  <button
+                    onClick={() => reorder(o)}
+                    className="flex items-center gap-1.5 text-[0.75rem] font-semibold text-[oklch(0.35_0.15_260)] border border-[oklch(0.35_0.15_260)] px-3 py-1.5 rounded-lg hover:bg-[oklch(0.96_0.008_260)]"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" /> Reorder
+                  </button>
                 </div>
               </div>
             ))}

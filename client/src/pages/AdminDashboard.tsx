@@ -13,12 +13,13 @@ import {
   Pencil, Trash2, X, Upload, ShoppingBag, ImageOff,
   Truck, RefreshCw, Ban, CheckCircle2, ChevronDown,
   LayoutDashboard, DollarSign, Clock, AlertTriangle, TrendingUp,
-  Wallet, Repeat, XCircle, BarChart3, Users,
+  Wallet, Repeat, XCircle, BarChart3, Users, Mail, Tag,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
 import { invalidateProductsCache } from "@/hooks/useProducts";
+import OrderTimeline from "@/components/OrderTimeline";
 import SEO from "@/components/SEO";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,7 +61,38 @@ interface OrderRow {
   pay_currency?: string | null;
   pay_amount?: number | null;
   confirmed_at?: string | null;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
+  cancelled_at?: string | null;
   shipping_address?: ShippingAddress | null;
+  emails_sent?: Record<string, string> | null;
+}
+
+interface AffiliatePayout { id: string; affiliate_id: string; amount: number; note: string | null; created_at: string }
+interface AffiliateRow {
+  id: string;
+  email: string;
+  code: string;
+  name: string | null;
+  discount_percent: number;
+  commission_percent: number;
+  orders: number;
+  earned: number;
+  paid: number;
+  owed: number;
+  payouts: AffiliatePayout[];
+}
+
+interface PromoRow {
+  id: string;
+  code: string;
+  percent_off: number;
+  min_subtotal: number;
+  max_uses: number | null;
+  used_count: number;
+  expires_at: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
 interface Variant {
@@ -541,7 +573,7 @@ interface Summary {
   recentOrders: { status: string; fulfillment_status: string | null; net_amount: number; created_at: string }[];
   dailyRevenue: { date: string; revenue: number }[];
   commissionsOwed: number;
-  commissionsByAffiliate: { id: string; name: string; code: string; amount: number; orders: number }[];
+  commissionsByAffiliate: { id: string; name: string; code: string; amount: number; paid: number; owed: number; orders: number }[];
   repeatCustomerRate: number;
   repeatCustomers: number;
   totalCustomers: number;
@@ -554,7 +586,7 @@ export default function AdminDashboard() {
   const { session, loading, signOut } = useAuth();
   const [, navigate] = useLocation();
   const [authorized, setAuthorized] = useState<boolean | null>(null);
-  const [tab, setTab] = useState<"overview" | "products" | "inventory" | "orders">("overview");
+  const [tab, setTab] = useState<"overview" | "products" | "inventory" | "orders" | "affiliates" | "promos">("overview");
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Products
@@ -674,7 +706,7 @@ export default function AdminDashboard() {
   const handleShip = (id: string) => {
     const tracking = prompt("Tracking number:");
     if (!tracking?.trim()) return;
-    const carrier = prompt("Carrier (optional, e.g. USPS):") || undefined;
+    const carrier = prompt("Carrier:", "USPS") || undefined;
     orderAction(id, "ship", { tracking_number: tracking.trim(), carrier });
   };
 
@@ -733,6 +765,135 @@ export default function AdminDashboard() {
     }
   };
 
+  // ── Affiliates + payouts ──────────────────────────────────────────────────
+  const [affiliates, setAffiliates] = useState<AffiliateRow[] | null>(null);
+  const [affiliateBusy, setAffiliateBusy] = useState(false);
+  const [expandedAffiliate, setExpandedAffiliate] = useState<string | null>(null);
+
+  const loadAffiliates = useCallback(async () => {
+    const res = await authedFetch("/api/admin/affiliates");
+    if (res.ok) setAffiliates(await res.json());
+  }, []);
+
+  useEffect(() => {
+    if (session && tab === "affiliates" && affiliates === null) loadAffiliates();
+  }, [session, tab, affiliates, loadAffiliates]);
+
+  const recordPayout = async (a: AffiliateRow) => {
+    const amountStr = prompt(`Record a payout to ${a.name || a.code}.\nOwed: $${a.owed.toFixed(2)}\n\nAmount paid ($):`, a.owed > 0 ? a.owed.toFixed(2) : "");
+    if (amountStr === null) return;
+    const amount = Number(amountStr);
+    if (!(amount > 0)) { alert("Enter a positive amount."); return; }
+    const note = prompt("Note (optional, e.g. 'PayPal June'):") || undefined;
+    setAffiliateBusy(true);
+    const res = await authedFetch("/api/admin/payouts", {
+      method: "POST",
+      body: JSON.stringify({ affiliateId: a.id, amount, note }),
+    });
+    setAffiliateBusy(false);
+    if (!res.ok) { alert((await res.json().catch(() => ({}))).error ?? "Failed to record payout"); return; }
+    await loadAffiliates();
+    loadData(); // refresh Overview "Commissions Owed"
+  };
+
+  const deletePayout = async (id: string) => {
+    if (!confirm("Delete this payout record?")) return;
+    const res = await authedFetch("/api/admin/payouts", { method: "DELETE", body: JSON.stringify({ id }) });
+    if (res.ok) { await loadAffiliates(); loadData(); }
+  };
+
+  const addAffiliate = async () => {
+    const email = prompt("Affiliate email:");
+    if (!email?.trim()) return;
+    const code = prompt("Discount code (e.g. JANE10):");
+    if (!code?.trim()) return;
+    const name = prompt("Display name (optional):") || undefined;
+    const discount = Number(prompt("Customer discount % (e.g. 10):", "10") ?? "");
+    const commission = Number(prompt("Affiliate commission % (e.g. 10):", "10") ?? "");
+    const res = await authedFetch("/api/admin/affiliates", {
+      method: "POST",
+      body: JSON.stringify({ email, code, name, discount_percent: discount || 0, commission_percent: commission || 0 }),
+    });
+    if (!res.ok) { alert((await res.json().catch(() => ({}))).error ?? "Failed to add affiliate"); return; }
+    loadAffiliates();
+  };
+
+  const editAffiliate = async (a: AffiliateRow) => {
+    const discount = prompt("Customer discount %:", String(a.discount_percent));
+    if (discount === null) return;
+    const commission = prompt("Affiliate commission %:", String(a.commission_percent));
+    if (commission === null) return;
+    const res = await authedFetch("/api/admin/affiliates", {
+      method: "PATCH",
+      body: JSON.stringify({ id: a.id, discount_percent: Number(discount) || 0, commission_percent: Number(commission) || 0 }),
+    });
+    if (res.ok) loadAffiliates();
+  };
+
+  // ── Promo codes ───────────────────────────────────────────────────────────
+  const [promos, setPromos] = useState<PromoRow[] | null>(null);
+  const [promoForm, setPromoForm] = useState({ code: "", percent_off: "", min_subtotal: "", max_uses: "", expires_at: "" });
+  const [promoSaving, setPromoSaving] = useState(false);
+  const [promoFormError, setPromoFormError] = useState("");
+
+  const loadPromos = useCallback(async () => {
+    const res = await authedFetch("/api/admin/promos");
+    if (res.ok) setPromos(await res.json());
+  }, []);
+
+  useEffect(() => {
+    if (session && tab === "promos" && promos === null) loadPromos();
+  }, [session, tab, promos, loadPromos]);
+
+  const createPromo = async () => {
+    setPromoFormError("");
+    const pct = Number(promoForm.percent_off);
+    if (!promoForm.code.trim() || !(pct >= 1 && pct <= 100)) {
+      setPromoFormError("A code and a percent between 1 and 100 are required.");
+      return;
+    }
+    setPromoSaving(true);
+    const res = await authedFetch("/api/admin/promos", {
+      method: "POST",
+      body: JSON.stringify({
+        code: promoForm.code,
+        percent_off: pct,
+        min_subtotal: promoForm.min_subtotal ? Number(promoForm.min_subtotal) : 0,
+        max_uses: promoForm.max_uses ? Number(promoForm.max_uses) : null,
+        expires_at: promoForm.expires_at ? new Date(promoForm.expires_at).toISOString() : null,
+      }),
+    });
+    setPromoSaving(false);
+    if (!res.ok) { setPromoFormError((await res.json().catch(() => ({}))).error ?? "Failed to create promo"); return; }
+    setPromoForm({ code: "", percent_off: "", min_subtotal: "", max_uses: "", expires_at: "" });
+    loadPromos();
+  };
+
+  const togglePromo = async (p: PromoRow) => {
+    const res = await authedFetch("/api/admin/promos", {
+      method: "PATCH",
+      body: JSON.stringify({ id: p.id, is_active: !p.is_active }),
+    });
+    if (res.ok) loadPromos();
+  };
+
+  const deletePromo = async (p: PromoRow) => {
+    if (!confirm(`Delete promo code ${p.code}?`)) return;
+    const res = await authedFetch("/api/admin/promos", { method: "DELETE", body: JSON.stringify({ id: p.id }) });
+    if (res.ok) loadPromos();
+  };
+
+  // ── Email log / resend ────────────────────────────────────────────────────
+  const EMAIL_EVENTS: { event: string; label: string; applies: (o: OrderRow) => boolean }[] = [
+    { event: "order_created", label: "Order received", applies: () => true },
+    { event: "confirmed", label: "Payment confirmed", applies: (o) => o.status === "confirmed" || o.status === "finished" },
+    { event: "admin_new_order", label: "Admin alert", applies: (o) => o.status === "confirmed" || o.status === "finished" },
+    { event: "shipped", label: "Shipping confirmation", applies: (o) => !!o.tracking_number || o.fulfillment_status === "shipped" || o.fulfillment_status === "delivered" },
+    { event: "delivered", label: "Delivered", applies: (o) => o.fulfillment_status === "delivered" },
+    { event: "cancelled", label: "Cancelled", applies: (o) => o.status === "cancelled" },
+    { event: "failed", label: "Payment failed", applies: (o) => o.status === "failed" },
+  ];
+
   if (loading || authorized === null) {
     return <div className="min-h-[60vh] flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-[oklch(0.52_0.01_260)]" /></div>;
   }
@@ -752,6 +913,8 @@ export default function AdminDashboard() {
     { key: "products" as const, label: "Products", icon: ShoppingBag },
     { key: "inventory" as const, label: "Inventory", icon: Package },
     { key: "orders" as const, label: "Orders", icon: ClipboardList },
+    { key: "affiliates" as const, label: "Affiliates", icon: Users },
+    { key: "promos" as const, label: "Promos", icon: Tag },
   ];
 
   return (
@@ -881,7 +1044,7 @@ export default function AdminDashboard() {
                 ) : (
                   <ul className="space-y-3">
                     {(summary.commissionsByAffiliate ?? []).map((a) => {
-                      const top = (summary.commissionsByAffiliate ?? [])[0]?.amount || 1;
+                      const top = Math.max(...(summary.commissionsByAffiliate ?? []).map((x) => x.owed), 1);
                       return (
                         <li key={a.id}>
                           <div className="flex items-center justify-between text-[0.8125rem] mb-1">
@@ -890,12 +1053,12 @@ export default function AdminDashboard() {
                               {a.code ? <span className="ml-1.5 font-mono text-[0.6875rem] text-[oklch(0.55_0.01_260)]">{a.code}</span> : null}
                             </span>
                             <span className="whitespace-nowrap">
-                              <span className="text-[oklch(0.55_0.01_260)] mr-2">{a.orders} order{a.orders !== 1 ? "s" : ""}</span>
-                              <span className="font-bold text-[oklch(0.13_0.01_260)]">{money(a.amount)}</span>
+                              <span className="text-[oklch(0.55_0.01_260)] mr-2">{a.orders} order{a.orders !== 1 ? "s" : ""} · earned {money(a.amount)} · paid {money(a.paid ?? 0)}</span>
+                              <span className="font-bold text-[oklch(0.13_0.01_260)]">{money(a.owed ?? a.amount)} owed</span>
                             </span>
                           </div>
                           <div className="h-1.5 rounded-full bg-[oklch(0.95_0.003_260)] overflow-hidden">
-                            <div className="h-full rounded-full bg-[oklch(0.65_0.12_85)]" style={{ width: `${Math.max(4, (a.amount / top) * 100)}%` }} />
+                            <div className="h-full rounded-full bg-[oklch(0.65_0.12_85)]" style={{ width: `${Math.max(4, (Math.max(a.owed ?? 0, 0) / top) * 100)}%` }} />
                           </div>
                         </li>
                       );
@@ -1226,6 +1389,10 @@ export default function AdminDashboard() {
                           {expanded && (
                             <tr className="border-b border-[oklch(0.95_0.003_260)] bg-[oklch(0.98_0.002_260)]">
                               <td colSpan={7} className="px-4 py-3">
+                                {/* Status timeline */}
+                                <div className="mb-4 max-w-md">
+                                  <OrderTimeline order={o} />
+                                </div>
                                 <div className="flex flex-wrap gap-8 text-[0.8125rem] text-[oklch(0.35_0.01_260)]">
                                   {/* Order details + totals */}
                                   <div className="space-y-1 min-w-[240px]">
@@ -1288,6 +1455,31 @@ export default function AdminDashboard() {
                                       <div className="whitespace-pre-line leading-snug">{addressLines(o.shipping_address).join("\n")}</div>
                                     )}
                                   </div>
+
+                                  {/* Email log + resend */}
+                                  <div className="space-y-1 min-w-[260px]">
+                                    <p className="font-semibold text-[oklch(0.20_0.01_260)] flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> Emails</p>
+                                    {EMAIL_EVENTS.filter((e) => e.applies(o)).map(({ event, label }) => {
+                                      const sentAt = o.emails_sent?.[event];
+                                      return (
+                                        <div key={event} className="flex items-center justify-between gap-3">
+                                          <span className="text-[0.75rem]">
+                                            {label}
+                                            <span className={`ml-1.5 ${sentAt ? "text-[oklch(0.45_0.13_155)]" : "text-[oklch(0.60_0.01_260)]"}`}>
+                                              {sentAt ? `✓ ${formatDateEST(sentAt)}` : "not sent"}
+                                            </span>
+                                          </span>
+                                          <button
+                                            onClick={() => orderAction(o.id, "resend_email", { event })}
+                                            disabled={busy}
+                                            className="text-[0.7rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline disabled:opacity-50"
+                                          >
+                                            {sentAt ? "Resend" : "Send"}
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               </td>
                             </tr>
@@ -1322,6 +1514,215 @@ export default function AdminDashboard() {
                     Next →
                   </button>
                 </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Affiliates tab ────────────────────────────────────────────── */}
+        {tab === "affiliates" && (
+          <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
+                <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Affiliates</h2>
+              </div>
+              <button onClick={addAffiliate} className="flex items-center gap-1.5 btn-primary text-[0.875rem] py-2 px-4">
+                <Plus className="w-4 h-4" /> Add Affiliate
+              </button>
+            </div>
+            <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-5">
+              Owed = commission earned on paid orders − recorded payouts. Record a payout after you send an affiliate their money.
+            </p>
+
+            {affiliates === null ? (
+              <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-[oklch(0.52_0.01_260)]" /></div>
+            ) : affiliates.length === 0 ? (
+              <p className="text-[0.875rem] text-[oklch(0.52_0.01_260)] py-4">No affiliates yet. Add one above.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[0.875rem]">
+                  <thead>
+                    <tr className="text-left text-[0.6875rem] uppercase tracking-wider text-[oklch(0.60_0.01_260)] border-b border-[oklch(0.93_0.004_260)]">
+                      <th className="py-2 pr-4">Affiliate</th>
+                      <th className="py-2 pr-4">Code</th>
+                      <th className="py-2 pr-4">Disc / Comm</th>
+                      <th className="py-2 pr-4">Orders</th>
+                      <th className="py-2 pr-4">Earned</th>
+                      <th className="py-2 pr-4">Paid</th>
+                      <th className="py-2 pr-4">Owed</th>
+                      <th className="py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {affiliates.map((a) => {
+                      const expanded = expandedAffiliate === a.id;
+                      return (
+                        <Fragment key={a.id}>
+                          <tr className="border-b border-[oklch(0.95_0.003_260)]">
+                            <td className="py-3 pr-4">
+                              <button
+                                onClick={() => setExpandedAffiliate(expanded ? null : a.id)}
+                                className="flex items-center gap-1 text-left hover:text-[oklch(0.40_0.16_260)]"
+                              >
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform flex-shrink-0 ${expanded ? "" : "-rotate-90"}`} />
+                                <span>
+                                  <span className="font-semibold text-[oklch(0.13_0.01_260)] block leading-tight">{a.name || a.code}</span>
+                                  <span className="text-[0.75rem] text-[oklch(0.55_0.01_260)]">{a.email}</span>
+                                </span>
+                              </button>
+                            </td>
+                            <td className="py-3 pr-4 font-mono text-[0.8125rem]">{a.code}</td>
+                            <td className="py-3 pr-4 text-[0.8125rem] text-[oklch(0.40_0.01_260)]">{a.discount_percent}% / {a.commission_percent}%</td>
+                            <td className="py-3 pr-4">{a.orders}</td>
+                            <td className="py-3 pr-4">{money(a.earned)}</td>
+                            <td className="py-3 pr-4 text-[oklch(0.45_0.13_155)]">{money(a.paid)}</td>
+                            <td className={`py-3 pr-4 font-bold ${a.owed > 0 ? "text-[oklch(0.50_0.12_85)]" : "text-[oklch(0.13_0.01_260)]"}`}>{money(a.owed)}</td>
+                            <td className="py-3">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button onClick={() => recordPayout(a)} disabled={affiliateBusy}
+                                  className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.40_0.16_260)] border border-[oklch(0.40_0.16_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.02_260)] disabled:opacity-50">
+                                  <Wallet className="w-3 h-3" /> Record Payout
+                                </button>
+                                <button onClick={() => editAffiliate(a)}
+                                  className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.40_0.01_260)] border border-[oklch(0.85_0.004_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.003_260)]">
+                                  <Pencil className="w-3 h-3" /> Edit %
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {expanded && (
+                            <tr className="border-b border-[oklch(0.95_0.003_260)] bg-[oklch(0.98_0.002_260)]">
+                              <td colSpan={8} className="px-4 py-3">
+                                <p className="font-semibold text-[0.8125rem] text-[oklch(0.20_0.01_260)] mb-2">Payout history</p>
+                                {a.payouts.length === 0 ? (
+                                  <p className="text-[0.8125rem] text-[oklch(0.55_0.01_260)]">No payouts recorded yet.</p>
+                                ) : (
+                                  <ul className="space-y-1">
+                                    {a.payouts.map((p) => (
+                                      <li key={p.id} className="flex items-center justify-between text-[0.8125rem] max-w-xl">
+                                        <span className="text-[oklch(0.40_0.01_260)]">
+                                          {formatDateEST(p.created_at)}
+                                          {p.note ? <span className="text-[oklch(0.55_0.01_260)]"> — {p.note}</span> : null}
+                                        </span>
+                                        <span className="flex items-center gap-3">
+                                          <span className="font-semibold">{money(p.amount)}</span>
+                                          <button onClick={() => deletePayout(p.id)} className="text-red-400 hover:text-red-600" title="Delete payout record">
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Promos tab ────────────────────────────────────────────────── */}
+        {tab === "promos" && (
+          <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Tag className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
+              <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Promo Codes</h2>
+            </div>
+            <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-5">
+              General discount codes (separate from affiliate codes). Usage counts when an order is paid.
+            </p>
+
+            {/* Create form */}
+            <div className="flex flex-wrap items-end gap-2 mb-6 bg-[oklch(0.98_0.002_260)] rounded-xl p-4">
+              <Field label="Code">
+                <input value={promoForm.code} onChange={(e) => setPromoForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+                  placeholder="SPRING20" className="input-sm font-mono w-32" />
+              </Field>
+              <Field label="% Off">
+                <input type="number" min={1} max={100} value={promoForm.percent_off}
+                  onChange={(e) => setPromoForm((f) => ({ ...f, percent_off: e.target.value }))} placeholder="20" className="input-sm w-20" />
+              </Field>
+              <Field label="Min Subtotal ($)">
+                <input type="number" min={0} value={promoForm.min_subtotal}
+                  onChange={(e) => setPromoForm((f) => ({ ...f, min_subtotal: e.target.value }))} placeholder="0" className="input-sm w-28" />
+              </Field>
+              <Field label="Max Uses">
+                <input type="number" min={1} value={promoForm.max_uses}
+                  onChange={(e) => setPromoForm((f) => ({ ...f, max_uses: e.target.value }))} placeholder="∞" className="input-sm w-24" />
+              </Field>
+              <Field label="Expires">
+                <input type="date" value={promoForm.expires_at}
+                  onChange={(e) => setPromoForm((f) => ({ ...f, expires_at: e.target.value }))} className="input-sm w-36" />
+              </Field>
+              <button onClick={createPromo} disabled={promoSaving}
+                className="flex items-center gap-1.5 btn-primary text-[0.875rem] py-2 px-4 disabled:opacity-60">
+                {promoSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add Code
+              </button>
+            </div>
+            {promoFormError && <p className="text-[0.8125rem] text-red-500 -mt-3 mb-4">{promoFormError}</p>}
+
+            {promos === null ? (
+              <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-[oklch(0.52_0.01_260)]" /></div>
+            ) : promos.length === 0 ? (
+              <p className="text-[0.875rem] text-[oklch(0.52_0.01_260)] py-4">No promo codes yet. Create one above.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[0.875rem]">
+                  <thead>
+                    <tr className="text-left text-[0.6875rem] uppercase tracking-wider text-[oklch(0.60_0.01_260)] border-b border-[oklch(0.93_0.004_260)]">
+                      <th className="py-2 pr-4">Code</th>
+                      <th className="py-2 pr-4">% Off</th>
+                      <th className="py-2 pr-4">Min Subtotal</th>
+                      <th className="py-2 pr-4">Uses</th>
+                      <th className="py-2 pr-4">Expires</th>
+                      <th className="py-2 pr-4">Status</th>
+                      <th className="py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {promos.map((p) => {
+                      const expired = p.expires_at && new Date(p.expires_at) < new Date();
+                      const maxedOut = p.max_uses != null && p.used_count >= p.max_uses;
+                      return (
+                        <tr key={p.id} className="border-b border-[oklch(0.95_0.003_260)]">
+                          <td className="py-3 pr-4 font-mono font-semibold text-[oklch(0.13_0.01_260)]">{p.code}</td>
+                          <td className="py-3 pr-4">{p.percent_off}%</td>
+                          <td className="py-3 pr-4">{Number(p.min_subtotal) > 0 ? money(Number(p.min_subtotal)) : "—"}</td>
+                          <td className="py-3 pr-4">{p.used_count}{p.max_uses != null ? ` / ${p.max_uses}` : ""}</td>
+                          <td className="py-3 pr-4 text-[0.8125rem] text-[oklch(0.52_0.01_260)]">{p.expires_at ? new Date(p.expires_at).toLocaleDateString() : "—"}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${
+                              !p.is_active ? "bg-[oklch(0.92_0.005_260)] text-[oklch(0.45_0.01_260)]"
+                                : expired || maxedOut ? "bg-[oklch(0.93_0.04_25)] text-[oklch(0.50_0.18_25)]"
+                                : "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]"
+                            }`}>
+                              {!p.is_active ? "disabled" : expired ? "expired" : maxedOut ? "maxed out" : "active"}
+                            </span>
+                          </td>
+                          <td className="py-3">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button onClick={() => togglePromo(p)}
+                                className="text-[0.7rem] font-semibold text-[oklch(0.40_0.16_260)] border border-[oklch(0.40_0.16_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.02_260)]">
+                                {p.is_active ? "Disable" : "Enable"}
+                              </button>
+                              <button onClick={() => deletePromo(p)}
+                                className="flex items-center gap-1 text-[0.7rem] font-semibold text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50">
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>

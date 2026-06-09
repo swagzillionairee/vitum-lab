@@ -1,60 +1,112 @@
+/*
+ * email.ts — single source of truth for ALL transactional email.
+ * One Nodemailer transport (Gmail SMTP), one branded layout, one send<Event>
+ * per email type, and per-order idempotency via orders.emails_sent JSONB.
+ *
+ * Keep the transport isolated here so a later swap to a transactional ESP
+ * (Resend/Postmark) is a one-file change.
+ */
+
 import nodemailer from "nodemailer";
+import { waitUntil } from "@vercel/functions";
+import { supabaseAdmin } from "./supabase-admin.js";
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+// ─── Types ────────────────────────────────────────────────────────────────────
+export interface EmailOrderItem {
+  name: string;
+  dose: string;
+  quantity: number;
+  cartCode: string;
+  price: number;
+}
 
-function orderConfirmedHtml(orderId: string, amount: string, currency: string) {
+export interface EmailAddress {
+  name?: string; line1?: string; line2?: string; city?: string;
+  state?: string; postal_code?: string; country?: string; phone?: string;
+}
+
+export interface EmailOrder {
+  id: string;
+  email: string;
+  items?: EmailOrderItem[] | null;
+  gross_amount?: number | string | null;
+  discount_amount?: number | string | null;
+  discount_code?: string | null;
+  net_amount: number | string;
+  shipping_address?: EmailAddress | null;
+  tracking_number?: string | null;
+  carrier?: string | null;
+  cancel_reason?: string | null;
+  status?: string;
+  emails_sent?: Record<string, string> | null;
+}
+
+export type OrderEmailEvent =
+  | "order_created" | "confirmed" | "shipped" | "delivered"
+  | "cancelled" | "failed" | "admin_new_order";
+
+// ─── Transport / env ─────────────────────────────────────────────────────────
+let _transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
+function transporter() {
+  if (!_transporter) {
+    _transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+    });
+  }
+  return _transporter;
+}
+
+const baseUrl = () => process.env.BASE_URL || "https://vitum-lab.vercel.app";
+const ordersInbox = () => process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
+
+async function send(to: string, subject: string, html: string) {
+  await transporter().sendMail({ from: `"Vitum Lab" <${process.env.GMAIL_USER}>`, to, subject, html });
+}
+
+/**
+ * Run an email promise without blocking the response. Uses Vercel's
+ * waitUntil so the lambda stays alive after res ends; falls back to a
+ * detached promise in local dev where waitUntil has no request context.
+ */
+export function deferEmail(p: Promise<unknown>) {
+  const guarded = p.catch((err) => console.error("email send failed:", err));
+  try {
+    waitUntil(guarded);
+  } catch {
+    void guarded;
+  }
+}
+
+// ─── Idempotency (orders.emails_sent JSONB) ──────────────────────────────────
+async function stampEmail(orderId: string, event: string) {
+  const { data } = await supabaseAdmin.from("orders").select("emails_sent").eq("id", orderId).maybeSingle();
+  const merged = { ...((data?.emails_sent as Record<string, string>) ?? {}), [event]: new Date().toISOString() };
+  await supabaseAdmin.from("orders").update({ emails_sent: merged }).eq("id", orderId);
+}
+
+// ─── Shared layout + fragments ───────────────────────────────────────────────
+const money = (n: number | string | null | undefined) => `$${(Number(n) || 0).toFixed(2)}`;
+
+function layout(content: string): string {
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:40px 20px;background:#f4f6f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-
     <div style="background:#0f1a2e;padding:32px 40px;text-align:center;">
       <p style="margin:0;color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Vitum Lab</p>
       <p style="margin:6px 0 0;color:rgba(255,255,255,0.45);font-size:10px;letter-spacing:2.5px;text-transform:uppercase;">Research Peptides · Est. 2024</p>
     </div>
-
     <div style="padding:40px;">
-      <div style="display:inline-block;background:#edfaf3;border-radius:8px;padding:6px 14px;margin-bottom:20px;">
-        <span style="color:#1a7a4a;font-size:13px;font-weight:700;">✓ Payment Confirmed</span>
-      </div>
-
-      <h1 style="margin:0 0 12px;font-size:24px;font-weight:700;color:#0f1a2e;line-height:1.2;">Your order is confirmed</h1>
-      <p style="margin:0 0 28px;font-size:15px;color:#555;line-height:1.65;">
-        Thank you for your Vitum Lab order. Your crypto payment has been confirmed on the blockchain and your order is now being processed for shipment.
-      </p>
-
-      <div style="background:#f7f8fa;border-radius:10px;padding:20px 24px;margin-bottom:28px;">
-        <table style="width:100%;border-collapse:collapse;">
-          <tr>
-            <td style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;padding-bottom:6px;">Order Reference</td>
-            <td style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;padding-bottom:6px;text-align:right;">Amount Paid</td>
-          </tr>
-          <tr>
-            <td style="font-family:monospace;font-size:15px;font-weight:700;color:#0f1a2e;">${orderId}</td>
-            <td style="font-size:15px;font-weight:700;color:#0f1a2e;text-align:right;">$${amount} USD</td>
-          </tr>
-        </table>
-      </div>
-
-      <p style="margin:0 0 28px;font-size:14px;color:#666;line-height:1.65;">
-        You'll receive your tracking information once your order ships. East Coast orders typically arrive in 2 days; Central and West Coast orders in 3 days via USPS Priority Mail.
-      </p>
-
-      <div style="border-top:1px solid #eee;padding-top:24px;">
+${content}
+      <div style="border-top:1px solid #eee;padding-top:24px;margin-top:28px;">
         <p style="margin:0 0 6px;font-size:13px;color:#888;">Questions about your order?</p>
         <a href="mailto:hello@vitumlab.com" style="color:#2c5fdb;font-size:14px;font-weight:600;text-decoration:none;">hello@vitumlab.com</a>
       </div>
     </div>
-
     <div style="background:#f7f8fa;border-top:1px solid #eee;padding:20px 40px;text-align:center;">
       <p style="margin:0;font-size:11px;color:#aaa;line-height:1.6;">
         All products are for in vitro / laboratory research use only — not for human or veterinary consumption.<br>
@@ -66,16 +118,181 @@ function orderConfirmedHtml(orderId: string, amount: string, currency: string) {
 </html>`;
 }
 
-export async function sendOrderConfirmation(
-  toEmail: string,
-  orderId: string,
-  amount: string,
-  currency: string
-) {
-  await transporter.sendMail({
-    from: `"Vitum Lab" <${process.env.GMAIL_USER}>`,
-    to: toEmail,
-    subject: `Order confirmed — ${orderId}`,
-    html: orderConfirmedHtml(orderId, amount, currency),
-  });
+function pill(text: string, bg: string, color: string): string {
+  return `<div style="display:inline-block;background:${bg};border-radius:8px;padding:6px 14px;margin-bottom:20px;">
+        <span style="color:${color};font-size:13px;font-weight:700;">${text}</span>
+      </div>`;
+}
+
+function heading(title: string, body: string): string {
+  return `<h1 style="margin:0 0 12px;font-size:24px;font-weight:700;color:#0f1a2e;line-height:1.2;">${title}</h1>
+      <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.65;">${body}</p>`;
+}
+
+function orderBox(order: EmailOrder): string {
+  const items = order.items ?? [];
+  const rows = items.map((it) => `
+          <tr>
+            <td style="padding:6px 0;font-size:14px;color:#333;">${it.name} ${it.dose} <span style="color:#999;">× ${it.quantity}</span></td>
+            <td style="padding:6px 0;font-size:14px;color:#333;text-align:right;">${it.price === 0 ? "Free" : money(it.price * it.quantity)}</td>
+          </tr>`).join("");
+  const discount = Number(order.discount_amount) > 0
+    ? `<tr>
+            <td style="padding:6px 0;font-size:14px;color:#1a7a4a;">Discount${order.discount_code ? ` (${order.discount_code})` : ""}</td>
+            <td style="padding:6px 0;font-size:14px;color:#1a7a4a;text-align:right;">−${money(order.discount_amount)}</td>
+          </tr>` : "";
+  return `<div style="background:#f7f8fa;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+        <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;">Order <span style="font-family:monospace;color:#555;">${order.id.slice(0, 10)}</span></p>
+        <table style="width:100%;border-collapse:collapse;">${rows}${discount}
+          <tr>
+            <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#0f1a2e;border-top:1px solid #e5e7eb;">Total</td>
+            <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#0f1a2e;text-align:right;border-top:1px solid #e5e7eb;">${money(order.net_amount)}</td>
+          </tr>
+        </table>
+      </div>`;
+}
+
+function addressBox(a?: EmailAddress | null): string {
+  if (!a?.line1) return "";
+  const lines = [a.name, a.line1, a.line2, [a.city, a.state].filter(Boolean).join(", ") + (a.postal_code ? ` ${a.postal_code}` : ""), a.country]
+    .filter((l) => l && String(l).trim());
+  return `<div style="margin-bottom:24px;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;">Ships to</p>
+        <p style="margin:0;font-size:14px;color:#555;line-height:1.6;">${lines.join("<br>")}</p>
+      </div>`;
+}
+
+function button(label: string, url: string): string {
+  return `<div style="margin:0 0 28px;">
+        <a href="${url}" style="display:inline-block;background:#0f1a2e;color:#fff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;">${label}</a>
+      </div>`;
+}
+
+/** Carrier-aware tracking link. USPS is the default (USPS-only shop). */
+export function trackingUrl(carrier: string | null | undefined, tracking: string): string {
+  const c = (carrier || "usps").toLowerCase();
+  if (c.includes("ups")) return `https://www.ups.com/track?tracknum=${encodeURIComponent(tracking)}`;
+  if (c.includes("fedex")) return `https://www.fedex.com/fedextrack/?trknbr=${encodeURIComponent(tracking)}`;
+  return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(tracking)}`;
+}
+
+// ─── Per-event content ───────────────────────────────────────────────────────
+function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { invoiceUrl?: string; wasPending?: boolean }): { to: string; subject: string; html: string } {
+  const shortId = order.id.slice(0, 10);
+
+  switch (event) {
+    case "order_created":
+      return {
+        to: order.email,
+        subject: `Order received — complete your payment (${shortId})`,
+        html: layout(
+          pill("Order Received", "#fdf6e7", "#9a6b15") +
+          heading("We've received your order", "Your order has been created and is awaiting payment. Complete checkout within 24 hours — unpaid orders are automatically cancelled after that.") +
+          (opts?.invoiceUrl ? button("Complete Payment", opts.invoiceUrl) : "") +
+          orderBox(order) + addressBox(order.shipping_address),
+        ),
+      };
+    case "confirmed":
+      return {
+        to: order.email,
+        subject: `Order confirmed — ${shortId}`,
+        html: layout(
+          pill("✓ Payment Confirmed", "#edfaf3", "#1a7a4a") +
+          heading("Your order is confirmed", "Thank you for your Vitum Lab order. Your payment has been confirmed and your order is now being processed for shipment.") +
+          orderBox(order) + addressBox(order.shipping_address) +
+          `<p style="margin:0 0 4px;font-size:14px;color:#666;line-height:1.65;">You'll receive tracking information once your order ships. East Coast orders typically arrive in 2 days; Central and West Coast orders in 3 days via USPS Priority Mail.</p>`,
+        ),
+      };
+    case "shipped": {
+      const track = order.tracking_number ? trackingUrl(order.carrier, order.tracking_number) : `${baseUrl()}/account`;
+      return {
+        to: order.email,
+        subject: `Your order has shipped — ${shortId}`,
+        html: layout(
+          pill("📦 Shipped", "#eaf1fd", "#2c5fdb") +
+          heading("Your order is on the way", `Your order shipped via ${order.carrier || "USPS"}${order.tracking_number ? ` — tracking number <span style="font-family:monospace;font-weight:700;color:#0f1a2e;">${order.tracking_number}</span>` : ""}. East Coast orders typically arrive in 2 days; Central and West Coast in 3 days.`) +
+          button("Track Your Package", track) +
+          orderBox(order) + addressBox(order.shipping_address),
+        ),
+      };
+    }
+    case "delivered":
+      return {
+        to: order.email,
+        subject: `Delivered — ${shortId}`,
+        html: layout(
+          pill("✓ Delivered", "#edfaf3", "#1a7a4a") +
+          heading("Your order has been delivered", "Thanks for choosing Vitum Lab. Certificates of analysis for every lot are available in our COA library.") +
+          button("View COA Library", `${baseUrl()}/coa-library`) +
+          orderBox(order),
+        ),
+      };
+    case "cancelled":
+      return {
+        to: order.email,
+        subject: `Order cancelled — ${shortId}`,
+        html: layout(
+          pill("Order Cancelled", "#f4f4f5", "#52525b") +
+          heading("Your order was cancelled", `${order.cancel_reason ? `Reason: ${order.cancel_reason}.` : ""} ${opts?.wasPending !== false ? "No payment was collected for this order." : "If you believe this is a mistake, reply to this email and we'll make it right."}`) +
+          orderBox(order) +
+          button("Place a New Order", `${baseUrl()}/shop`),
+        ),
+      };
+    case "failed":
+      return {
+        to: order.email,
+        subject: `Payment didn't go through — ${shortId}`,
+        html: layout(
+          pill("Payment Failed", "#fdecec", "#c0392b") +
+          heading("Your payment didn't complete", "The payment for your order failed or expired, so the order was not processed and you have not been charged. You can place the order again any time.") +
+          orderBox(order) +
+          button("Try Again", `${baseUrl()}/shop`),
+        ),
+      };
+    case "admin_new_order": {
+      const a = order.shipping_address;
+      const shipTo = a?.line1 ? `${a.name ?? ""}, ${a.line1}${a.line2 ? ` ${a.line2}` : ""}, ${a.city}, ${a.state} ${a.postal_code}` : "no address on file";
+      return {
+        to: ordersInbox(),
+        subject: `💰 New paid order ${money(order.net_amount)} — ${shortId}`,
+        html: layout(
+          pill("New Paid Order", "#edfaf3", "#1a7a4a") +
+          heading(`${money(order.net_amount)} — ready to fulfill`, `Customer: ${order.email}<br>Ship to: ${shipTo}`) +
+          orderBox(order) +
+          button("Open Admin → Orders", `${baseUrl()}/admin`),
+        ),
+      };
+    }
+  }
+}
+
+/**
+ * Send an order lifecycle email exactly once (per orders.emails_sent), unless
+ * force is set (admin resend). Returns true if a send actually happened.
+ */
+export async function sendOrderEvent(
+  order: EmailOrder,
+  event: OrderEmailEvent,
+  opts?: { force?: boolean; invoiceUrl?: string; wasPending?: boolean },
+): Promise<boolean> {
+  if (!opts?.force && order.emails_sent?.[event]) return false;
+  if (!order.email) return false;
+  const { to, subject, html } = buildOrderEmail(order, event, opts);
+  await send(to, subject, html);
+  await stampEmail(order.id, event);
+  return true;
+}
+
+// ─── Welcome (not order-scoped; deduped via auth user metadata by caller) ────
+export async function sendWelcome(to: string) {
+  await send(
+    to,
+    "Welcome to Vitum Lab",
+    layout(
+      pill("Welcome", "#eaf1fd", "#2c5fdb") +
+      heading("Your account is ready", "Thanks for creating a Vitum Lab account. You can view your order history and live shipping status any time, and every lot we sell has a published certificate of analysis.") +
+      button("Browse Products", `${baseUrl()}/shop`) +
+      `<p style="margin:0;font-size:14px;color:#666;line-height:1.65;">Order updates — payment, shipping, and delivery — will arrive at this address automatically.</p>`,
+    ),
+  );
 }
