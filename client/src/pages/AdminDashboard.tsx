@@ -13,6 +13,8 @@ import {
   Pencil, Trash2, X, Upload, ShoppingBag, ImageOff,
   Truck, RefreshCw, Ban, CheckCircle2, ChevronDown,
   LayoutDashboard, DollarSign, Clock, AlertTriangle, TrendingUp,
+  Wallet, Repeat, XCircle, BarChart3, Users,
+  type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
@@ -149,6 +151,109 @@ function addressLines(a?: ShippingAddress | null): string[] {
     a.country,
     a.phone,
   ].filter((l): l is string => Boolean(l && l.trim()));
+}
+
+// ─── Color-coded KPI tile ──────────────────────────────────────────────────────
+// tone drives the tint: good = green, warn = amber, urgent = red, info = cobalt.
+type Tone = "neutral" | "good" | "warn" | "urgent" | "info";
+
+const TONE: Record<Tone, { card: string; icon: string; value: string }> = {
+  neutral: { card: "bg-white border-[oklch(0.93_0.004_260)]", icon: "text-[oklch(0.52_0.01_260)]", value: "text-[oklch(0.13_0.01_260)]" },
+  good:    { card: "bg-[oklch(0.98_0.02_155)] border-[oklch(0.89_0.05_155)]", icon: "text-[oklch(0.48_0.13_155)]", value: "text-[oklch(0.32_0.12_155)]" },
+  warn:    { card: "bg-[oklch(0.98_0.03_85)] border-[oklch(0.89_0.06_85)]", icon: "text-[oklch(0.52_0.12_85)]", value: "text-[oklch(0.42_0.12_85)]" },
+  urgent:  { card: "bg-[oklch(0.97_0.025_25)] border-[oklch(0.89_0.05_25)]", icon: "text-[oklch(0.55_0.18_25)]", value: "text-[oklch(0.48_0.18_25)]" },
+  info:    { card: "bg-[oklch(0.98_0.02_260)] border-[oklch(0.90_0.04_260)]", icon: "text-[oklch(0.45_0.16_260)]", value: "text-[oklch(0.30_0.14_260)]" },
+};
+
+function Kpi({
+  icon: Icon, label, value, tone = "neutral", size = "lg", children,
+}: {
+  icon: LucideIcon; label: string; value: React.ReactNode; tone?: Tone;
+  size?: "lg" | "md"; children?: React.ReactNode;
+}) {
+  const t = TONE[tone];
+  return (
+    <div className={`rounded-2xl border p-5 ${t.card}`}>
+      <div className="flex items-center gap-2 mb-2 text-[oklch(0.52_0.01_260)]">
+        <Icon className={`w-4 h-4 ${t.icon}`} />
+        <span className="text-[0.75rem] font-semibold uppercase tracking-wider">{label}</span>
+      </div>
+      <p className={`${size === "lg" ? "text-[1.75rem]" : "text-[1.5rem]"} font-bold leading-none ${t.value}`}>{value}</p>
+      {children && <div className="mt-2 text-[0.75rem] text-[oklch(0.55_0.01_260)]">{children}</div>}
+    </div>
+  );
+}
+
+// ─── Daily revenue bar chart (selectable 10 / 30 / 60 / 90-day window) ──────────
+const REV_RANGES = [10, 30, 60, 90] as const;
+type RevRange = (typeof REV_RANGES)[number];
+
+function RevenueChart({ data }: { data?: { date: string; revenue: number }[] }) {
+  const [range, setRange] = useState<RevRange>(30);
+  const series = (data ?? []).slice(-range);
+  const max = Math.max(1, ...series.map((d) => d.revenue));
+  const total = series.reduce((s, d) => s + d.revenue, 0);
+  const fmtDay = (iso: string) => {
+    const [, m, d] = iso.split("-");
+    return `${Number(m)}/${Number(d)}`;
+  };
+
+  return (
+    <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6">
+      <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-[oklch(0.45_0.16_260)]" />
+          <div>
+            <h3 className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">Revenue</h3>
+            <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-1">
+              <span className="font-semibold text-[oklch(0.32_0.12_155)]">{money(total)}</span> in the last {range} days
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-1 bg-[oklch(0.96_0.003_260)] rounded-full p-1">
+          {REV_RANGES.map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`px-3 py-1 rounded-full text-[0.75rem] font-semibold transition-colors ${
+                range === r
+                  ? "bg-[oklch(0.40_0.16_260)] text-white"
+                  : "text-[oklch(0.45_0.01_260)] hover:text-[oklch(0.13_0.01_260)]"
+              }`}
+            >
+              {r}d
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {total === 0 ? (
+        <div className="h-40 flex items-center justify-center text-[0.8125rem] text-[oklch(0.55_0.01_260)]">
+          No paid revenue in this window yet.
+        </div>
+      ) : (
+        <>
+          <div className="flex items-end gap-[2px] h-40">
+            {series.map((d) => (
+              <div key={d.date} className="group relative flex-1 h-full flex items-end">
+                <div
+                  className="w-full rounded-t-[3px] bg-[oklch(0.62_0.13_260)] group-hover:bg-[oklch(0.45_0.16_260)] transition-colors"
+                  style={{ height: `${Math.max(d.revenue > 0 ? 3 : 0.5, (d.revenue / max) * 100)}%` }}
+                />
+                <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-10 whitespace-nowrap rounded-lg bg-[oklch(0.13_0.01_260)] px-2 py-1 text-[0.6875rem] font-semibold text-white shadow-lg">
+                  {fmtDay(d.date)} · {money(d.revenue)}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between mt-2 text-[0.6875rem] text-[oklch(0.60_0.01_260)]">
+            <span>{series[0] ? fmtDay(series[0].date) : ""}</span>
+            <span>Today</span>
+          </div>
+        </>
+      )}
+    </section>
+  );
 }
 
 // ─── Variant editor sub-component ─────────────────────────────────────────────
@@ -434,6 +539,14 @@ interface Summary {
   lowStockThreshold: number;
   topProducts: { name: string; dose: string; qty: number; revenue: number }[];
   recentOrders: { status: string; fulfillment_status: string | null; net_amount: number; created_at: string }[];
+  dailyRevenue: { date: string; revenue: number }[];
+  commissionsOwed: number;
+  commissionsByAffiliate: { id: string; name: string; code: string; amount: number; orders: number }[];
+  repeatCustomerRate: number;
+  repeatCustomers: number;
+  totalCustomers: number;
+  cancelled30: number;
+  autoExpired30: number;
 }
 
 // ─── Main dashboard ───────────────────────────────────────────────────────────
@@ -704,53 +817,92 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* KPI cards */}
+              {/* Primary KPIs (color-coded by status) */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
-                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2">
-                    <DollarSign className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Revenue (30d)</span>
-                  </div>
-                  <p className="text-[1.75rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{money(summary.revenue30)}</p>
-                  <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-2">{money(summary.revenueAll)} all-time</p>
-                </div>
-                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
-                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2">
-                    <Truck className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">To Fulfill</span>
-                  </div>
-                  <p className="text-[1.75rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{summary.ordersToFulfill}</p>
-                  <button onClick={() => { setOrderStatus(""); setOrderFulfillment("unfulfilled"); setOrderPage(1); setTab("orders"); }} className="text-[0.75rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline mt-2">Paid &amp; unshipped →</button>
-                </div>
-                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
-                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2">
-                    <Clock className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Pending Payment</span>
-                  </div>
-                  <p className="text-[1.75rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{summary.pendingPayment}</p>
-                  <button onClick={() => { setOrderFulfillment(""); setOrderStatus("pending"); setOrderPage(1); setTab("orders"); }} className="text-[0.75rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline mt-2">Awaiting crypto →</button>
-                </div>
-                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
-                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2">
-                    <AlertTriangle className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Low Stock</span>
-                  </div>
-                  <p className="text-[1.75rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{summary.lowStock.length}</p>
-                  <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-2">{summary.outOfStockCount} out of stock</p>
-                </div>
+                <Kpi icon={DollarSign} label="Revenue (30d)" value={money(summary.revenue30)}
+                  tone={summary.revenue30 > 0 ? "good" : "neutral"}>
+                  {money(summary.revenueAll)} all-time
+                </Kpi>
+                <Kpi icon={Truck} label="To Fulfill" value={summary.ordersToFulfill}
+                  tone={summary.ordersToFulfill > 0 ? "warn" : "good"}>
+                  <button onClick={() => { setOrderStatus(""); setOrderFulfillment("unfulfilled"); setOrderPage(1); setTab("orders"); }}
+                    className="text-[oklch(0.40_0.16_260)] font-semibold hover:underline">Paid &amp; unshipped →</button>
+                </Kpi>
+                <Kpi icon={Clock} label="Pending Payment" value={summary.pendingPayment}
+                  tone={summary.pendingPayment > 0 ? "warn" : "neutral"}>
+                  <button onClick={() => { setOrderFulfillment(""); setOrderStatus("pending"); setOrderPage(1); setTab("orders"); }}
+                    className="text-[oklch(0.40_0.16_260)] font-semibold hover:underline">Awaiting crypto →</button>
+                </Kpi>
+                <Kpi icon={AlertTriangle} label="Low Stock" value={summary.lowStock.length}
+                  tone={summary.outOfStockCount > 0 ? "urgent" : summary.lowStock.length > 0 ? "warn" : "good"}>
+                  {summary.outOfStockCount} out of stock
+                </Kpi>
+              </div>
+
+              {/* Revenue bar chart (10 / 30 / 60 / 90-day) */}
+              <RevenueChart data={summary.dailyRevenue} />
+
+              {/* Business-health KPIs */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <Kpi icon={Wallet} label="Commissions Owed" value={money(summary.commissionsOwed ?? 0)}
+                  tone={(summary.commissionsOwed ?? 0) > 0 ? "warn" : "neutral"}>
+                  {(summary.commissionsByAffiliate ?? []).length} affiliate{(summary.commissionsByAffiliate ?? []).length !== 1 ? "s" : ""} with earnings
+                </Kpi>
+                <Kpi icon={Repeat} label="Repeat Rate"
+                  value={`${((summary.repeatCustomerRate ?? 0) * 100).toFixed(0)}%`}
+                  tone={summary.paidOrders === 0 ? "neutral" : (summary.repeatCustomerRate ?? 0) >= 0.25 ? "good" : (summary.repeatCustomerRate ?? 0) > 0 ? "warn" : "neutral"}>
+                  {summary.repeatCustomers ?? 0} repeat of {summary.totalCustomers ?? 0} customers
+                </Kpi>
+                <Kpi icon={XCircle} label="Cancelled (30d)" value={summary.cancelled30 ?? 0}
+                  tone={(summary.cancelled30 ?? 0) > 5 ? "urgent" : (summary.cancelled30 ?? 0) > 0 ? "warn" : "good"}>
+                  {summary.autoExpired30 ?? 0} auto-expired
+                </Kpi>
               </div>
 
               {/* Secondary stats */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
-                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2"><TrendingUp className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Orders (7d)</span></div>
-                  <p className="text-[1.5rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{summary.ordersThisWeek}</p>
-                </div>
-                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
-                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2"><DollarSign className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Avg Order</span></div>
-                  <p className="text-[1.5rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{money(summary.aov)}</p>
-                </div>
-                <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
-                  <div className="flex items-center gap-2 text-[oklch(0.52_0.01_260)] mb-2"><CheckCircle2 className="w-4 h-4" /><span className="text-[0.75rem] font-semibold uppercase tracking-wider">Paid Orders</span></div>
-                  <p className="text-[1.5rem] font-bold text-[oklch(0.13_0.01_260)] leading-none">{summary.paidOrders}</p>
-                </div>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                <Kpi icon={TrendingUp} label="Orders (7d)" value={summary.ordersThisWeek} tone="info" size="md" />
+                <Kpi icon={DollarSign} label="Avg Order" value={money(summary.aov)} tone="info" size="md" />
+                <Kpi icon={CheckCircle2} label="Paid Orders" value={summary.paidOrders}
+                  tone={summary.paidOrders > 0 ? "good" : "neutral"} size="md" />
               </div>
+
+              {/* Affiliate commissions owed — per-affiliate breakdown */}
+              <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-[oklch(0.45_0.16_260)]" />
+                    <h3 className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)]">Commissions Owed by Affiliate</h3>
+                  </div>
+                  <span className="text-[0.9375rem] font-bold text-[oklch(0.42_0.12_85)]">{money(summary.commissionsOwed ?? 0)}</span>
+                </div>
+                {(summary.commissionsByAffiliate ?? []).length === 0 ? (
+                  <p className="text-[0.8125rem] text-[oklch(0.55_0.01_260)]">No affiliate commissions owed yet.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {(summary.commissionsByAffiliate ?? []).map((a) => {
+                      const top = (summary.commissionsByAffiliate ?? [])[0]?.amount || 1;
+                      return (
+                        <li key={a.id}>
+                          <div className="flex items-center justify-between text-[0.8125rem] mb-1">
+                            <span className="text-[oklch(0.20_0.01_260)] font-semibold truncate pr-2">
+                              {a.name}
+                              {a.code ? <span className="ml-1.5 font-mono text-[0.6875rem] text-[oklch(0.55_0.01_260)]">{a.code}</span> : null}
+                            </span>
+                            <span className="whitespace-nowrap">
+                              <span className="text-[oklch(0.55_0.01_260)] mr-2">{a.orders} order{a.orders !== 1 ? "s" : ""}</span>
+                              <span className="font-bold text-[oklch(0.13_0.01_260)]">{money(a.amount)}</span>
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-[oklch(0.95_0.003_260)] overflow-hidden">
+                            <div className="h-full rounded-full bg-[oklch(0.65_0.12_85)]" style={{ width: `${Math.max(4, (a.amount / top) * 100)}%` }} />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Low stock list */}
