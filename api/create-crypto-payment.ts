@@ -107,17 +107,67 @@ export default async function handler(req: any, res: any) {
       .map((i) => `${i.name} ${i.dose} x${i.quantity}`)
       .join(", ");
     const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
+    const orderItems = items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price }));
+    const discountCodeNorm = discount ? discountCode!.trim().toUpperCase() : null;
+
+    // ── Free order ($0 due, e.g. a 100% promo) — confirm now, skip NowPayments ──
+    // A $0 invoice would be rejected by NowPayments anyway, and there's nothing
+    // to pay, so we mark the order confirmed and decrement stock immediately
+    // (no IPN webhook will fire for it).
+    if (netAmount <= 0) {
+      const { error: insertError } = await supabaseAdmin.from("orders").insert({
+        id: orderId,
+        email,
+        status: "confirmed",
+        confirmed_at: new Date().toISOString(),
+        items: orderItems,
+        gross_amount: grossAmount,
+        discount_amount: discountAmount,
+        net_amount: netAmount,
+        discount_code: discountCodeNorm,
+        affiliate_id: affiliateId,
+        commission_amount: commissionAmount,
+        shipping_address: shipping,
+        pay_amount: 0,
+      });
+      if (insertError) {
+        console.error("Free order insert failed:", insertError);
+        res.status(500).json({ error: "Failed to create order. Please try again." });
+        return;
+      }
+
+      for (const item of paidItems) {
+        await supabaseAdmin.rpc("decrement_stock", { p_cart_code: item.cartCode, p_qty: item.quantity });
+      }
+      if (discountCodeNorm) {
+        await supabaseAdmin.rpc("increment_promo_use", { p_code: discountCodeNorm }).then(() => {}, () => {});
+      }
+
+      const freeOrder: EmailOrder = {
+        id: orderId, email, items, gross_amount: grossAmount, discount_amount: discountAmount,
+        discount_code: discountCodeNorm, net_amount: netAmount, shipping_address: shipping, emails_sent: {},
+      };
+      deferEmail(
+        (async () => {
+          await sendOrderEvent(freeOrder, "confirmed");
+          await sendOrderEvent(freeOrder, "admin_new_order");
+        })(),
+      );
+
+      res.status(200).json({ free: true, orderId });
+      return;
+    }
 
     // Persist pending order
     const { error: insertError } = await supabaseAdmin.from("orders").insert({
       id: orderId,
       email,
       status: "pending",
-      items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price })),
+      items: orderItems,
       gross_amount: grossAmount,
       discount_amount: discountAmount,
       net_amount: netAmount,
-      discount_code: discount ? discountCode!.trim().toUpperCase() : null,
+      discount_code: discountCodeNorm,
       affiliate_id: affiliateId,
       commission_amount: commissionAmount,
       shipping_address: shipping,
@@ -162,7 +212,7 @@ export default async function handler(req: any, res: any) {
       items,
       gross_amount: grossAmount,
       discount_amount: discountAmount,
-      discount_code: discount ? discountCode!.trim().toUpperCase() : null,
+      discount_code: discountCodeNorm,
       net_amount: netAmount,
       shipping_address: shipping,
       emails_sent: {},

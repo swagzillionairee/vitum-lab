@@ -18,7 +18,7 @@ import SEO from "@/components/SEO";
 const FREE_SHIPPING_THRESHOLD = 150;
 
 export default function Checkout() {
-  const { items, subtotal, openCart } = useCart();
+  const { items, subtotal, openCart, clearCart } = useCart();
   const { session, user, loading } = useAuth();
   const [, navigate] = useLocation();
 
@@ -140,7 +140,13 @@ export default function Checkout() {
           body: JSON.stringify({ shipping_address: shippingPayload }),
           keepalive: true,
         }).catch(() => {});
-        window.location.href = data.invoiceUrl;
+        if (data.free) {
+          // $0 order (e.g. 100% promo) — already confirmed server-side, skip NowPayments.
+          clearCart();
+          navigate(`/order-success?order=${encodeURIComponent(data.orderId)}&free=1`);
+        } else {
+          window.location.href = data.invoiceUrl;
+        }
       }
     } catch {
       setError("Failed to create payment. Please try again.");

@@ -82,6 +82,7 @@ server/
 3. Payment confirmed: NowPayments IPN → `POST /api/nowpayments-webhook` → `decrement_stock()` RPC → order status `confirmed` → customer confirmation email + admin new-order alert (idempotent via `orders.emails_sent` — NowPayments fires both `confirmed` and `finished`). `failed`/`expired`/`refunded` IPNs on pending orders → status `failed` + email.
 4. Order ID encodes email: `{10-char-alphanum}--{base64url(email)}` — no DB lookup needed to send the email.
 5. Discounts are resolved **server-side** in `create-crypto-payment` from the code (affiliate → discount+commission; promo → discount only); client-sent amounts are ignored. Commission = `commission_percent` × net, stored on the order at creation.
+6. **$0 orders skip NowPayments:** if the server-computed net is ≤ 0 (e.g. a 100%-off promo), `create-crypto-payment` inserts the order as `confirmed` immediately, decrements stock, counts the promo, sends the confirmed + admin-alert emails, and returns `{free:true, orderId}`. The client clears the cart and routes to `/order-success?...&free=1` (instant-confirm copy) — no NowPayments page, no IPN.
 
 ---
 
