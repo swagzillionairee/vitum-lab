@@ -19,17 +19,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const now = Date.now();
     const since = (days: number) => new Date(now - days * 86400000).toISOString();
 
-    const [{ data: orders }, { data: inventory }, { data: affiliates }] = await Promise.all([
-      supabaseAdmin
-        .from("orders")
-        .select(
-          "status, fulfillment_status, net_amount, items, created_at, email, affiliate_id, commission_amount, cancel_reason",
-        )
-        .order("created_at", { ascending: false }),
-      supabaseAdmin.from("inventory").select("cart_code, stock"),
-      supabaseAdmin.from("affiliates").select("id, code, name"),
-    ]);
-
     type OrderItem = { name: string; dose: string; quantity: number; cartCode: string; price: number };
     type SummaryOrder = {
       status: string; fulfillment_status: string | null; net_amount: number | string;
@@ -37,7 +26,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       email: string | null; affiliate_id: string | null;
       commission_amount: number | string | null; cancel_reason: string | null;
     };
-    const rows = (orders ?? []) as SummaryOrder[];
+
+    // Page through ALL orders — PostgREST caps a single response at 1000 rows, so a
+    // plain select would silently under-count revenue/commission/repeat-rate/top
+    // sellers once the store passes 1000 orders. Newest-first ordering is preserved.
+    // (If orders ever reach the tens of thousands, move these aggregates into SQL.)
+    const ORDER_COLS =
+      "status, fulfillment_status, net_amount, items, created_at, email, affiliate_id, commission_amount, cancel_reason";
+    const ORDERS_PAGE = 1000;
+    const fetchAllOrders = async (): Promise<SummaryOrder[]> => {
+      const all: SummaryOrder[] = [];
+      for (let from = 0; ; from += ORDERS_PAGE) {
+        const { data, error } = await supabaseAdmin
+          .from("orders")
+          .select(ORDER_COLS)
+          .order("created_at", { ascending: false })
+          .range(from, from + ORDERS_PAGE - 1);
+        if (error) throw new Error(error.message);
+        const batch = (data ?? []) as SummaryOrder[];
+        all.push(...batch);
+        if (batch.length < ORDERS_PAGE) break;
+      }
+      return all;
+    };
+
+    let rows: SummaryOrder[];
+    let inventory: { cart_code: string; stock: number }[] | null;
+    let affiliates: { id: string; code: string | null; name: string | null }[] | null;
+    try {
+      const [orderRows, invRes, affRes] = await Promise.all([
+        fetchAllOrders(),
+        supabaseAdmin.from("inventory").select("cart_code, stock"),
+        supabaseAdmin.from("affiliates").select("id, code, name"),
+      ]);
+      rows = orderRows;
+      inventory = invRes.data;
+      affiliates = affRes.data;
+    } catch {
+      return res.status(500).json({ error: "Failed to load summary data" });
+    }
+
     const isPaid = (s: string) => s === "confirmed" || s === "finished";
     const num = (v: number | string) => Number(v) || 0;
 
