@@ -11,6 +11,7 @@ import { useLocation } from "wouter";
 import { ArrowRight, Tag, Check, Loader2, ShoppingBag } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { authedFetch } from "@/lib/api";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
 
@@ -45,6 +46,25 @@ export default function Checkout() {
     if (user?.email) setEmail((e) => e || user.email!);
   }, [user]);
 
+  // Prefill the shipping address from the saved profile (or last order).
+  useEffect(() => {
+    if (!session) return;
+    let stale = false;
+    (async () => {
+      try {
+        const res = await authedFetch("/api/account/profile");
+        if (!res.ok || stale) return;
+        const { shipping_address: a } = await res.json();
+        if (!a?.line1) return;
+        setShip((prev) => (prev.line1 ? prev : {
+          name: a.name ?? "", line1: a.line1 ?? "", line2: a.line2 ?? "", city: a.city ?? "",
+          state: a.state ?? "", postal_code: a.postal_code ?? "", country: a.country || "US", phone: a.phone ?? "",
+        }));
+      } catch { /* prefill is best-effort */ }
+    })();
+    return () => { stale = true; };
+  }, [session]);
+
   const setShipField = (field: keyof typeof ship, value: string) => {
     setShip((prev) => ({ ...prev, [field]: value }));
     setError("");
@@ -59,7 +79,7 @@ export default function Checkout() {
       const res = await fetch("/api/validate-discount", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: promoCode.trim() }),
+        body: JSON.stringify({ code: promoCode.trim(), subtotal }),
       });
       const data = await res.json();
       if (!res.ok || !data.valid) {
@@ -91,6 +111,11 @@ export default function Checkout() {
     }
     setBusy(true);
     setError("");
+    const shippingPayload = {
+      name: ship.name.trim(), line1: ship.line1.trim(), line2: ship.line2.trim(),
+      city: ship.city.trim(), state: ship.state.trim().toUpperCase(),
+      postal_code: ship.postal_code.trim(), country: ship.country, phone: ship.phone.trim(),
+    };
     try {
       const response = await fetch("/api/create-crypto-payment", {
         method: "POST",
@@ -98,11 +123,7 @@ export default function Checkout() {
         body: JSON.stringify({
           items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price })),
           email,
-          shipping: {
-            name: ship.name.trim(), line1: ship.line1.trim(), line2: ship.line2.trim(),
-            city: ship.city.trim(), state: ship.state.trim().toUpperCase(),
-            postal_code: ship.postal_code.trim(), country: ship.country, phone: ship.phone.trim(),
-          },
+          shipping: shippingPayload,
           total,
           discountCode: promoApplied ? promoCode : undefined,
           affiliateId: promoApplied ? affiliateId : undefined,
@@ -113,6 +134,12 @@ export default function Checkout() {
       if (!response.ok) {
         setError(data.error || "Failed to create payment. Please try again.");
       } else {
+        // Save the address for next time; keepalive lets it finish during the redirect.
+        void authedFetch("/api/account/profile", {
+          method: "PUT",
+          body: JSON.stringify({ shipping_address: shippingPayload }),
+          keepalive: true,
+        }).catch(() => {});
         window.location.href = data.invoiceUrl;
       }
     } catch {

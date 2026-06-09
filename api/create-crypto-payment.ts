@@ -1,11 +1,46 @@
 import { customAlphabet } from "nanoid";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
+import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
 
 function buildOrderId(email: string) {
   return `${genId()}--${Buffer.from(email).toString("base64url")}`;
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Server-side discount resolution — never trust the client's discount math.
+ * A code is either an affiliate code (sets affiliate + commission) or a row
+ * in promo_codes (validated for active/expiry/uses/min-subtotal).
+ */
+async function resolveDiscount(code: string, gross: number): Promise<
+  | { kind: "affiliate"; percent: number; affiliateId: string; commissionPercent: number }
+  | { kind: "promo"; percent: number }
+  | null
+> {
+  const normalized = code.trim().toUpperCase();
+  if (!normalized) return null;
+
+  const { data: aff } = await supabaseAdmin
+    .from("affiliates")
+    .select("id, discount_percent, commission_percent")
+    .eq("code", normalized)
+    .maybeSingle();
+  if (aff) return { kind: "affiliate", percent: aff.discount_percent, affiliateId: aff.id, commissionPercent: aff.commission_percent };
+
+  const { data: promo } = await supabaseAdmin
+    .from("promo_codes")
+    .select("code, percent_off, min_subtotal, max_uses, used_count, expires_at, is_active")
+    .ilike("code", normalized)
+    .maybeSingle();
+  if (!promo || !promo.is_active) return null;
+  if (promo.expires_at && new Date(promo.expires_at) < new Date()) return null;
+  if (promo.max_uses != null && promo.used_count >= promo.max_uses) return null;
+  if (gross < Number(promo.min_subtotal || 0)) return null;
+  return { kind: "promo", percent: promo.percent_off };
 }
 
 export default async function handler(req: any, res: any) {
@@ -15,7 +50,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { items, email, total, discountCode, affiliateId, discountAmount, shipping } = req.body as {
+    const { items, email, discountCode, shipping } = req.body as {
       items: { name: string; dose: string; quantity: number; cartCode: string; price: number }[];
       email: string;
       total: number;
@@ -28,7 +63,7 @@ export default async function handler(req: any, res: any) {
       };
     };
 
-    if (!items?.length || !email || !total) {
+    if (!items?.length || !email) {
       res.status(400).json({ error: "Missing required fields" });
       return;
     }
@@ -54,26 +89,44 @@ export default async function handler(req: any, res: any) {
     }
 
     const orderId = buildOrderId(email);
-    const grossAmount = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-    const netAmount = total;
+    const grossAmount = round2(items.reduce((sum, i) => sum + i.price * i.quantity, 0));
+
+    // Recompute discount + commission server-side from the code itself.
+    const discount = discountCode ? await resolveDiscount(discountCode, grossAmount) : null;
+    if (discountCode && !discount) {
+      res.status(400).json({ error: "That promo code is invalid or expired." });
+      return;
+    }
+    const discountAmount = discount ? round2((grossAmount * discount.percent) / 100) : 0;
+    const netAmount = round2(grossAmount - discountAmount);
+    const affiliateId = discount?.kind === "affiliate" ? discount.affiliateId : null;
+    const commissionAmount =
+      discount?.kind === "affiliate" ? round2((netAmount * discount.commissionPercent) / 100) : null;
+
     const description = paidItems
       .map((i) => `${i.name} ${i.dose} x${i.quantity}`)
       .join(", ");
     const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
 
     // Persist pending order
-    await supabaseAdmin.from("orders").insert({
+    const { error: insertError } = await supabaseAdmin.from("orders").insert({
       id: orderId,
       email,
       status: "pending",
       items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price })),
       gross_amount: grossAmount,
-      discount_amount: discountAmount ?? 0,
+      discount_amount: discountAmount,
       net_amount: netAmount,
-      discount_code: discountCode ?? null,
-      affiliate_id: affiliateId ?? null,
+      discount_code: discount ? discountCode!.trim().toUpperCase() : null,
+      affiliate_id: affiliateId,
+      commission_amount: commissionAmount,
       shipping_address: shipping,
     });
+    if (insertError) {
+      console.error("Order insert failed:", insertError);
+      res.status(500).json({ error: "Failed to create order. Please try again." });
+      return;
+    }
 
     const nowRes = await fetch(`${NOWPAYMENTS_API}/invoice`, {
       method: "POST",
@@ -101,6 +154,21 @@ export default async function handler(req: any, res: any) {
     }
 
     const data = await nowRes.json() as { invoice_url: string };
+
+    // "Order received / awaiting payment" email — after the response via waitUntil.
+    const emailOrder: EmailOrder = {
+      id: orderId,
+      email,
+      items,
+      gross_amount: grossAmount,
+      discount_amount: discountAmount,
+      discount_code: discount ? discountCode!.trim().toUpperCase() : null,
+      net_amount: netAmount,
+      shipping_address: shipping,
+      emails_sent: {},
+    };
+    deferEmail(sendOrderEvent(emailOrder, "order_created", { invoiceUrl: data.invoice_url }));
+
     res.status(200).json({ invoiceUrl: data.invoice_url, orderId });
   } catch (err) {
     console.error("create-crypto-payment error:", err);

@@ -41,19 +41,26 @@ client/src/
 
 api/                Vercel serverless functions — ALL relative imports MUST use .js extensions (ESM)
   inventory.ts                GET  /api/inventory → {cartCode: stock} map
-  create-crypto-payment.ts   POST /api/create-crypto-payment
-  nowpayments-webhook.ts     POST /api/nowpayments-webhook (raw body, HMAC-verified)
-  validate-discount.ts       POST /api/validate-discount
+  create-crypto-payment.ts   POST /api/create-crypto-payment (server-side discount/commission calc + "order received" email)
+  nowpayments-webhook.ts     POST /api/nowpayments-webhook (raw body, HMAC-verified; confirmed/failed emails, promo use count)
+  validate-discount.ts       POST /api/validate-discount (affiliate codes + promo_codes; pass subtotal for min-subtotal checks)
   contact.ts                 POST /api/contact
-  me.ts                      GET  /api/me → {email, isAdmin, isAffiliate}
+  me.ts                      GET  /api/me → {email, isAdmin, isAffiliate} (+ one-time welcome email via metadata flag)
   products.ts                GET  /api/products → product list (public)
-  admin/[...slug].ts         Catch-all for /api/admin/* (summary, inventory, orders GET + PATCH actions, products CRUD, upload)
-                             Order actions (PATCH /api/admin/orders): cancel (restocks paid orders),
-                             ship (tracking+carrier), deliver, recheck (reconciles vs NowPayments), notes
+  cron.ts                    GET/POST /api/cron — hourly maintenance (expire stale orders + email sweep), CRON_SECRET-protected
+  admin/[...slug].ts         Catch-all for /api/admin/* (summary, inventory, orders GET + PATCH actions, products CRUD, upload,
+                             affiliates GET/POST/PATCH, payouts POST/DELETE, promos CRUD)
+                             Order actions (PATCH /api/admin/orders): cancel (restocks paid orders + email),
+                             ship (tracking+carrier + email), deliver (+email), recheck (reconciles vs NowPayments + emails),
+                             notes, resend_email {event}
   affiliate/[...slug].ts     Catch-all for /api/affiliate/* (stats, orders)
-  account/orders.ts          GET  /api/account/orders → orders for logged-in user by email
+  account/[...slug].ts       Catch-all for /api/account/*: orders (order history + timeline fields),
+                             profile GET/PUT (saved shipping address in auth user metadata, falls back to last order)
   _lib/
     supabase-admin.js  Service-role Supabase client
+    email.ts           ALL transactional email: one Gmail transport + branded layout + send per event
+                       (order_created/confirmed/shipped/delivered/cancelled/failed/admin_new_order/welcome),
+                       idempotent via orders.emails_sent; deferEmail() = waitUntil with local fallback
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
     requireAffiliate.ts requireUser + checks affiliates table
@@ -62,18 +69,19 @@ server/
   index.ts          Express server (local dev only — proxies /api/* to the same handlers)
   lib/
     supabase-admin.ts  Service-role Supabase client (SUPABASE_SERVICE_ROLE_KEY)
-    email.ts           Nodemailer/Gmail helpers
+    email.ts           Legacy local-dev copy (only used by server/index.ts — production email lives in api/_lib/email.ts)
 ```
 
 **ESM import rule:** `package.json` has `"type": "module"`. All relative imports inside `api/` **must** include `.js` extension (e.g. `import { x } from "./_lib/supabase-admin.js"`). Missing extensions cause `ERR_MODULE_NOT_FOUND` at runtime on Vercel.
 
-**Vercel function limit (Hobby plan):** 12 serverless functions max. Admin and affiliate routes are consolidated into two catch-all handlers (`api/admin/[...slug].ts`, `api/affiliate/[...slug].ts`) to stay under the limit.
+**Vercel function limit (Hobby plan):** 12 serverless functions max — currently 11 used (8 root files + 3 catch-alls). Admin, affiliate, and account routes are consolidated into catch-all handlers to stay under the limit. Do NOT add a new root file in `api/` without checking the count.
 
 **Key data flow:**
 1. Cart items live in `CartContext` (sessionStorage). `CartItem.cartCode` is the inventory key.
 2. Checkout: CartDrawer shows cart items + a "Proceed to Checkout" button. Checkout **requires sign-in** — if not authenticated it routes to `/login?redirect=/checkout`. The dedicated `/checkout` page (`pages/Checkout.tsx`) has a 2/3 contact+shipping form (Google Places autocomplete, email prefilled from the account) and a 1/3 order summary (items, subtotal, discount, shipping, total, promo). Submitting → `POST /api/create-crypto-payment` (validates a complete address) → NowPayments invoice URL → redirect. The invoice page offers crypto **and** card/Apple Pay (fiat on-ramp), so there is a single checkout path. Card/Apple Pay must be enabled in the NowPayments dashboard (on-ramp via Guardarian/Banxa) — no code change needed to toggle it.
-3. Payment confirmed: NowPayments IPN → `POST /api/nowpayments-webhook` → `decrement_stock()` RPC → order status `confirmed` → confirmation email.
+3. Payment confirmed: NowPayments IPN → `POST /api/nowpayments-webhook` → `decrement_stock()` RPC → order status `confirmed` → customer confirmation email + admin new-order alert (idempotent via `orders.emails_sent` — NowPayments fires both `confirmed` and `finished`). `failed`/`expired`/`refunded` IPNs on pending orders → status `failed` + email.
 4. Order ID encodes email: `{10-char-alphanum}--{base64url(email)}` — no DB lookup needed to send the email.
+5. Discounts are resolved **server-side** in `create-crypto-payment` from the code (affiliate → discount+commission; promo → discount only); client-sent amounts are ignored. Commission = `commission_percent` × net, stored on the order at creation.
 
 ---
 
@@ -100,15 +108,19 @@ Free gift `bac-water-free` (price $0) auto-added when subtotal ≥ $150 — skip
 Tables in `public`:
 - `inventory(cart_code PK, stock INT CHECK >= 0, is_active BOOL, updated_at)` — availability is **stock-driven**: `stock = 0` disables Add to Cart on Shop + ProductDetail. The `is_active` flag is retained in the schema but no longer used by the storefront or admin (the manual hide/show toggle was removed; `/api/inventory` returns all rows).
 - `orders(id PK, email, items JSONB, shipping_address JSONB, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed/cancelled, fulfillment_status CHECK IN unfulfilled/shipped/delivered, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, confirmed_at, created_at)` — `status` is the payment lifecycle, `fulfillment_status` is the shipping state (orthogonal). `shipping_address` = {name, line1, line2, city, state, postal_code, country, phone}.
-- `affiliates(id UUID PK, user_id → auth.users, code UNIQUE, discount_percent, commission_percent, name, created_at)`
+- `affiliates(id UUID PK, user_id → auth.users, code UNIQUE, discount_percent, commission_percent, name, email, created_at)`
+- `affiliate_payouts(id UUID PK, affiliate_id → affiliates, amount NUMERIC > 0, note, created_at)` — payout tracking; **owed = Σ commission on paid orders − Σ payouts** (computed in `/api/admin/affiliates` and the summary).
+- `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, expires_at, is_active, created_at)` — general promo codes, managed in Admin → Promos. `used_count` increments on payment confirmation via `increment_promo_use(p_code)`.
+- `orders.emails_sent JSONB DEFAULT '{}'` — `{event: ISO timestamp}` per sent email; the idempotency log shown in the admin order detail (with Resend buttons).
 
 Key RPCs:
 - `decrement_stock(p_cart_code TEXT, p_qty INT) → INT` — atomic UPDATE WHERE stock >= qty, raises `P0001 insufficient_stock` on failure.
 - `increment_stock(p_cart_code TEXT, p_qty INT) → INT` — restocks (used when an admin cancels a *paid* order).
+- `increment_promo_use(p_code TEXT)` — atomic promo usage counter.
 
-**Scheduled job (pg_cron):** `expire-stale-orders` runs hourly — sets `status='cancelled'` (reason `auto-expired…`) on `pending` orders older than 24h. Pending orders never decremented stock, so no restock needed.
+**Scheduled jobs (pg_cron):** `expire-stale-orders` runs hourly — sets `status='cancelled'` (reason `auto-expired…`) on `pending` orders older than 24h (pending orders never decremented stock, so no restock needed). `email-cron` runs hourly — pg_net POST to `/api/cron` (CRON_SECRET header), which also expires stale orders AND sends the cancellation emails (idempotent; the two jobs coexist safely — the endpoint's sweep emails anything the SQL job expired).
 
-RLS: `inventory` is publicly readable (anon). `orders` and `affiliates` are service-role only.
+RLS: `inventory` is publicly readable (anon). `orders`, `affiliates`, `affiliate_payouts`, and `promo_codes` are service-role only.
 
 ---
 
@@ -123,6 +135,9 @@ NOWPAYMENTS_IPN_SECRET=
 GMAIL_USER=hello@vitumlab.com
 GMAIL_APP_PASSWORD=
 BASE_URL=https://vitum-lab.vercel.app
+ORDERS_EMAIL=orders@vitumlab.com      # admin new-paid-order alerts (free Workspace alias on hello@); falls back to GMAIL_USER
+INVENTORY_EMAIL=inventory@vitumlab.com # reserved for the Tier-3 low-stock digest; falls back to GMAIL_USER
+CRON_SECRET=                           # shared secret for /api/cron (must match the pg_cron email-cron job header)
 
 # Browser (Vite needs VITE_ prefix — must be set manually in Vercel)
 VITE_SUPABASE_URL=https://mddgtvwcwsmlbwiafdvq.supabase.co
@@ -219,27 +234,16 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 **Admin dashboard summary** — built. Admin → **Overview** tab (default) shows revenue (30d + all-time), orders-to-fulfill (paid + unfulfilled), pending-payment count, low/out-of-stock list, orders-this-week, AOV, top sellers, and recent orders — plus a daily revenue bar chart with a 10/30/60/90-day toggle, affiliate commissions owed (total KPI + per-affiliate breakdown), repeat-customer rate, cancelled-orders-30d count, and color-coded KPI tiles via the reusable `<Kpi>` component (green = good, amber = warning, red = urgent, cobalt = info). Backed by `GET /api/admin/summary` (computed in the admin catch-all; pages through orders 1000 rows at a time because PostgREST caps a single response at 1000 rows). KPI tiles deep-link into the Orders tab with filters pre-applied.
 
-**Automated emails — APPROVED PLAN (owner-approved June 2026), not built yet.** Build Tier 1 + Tier 2. Tier 3 is deferred. All sends via Gmail SMTP from `hello@vitumlab.com` (Google Workspace — 2,000 sends/day cap; SPF/DKIM handled by Google; add a DMARC record).
-
-*Architecture decisions (agreed):*
-- Consolidate into a single `api/_lib/email.ts`: one Nodemailer transport + one shared branded HTML layout (reuse the existing dark-header template) + one small `send<Event>()` per email type. The confirmation template/transport is currently duplicated in 3 places (`api/_lib/email.ts` — unused, inline in `api/nowpayments-webhook.ts`, `server/lib/email.ts`) — kill the copies. Keep the transport isolated so a later swap to a transactional ESP (Resend/Postmark) is a one-file change.
-- Idempotency: migration adds `orders.emails_sent JSONB DEFAULT '{}'` (`{event: ISO timestamp}`); every send checks-then-stamps. This also fixes a known bug: NowPayments fires both `confirmed` and `finished` IPNs and the email send sits **outside** the `status === "pending"` guard in the webhook, so customers can currently receive the confirmation email twice.
-- Never block or fail the main flow on email: wrap sends in try/catch; on latency-sensitive paths (checkout) send after the response using `waitUntil()` from `@vercel/functions`, with a plain `await` fallback for local dev.
-- Function budget: 10 of 12 Vercel Hobby slots used. **No new endpoint per email** — trigger inline from existing handlers. Add ONE new `api/cron.ts` (slot 11; protected by a `CRON_SECRET` env var; invoked hourly by pg_cron + pg_net) for scheduled work, and fold the `expire-stale-orders` pg_cron SQL into it so order expiry and its email live in one place.
-- Admin alert recipients are env-configurable: `ORDERS_EMAIL` (e.g. orders@vitumlab.com), `INVENTORY_EMAIL` (e.g. inventory@vitumlab.com), falling back to `GMAIL_USER`. These addresses are free Google Workspace **aliases** on the hello@ user (Admin console → Directory → Users → hello@ → Email aliases; up to 30, no extra cost), sorted in Gmail via filters/labels.
-
-*Tier 1 (build):*
-1. **Welcome** — on first authenticated `/api/me` call; dedupe via a `welcomed` flag in Supabase auth user metadata (service-role update); send non-blocking.
-2. **Order received / awaiting payment** — in `api/create-crypto-payment.ts` after order insert + invoice creation; include items, total, the NowPayments invoice URL, and the 24h-expiry note; send via waitUntil.
-3. **Payment confirmed** — exists in the webhook; move it inside the idempotency guard, ALSO send when admin Re-check confirms an order, and enrich with line items + shipping address.
-4. **Shipping confirmation** — admin `ship` action in `api/admin/[...slug].ts`; include tracking number + carrier-aware tracking link (USPS/UPS/FedEx URL patterns).
-
-*Tier 2 (build):*
-5. **New-paid-order alert → ORDERS_EMAIL** — same webhook moment as #3 (and Re-check); items, amount, ship-to, link to admin Orders.
-6. **Order cancelled/expired → customer** — admin `cancel` action + auto-expiry via `api/cron.ts`; include reason; nothing-was-charged note for pending orders.
-7. **Delivered** — admin `deliver` action; closes the loop, links COA library.
-8. **Payment failed** — webhook `failed`/`expired` statuses (currently ignored) + the Re-check-failed path; explain how to retry.
+**Automated emails — BUILT (Tier 1 + Tier 2, June 2026).** All transactional email lives in `api/_lib/email.ts` (one Gmail transport, one branded layout, idempotent via `orders.emails_sent`). Live emails: welcome (first `/api/me`, deduped via auth-metadata `welcomed` flag), order received w/ invoice link (checkout, via waitUntil), payment confirmed + admin new-paid-order alert → `ORDERS_EMAIL` (webhook + admin Re-check, inside the idempotency guard — fixed the historical double-send bug), shipping confirmation w/ carrier tracking link (USPS default), delivered (links COA library), cancelled/expired w/ reason (admin cancel + `/api/cron`), payment failed (webhook `failed`/`expired`/`refunded` + Re-check). Admin → Orders expanded row shows the per-order email log with Send/Resend buttons (`resend_email` action). Requires `GMAIL_APP_PASSWORD`, `ORDERS_EMAIL`, `CRON_SECRET` env vars in Vercel.
 
 *Explicitly rejected (owner decision — do NOT build or re-suggest):* abandoned-payment reminder emails.
 
 *Tier 3 (deferred — keep in mind, don't build yet):* low-stock digest to INVENTORY_EMAIL (threshold 5, via cron); affiliate commission notifications/monthly statements; post-delivery follow-up (marketing-ish — needs an opt-out line); back-in-stock waitlist (needs UI + table + cron); newsletters/promos (require a real ESP with list management + unsubscribe — never via Gmail SMTP).
+
+**Affiliate payout tracking — built.** Admin → **Affiliates** tab: list w/ earned (commission on paid orders), paid (recorded payouts), owed (earned − paid), Record Payout / Edit % / Add Affiliate actions, expandable payout history (deletable entries). Overview "Commissions Owed" KPI + breakdown are payout-aware. Commission is computed server-side at order creation (was previously never written — fixed). First affiliate: `asiancreativegaming@gmail.com`, code `ACG10` (10% discount / 10% commission).
+
+**General promo codes — built.** `promo_codes` table + Admin → **Promos** tab (create w/ % off, min subtotal, max uses, expiry; enable/disable; delete). `validate-discount` checks affiliates first, then promos; `create-crypto-payment` re-validates server-side and ignores client discount math; `used_count` increments on payment confirmation.
+
+**Customer account upgrades — built.** `/account` shows an order status timeline (Placed → Paid → Shipped → Delivered, cancelled/failed branches, tracking link via the shared `OrderTimeline` component — also rendered in the admin order detail), one-click **Reorder** (re-adds items at current prices, skips unavailable), and a saved shipping address (auth user metadata via `/api/account/profile`, auto-saved at checkout, prefilled on the next checkout, falls back to the latest order's address).
+
+**Shipping labels (USPS) — NOT built; awaiting owner decision.** Owner wants USPS-only label purchase. Plan when approved: EasyPost or Shippo behind a `buy_label` admin order action (no new function slot), storing label URL + auto-filling tracking + firing the shipped email; delivery auto-detection via tracking polling in `/api/cron` (avoids a 12th function for a tracking webhook). Needs an owner-created EasyPost/Shippo account + API key env var before any code.
