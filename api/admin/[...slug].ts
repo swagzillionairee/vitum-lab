@@ -19,18 +19,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const now = Date.now();
     const since = (days: number) => new Date(now - days * 86400000).toISOString();
 
-    const [{ data: orders }, { data: inventory }] = await Promise.all([
+    const [{ data: orders }, { data: inventory }, { data: affiliates }] = await Promise.all([
       supabaseAdmin
         .from("orders")
-        .select("status, fulfillment_status, net_amount, items, created_at")
+        .select(
+          "status, fulfillment_status, net_amount, items, created_at, email, affiliate_id, commission_amount, cancel_reason",
+        )
         .order("created_at", { ascending: false }),
       supabaseAdmin.from("inventory").select("cart_code, stock"),
+      supabaseAdmin.from("affiliates").select("id, code, name"),
     ]);
 
     type OrderItem = { name: string; dose: string; quantity: number; cartCode: string; price: number };
     type SummaryOrder = {
       status: string; fulfillment_status: string | null; net_amount: number | string;
       items: OrderItem[] | null; created_at: string;
+      email: string | null; affiliate_id: string | null;
+      commission_amount: number | string | null; cancel_reason: string | null;
     };
     const rows = (orders ?? []) as SummaryOrder[];
     const isPaid = (s: string) => s === "confirmed" || s === "finished";
@@ -73,11 +78,83 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       created_at: o.created_at,
     }));
 
+    // ── Daily revenue, last 90 ET days (client slices to 10/30/60/90) ───────────
+    const etDay = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const revByDay: Record<string, number> = {};
+    for (const o of paid) {
+      const k = etDay(o.created_at);
+      revByDay[k] = (revByDay[k] ?? 0) + num(o.net_amount);
+    }
+    const dayKeys: string[] = [];
+    // Anchor at noon UTC of today's ET date, then step back 24h at a time — DST-safe.
+    let cursor = new Date(etDay(new Date(now).toISOString()) + "T12:00:00Z");
+    for (let i = 0; i < 90; i++) {
+      dayKeys.push(cursor.toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
+      cursor = new Date(cursor.getTime() - 86400000);
+    }
+    dayKeys.reverse();
+    const dailyRevenue = dayKeys.map((d) => ({ date: d, revenue: Math.round((revByDay[d] ?? 0) * 100) / 100 }));
+
+    // ── Affiliate commissions owed (total + per affiliate), from paid orders ─────
+    const affList = (affiliates ?? []) as { id: string; code: string | null; name: string | null }[];
+    const affById = new Map(affList.map((a) => [a.id, a]));
+    const commTally: Record<string, { amount: number; orders: number }> = {};
+    let commissionsOwed = 0;
+    for (const o of paid) {
+      const aid = o.affiliate_id;
+      const c = num(o.commission_amount);
+      if (!aid || c <= 0) continue;
+      commissionsOwed += c;
+      if (!commTally[aid]) commTally[aid] = { amount: 0, orders: 0 };
+      commTally[aid].amount += c;
+      commTally[aid].orders += 1;
+    }
+    commissionsOwed = Math.round(commissionsOwed * 100) / 100;
+    const commissionsByAffiliate = Object.entries(commTally)
+      .map(([id, v]) => {
+        const a = affById.get(id);
+        return {
+          id,
+          name: a?.name || a?.code || "Unknown affiliate",
+          code: a?.code || "",
+          amount: Math.round(v.amount * 100) / 100,
+          orders: v.orders,
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
+
+    // ── Repeat-customer rate (share of paid orders from a returning email) ───────
+    const paidAsc = [...paid].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const emailCounts: Record<string, number> = {};
+    const seenEmail = new Set<string>();
+    let repeatOrders = 0;
+    for (const o of paidAsc) {
+      const email = (o.email ?? "").toLowerCase().trim();
+      if (!email) continue;
+      if (seenEmail.has(email)) repeatOrders++;
+      else seenEmail.add(email);
+      emailCounts[email] = (emailCounts[email] ?? 0) + 1;
+    }
+    const repeatCustomers = Object.values(emailCounts).filter((n) => n > 1).length;
+    const totalCustomers = seenEmail.size;
+    const repeatCustomerRate = paidAsc.length > 0 ? repeatOrders / paidAsc.length : 0;
+
+    // ── Cancelled / abandoned in the last 30 days (auto-expired is a subset) ─────
+    const cancelled30rows = rows.filter((o) => o.status === "cancelled" && o.created_at >= since30);
+    const cancelled30 = cancelled30rows.length;
+    const autoExpired30 = cancelled30rows.filter((o) =>
+      (o.cancel_reason ?? "").toLowerCase().startsWith("auto-expired"),
+    ).length;
+
     return res.json({
       revenue30, revenueAll, paidOrders: paid.length, aov,
       ordersToFulfill, pendingPayment, ordersThisWeek,
       lowStock, outOfStockCount, lowStockThreshold: LOW_STOCK_THRESHOLD,
       topProducts, recentOrders,
+      dailyRevenue,
+      commissionsOwed, commissionsByAffiliate,
+      repeatCustomerRate, repeatCustomers, totalCustomers,
+      cancelled30, autoExpired30,
     });
   }
 
