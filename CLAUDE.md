@@ -217,11 +217,29 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 **Product management** — built and live. Products are stored in the Supabase `products` table and managed via the Admin → Products tab. Images are stored in the `product-images` Supabase Storage bucket.
 
-**Admin dashboard summary** — built. Admin → **Overview** tab (default) shows revenue (30d + all-time), orders-to-fulfill (paid + unfulfilled), pending-payment count, low/out-of-stock list, orders-this-week, AOV, top sellers, and recent orders. Backed by `GET /api/admin/summary` (computed in the admin catch-all). KPI tiles deep-link into the Orders tab with filters pre-applied.
+**Admin dashboard summary** — built. Admin → **Overview** tab (default) shows revenue (30d + all-time), orders-to-fulfill (paid + unfulfilled), pending-payment count, low/out-of-stock list, orders-this-week, AOV, top sellers, and recent orders — plus a daily revenue bar chart with a 10/30/60/90-day toggle, affiliate commissions owed (total KPI + per-affiliate breakdown), repeat-customer rate, cancelled-orders-30d count, and color-coded KPI tiles via the reusable `<Kpi>` component (green = good, amber = warning, red = urgent, cobalt = info). Backed by `GET /api/admin/summary` (computed in the admin catch-all; pages through orders 1000 rows at a time because PostgREST caps a single response at 1000 rows). KPI tiles deep-link into the Orders tab with filters pre-applied.
 
-**Admin dashboard — pending features to build:**
-- **30-day revenue bar chart** — daily bar chart of revenue for the past 30 days on the Overview tab.
-- **Affiliate commissions owed** — total unpaid commissions due to affiliates, shown as a KPI tile on Overview.
-- **Repeat-customer rate** — percentage of orders from customers who have ordered before, shown as a stat on Overview.
-- **Cancelled/abandoned count** — count of cancelled + auto-expired orders in the last 30 days, shown as a KPI tile on Overview.
-- **Color-coded dashboard** — KPI tiles and stat cards should use color (green = good, amber = warning, red = urgent) to communicate status at a glance.
+**Automated emails — APPROVED PLAN (owner-approved June 2026), not built yet.** Build Tier 1 + Tier 2. Tier 3 is deferred. All sends via Gmail SMTP from `hello@vitumlab.com` (Google Workspace — 2,000 sends/day cap; SPF/DKIM handled by Google; add a DMARC record).
+
+*Architecture decisions (agreed):*
+- Consolidate into a single `api/_lib/email.ts`: one Nodemailer transport + one shared branded HTML layout (reuse the existing dark-header template) + one small `send<Event>()` per email type. The confirmation template/transport is currently duplicated in 3 places (`api/_lib/email.ts` — unused, inline in `api/nowpayments-webhook.ts`, `server/lib/email.ts`) — kill the copies. Keep the transport isolated so a later swap to a transactional ESP (Resend/Postmark) is a one-file change.
+- Idempotency: migration adds `orders.emails_sent JSONB DEFAULT '{}'` (`{event: ISO timestamp}`); every send checks-then-stamps. This also fixes a known bug: NowPayments fires both `confirmed` and `finished` IPNs and the email send sits **outside** the `status === "pending"` guard in the webhook, so customers can currently receive the confirmation email twice.
+- Never block or fail the main flow on email: wrap sends in try/catch; on latency-sensitive paths (checkout) send after the response using `waitUntil()` from `@vercel/functions`, with a plain `await` fallback for local dev.
+- Function budget: 10 of 12 Vercel Hobby slots used. **No new endpoint per email** — trigger inline from existing handlers. Add ONE new `api/cron.ts` (slot 11; protected by a `CRON_SECRET` env var; invoked hourly by pg_cron + pg_net) for scheduled work, and fold the `expire-stale-orders` pg_cron SQL into it so order expiry and its email live in one place.
+- Admin alert recipients are env-configurable: `ORDERS_EMAIL` (e.g. orders@vitumlab.com), `INVENTORY_EMAIL` (e.g. inventory@vitumlab.com), falling back to `GMAIL_USER`. These addresses are free Google Workspace **aliases** on the hello@ user (Admin console → Directory → Users → hello@ → Email aliases; up to 30, no extra cost), sorted in Gmail via filters/labels.
+
+*Tier 1 (build):*
+1. **Welcome** — on first authenticated `/api/me` call; dedupe via a `welcomed` flag in Supabase auth user metadata (service-role update); send non-blocking.
+2. **Order received / awaiting payment** — in `api/create-crypto-payment.ts` after order insert + invoice creation; include items, total, the NowPayments invoice URL, and the 24h-expiry note; send via waitUntil.
+3. **Payment confirmed** — exists in the webhook; move it inside the idempotency guard, ALSO send when admin Re-check confirms an order, and enrich with line items + shipping address.
+4. **Shipping confirmation** — admin `ship` action in `api/admin/[...slug].ts`; include tracking number + carrier-aware tracking link (USPS/UPS/FedEx URL patterns).
+
+*Tier 2 (build):*
+5. **New-paid-order alert → ORDERS_EMAIL** — same webhook moment as #3 (and Re-check); items, amount, ship-to, link to admin Orders.
+6. **Order cancelled/expired → customer** — admin `cancel` action + auto-expiry via `api/cron.ts`; include reason; nothing-was-charged note for pending orders.
+7. **Delivered** — admin `deliver` action; closes the loop, links COA library.
+8. **Payment failed** — webhook `failed`/`expired` statuses (currently ignored) + the Re-check-failed path; explain how to retry.
+
+*Explicitly rejected (owner decision — do NOT build or re-suggest):* abandoned-payment reminder emails.
+
+*Tier 3 (deferred — keep in mind, don't build yet):* low-stock digest to INVENTORY_EMAIL (threshold 5, via cron); affiliate commission notifications/monthly statements; post-delivery follow-up (marketing-ish — needs an opt-out line); back-in-stock waitlist (needs UI + table + cron); newsletters/promos (require a real ESP with list management + unsubscribe — never via Gmail SMTP).
