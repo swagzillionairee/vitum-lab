@@ -13,7 +13,7 @@ import {
   Pencil, Trash2, X, Upload, ShoppingBag, ImageOff,
   Truck, RefreshCw, Ban, CheckCircle2, ChevronDown,
   LayoutDashboard, DollarSign, Clock, AlertTriangle, TrendingUp,
-  Wallet, Repeat, XCircle, BarChart3, Users, Mail, Tag, UserRound,
+  Wallet, Repeat, XCircle, BarChart3, Users, Mail, Tag, UserRound, FileDown,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -64,6 +64,7 @@ interface OrderRow {
   shipped_at?: string | null;
   delivered_at?: string | null;
   cancelled_at?: string | null;
+  label_url?: string | null;
   shipping_address?: ShippingAddress | null;
   emails_sent?: Record<string, string> | null;
 }
@@ -711,6 +712,25 @@ export default function AdminDashboard() {
     orderAction(id, "ship", { tracking_number: tracking.trim(), carrier });
   };
 
+  // Buy a USPS Priority Mail Flat Rate Padded Envelope label via Shippo,
+  // then open the label PDF. On success the order flips to shipped + tracking.
+  const handleBuyLabel = async (id: string) => {
+    if (!confirm("Buy a USPS Priority Mail Flat Rate Padded Envelope label for this order via Shippo?")) return;
+    setOrderBusy(id);
+    try {
+      const res = await authedFetch("/api/admin/orders", { method: "PATCH", body: JSON.stringify({ id, action: "buy_label" }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...data } : o)));
+        if (data.label_url) window.open(data.label_url, "_blank");
+      } else {
+        alert(data.error ?? "Failed to buy label");
+      }
+    } finally {
+      setOrderBusy(null);
+    }
+  };
+
   const loadData = useCallback(async () => {
     setLoadError(null);
     try {
@@ -887,7 +907,7 @@ export default function AdminDashboard() {
   };
 
   // ── Customers (Supabase Auth users — everyone who has signed in) ──────────
-  const [customers, setCustomers] = useState<{ id: string; email: string | null; created_at: string; last_sign_in_at: string | null; provider: string | null }[] | null>(null);
+  const [customers, setCustomers] = useState<{ id: string; email: string | null; created_at: string; last_sign_in_at: string | null; provider: string | null; orders: number; spent: number }[] | null>(null);
   const [customerPage, setCustomerPage] = useState(1);
   const [customerHasMore, setCustomerHasMore] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
@@ -907,11 +927,11 @@ export default function AdminDashboard() {
 
   const exportCustomersCsv = () => {
     const rows = customers ?? [];
-    const header = ["Email", "Signed up (ET)", "Last sign-in (ET)", "Provider"];
+    const header = ["Email", "Orders", "Total Spent", "Signed up (ET)", "Last sign-in (ET)", "Provider"];
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [header.map(esc).join(",")];
     for (const c of rows) {
-      lines.push([c.email ?? "", formatDateEST(c.created_at), c.last_sign_in_at ? formatDateEST(c.last_sign_in_at) : "never", c.provider ?? ""].map(esc).join(","));
+      lines.push([c.email ?? "", c.orders, c.spent.toFixed(2), formatDateEST(c.created_at), c.last_sign_in_at ? formatDateEST(c.last_sign_in_at) : "never", c.provider ?? ""].map(esc).join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -957,6 +977,7 @@ export default function AdminDashboard() {
     { event: "shipped", label: "Shipping confirmation", applies: (o) => !!o.tracking_number || o.fulfillment_status === "shipped" || o.fulfillment_status === "delivered" },
     { event: "delivered", label: "Delivered", applies: (o) => o.fulfillment_status === "delivered" },
     { event: "admin_delivered", label: "Delivered alert (you)", applies: (o) => o.fulfillment_status === "delivered" },
+    { event: "followup", label: "Post-delivery follow-up", applies: (o) => o.fulfillment_status === "delivered" },
     { event: "cancelled", label: "Cancelled", applies: (o) => o.status === "cancelled" },
     { event: "failed", label: "Payment failed", applies: (o) => o.status === "failed" },
   ];
@@ -1460,10 +1481,22 @@ export default function AdminDashboard() {
                                   </button>
                                 )}
                                 {isPaid && fulfillment === "unfulfilled" && (
-                                  <button onClick={() => handleShip(o.id)} disabled={busy} title="Mark shipped"
-                                    className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.40_0.16_260)] border border-[oklch(0.40_0.16_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.02_260)] disabled:opacity-50">
-                                    <Truck className="w-3 h-3" /> Ship
-                                  </button>
+                                  <>
+                                    <button onClick={() => handleBuyLabel(o.id)} disabled={busy} title="Buy USPS label via Shippo"
+                                      className="flex items-center gap-1 text-[0.7rem] font-semibold text-white bg-[oklch(0.40_0.16_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.35_0.16_260)] disabled:opacity-50">
+                                      <Truck className="w-3 h-3" /> Buy label
+                                    </button>
+                                    <button onClick={() => handleShip(o.id)} disabled={busy} title="Enter tracking manually"
+                                      className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.40_0.16_260)] border border-[oklch(0.40_0.16_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.02_260)] disabled:opacity-50">
+                                      Manual
+                                    </button>
+                                  </>
+                                )}
+                                {o.label_url && (
+                                  <a href={o.label_url} target="_blank" rel="noopener noreferrer" title="Open shipping label PDF"
+                                    className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.40_0.01_260)] border border-[oklch(0.85_0.004_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.003_260)]">
+                                    <FileDown className="w-3 h-3" /> Label
+                                  </a>
                                 )}
                                 {isPaid && fulfillment === "shipped" && (
                                   <button onClick={() => orderAction(o.id, "deliver")} disabled={busy} title="Mark delivered"
@@ -1926,6 +1959,8 @@ export default function AdminDashboard() {
                       <thead>
                         <tr className="text-left text-[0.6875rem] uppercase tracking-wider text-[oklch(0.60_0.01_260)] border-b border-[oklch(0.93_0.004_260)]">
                           <th className="py-2 pr-4">Email</th>
+                          <th className="py-2 pr-4">Orders</th>
+                          <th className="py-2 pr-4">Spent</th>
                           <th className="py-2 pr-4">Signed up</th>
                           <th className="py-2 pr-4">Last sign-in</th>
                           <th className="py-2">Method</th>
@@ -1935,6 +1970,8 @@ export default function AdminDashboard() {
                         {filtered.map((c) => (
                           <tr key={c.id} className="border-b border-[oklch(0.95_0.003_260)]">
                             <td className="py-3 pr-4 font-medium text-[oklch(0.20_0.01_260)]">{c.email ?? "—"}</td>
+                            <td className="py-3 pr-4 text-[oklch(0.30_0.01_260)]">{c.orders > 0 ? c.orders : "—"}</td>
+                            <td className="py-3 pr-4 font-semibold text-[oklch(0.13_0.01_260)]">{c.spent > 0 ? money(c.spent) : "—"}</td>
                             <td className="py-3 pr-4 text-[0.8125rem] text-[oklch(0.52_0.01_260)] whitespace-nowrap">{formatDateEST(c.created_at)}</td>
                             <td className="py-3 pr-4 text-[0.8125rem] text-[oklch(0.52_0.01_260)] whitespace-nowrap">{c.last_sign_in_at ? formatDateEST(c.last_sign_in_at) : "—"}</td>
                             <td className="py-3">
