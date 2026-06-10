@@ -114,21 +114,33 @@ const money = (n: number | string | null | undefined) => `$${(Number(n) || 0).to
 function layout(content: string): string {
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:40px 20px;background:#f4f6f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-    <div style="background:#0f1a2e;padding:32px 40px;text-align:center;">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  @media only screen and (max-width:600px){
+    .vl-wrap{padding:20px 10px!important;}
+    .vl-card{border-radius:12px!important;}
+    .vl-head{padding:26px 22px!important;}
+    .vl-body{padding:26px 22px!important;}
+    .vl-foot{padding:18px 22px!important;}
+  }
+</style>
+</head>
+<body class="vl-wrap" style="margin:0;padding:40px 20px;background:#f4f6f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div class="vl-card" style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div class="vl-head" style="background:#0f1a2e;padding:32px 40px;text-align:center;">
       <p style="margin:0;color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Vitum Lab</p>
       <p style="margin:6px 0 0;color:rgba(255,255,255,0.45);font-size:10px;letter-spacing:2.5px;text-transform:uppercase;">Research Peptides · Est. 2024</p>
     </div>
-    <div style="padding:40px;">
+    <div class="vl-body" style="padding:40px;">
 ${content}
       <div style="border-top:1px solid #eee;padding-top:24px;margin-top:28px;">
         <p style="margin:0 0 6px;font-size:13px;color:#888;">Questions about your order?</p>
         <a href="mailto:hello@vitumlab.com" style="color:#2c5fdb;font-size:14px;font-weight:600;text-decoration:none;">hello@vitumlab.com</a>
       </div>
     </div>
-    <div style="background:#f7f8fa;border-top:1px solid #eee;padding:20px 40px;text-align:center;">
+    <div class="vl-foot" style="background:#f7f8fa;border-top:1px solid #eee;padding:20px 40px;text-align:center;">
       <p style="margin:0;font-size:11px;color:#aaa;line-height:1.6;">
         All products are for in vitro / laboratory research use only — not for human or veterinary consumption.<br>
         © ${new Date().getFullYear()} Vitum Lab
@@ -159,24 +171,25 @@ function orderBox(order: EmailOrder, images?: Record<string, string>): string {
       : `<div style="width:40px;height:40px;border-radius:8px;background:#eef0f3;"></div>`;
     return `
           <tr>
-            <td style="padding:8px 12px 8px 0;width:40px;vertical-align:middle;">${thumb}</td>
-            <td style="padding:8px 0;font-size:14px;color:#333;vertical-align:middle;">${it.name} ${it.dose} <span style="color:#999;">× ${it.quantity}</span></td>
+            <td style="padding:8px 12px 8px 0;vertical-align:middle;">${thumb}</td>
+            <td style="padding:8px 0;font-size:14px;color:#333;vertical-align:middle;word-break:break-word;">${it.name} ${it.dose} <span style="color:#999;">× ${it.quantity}</span></td>
             <td style="padding:8px 0;font-size:14px;color:#333;text-align:right;vertical-align:middle;white-space:nowrap;">${it.price === 0 ? "Free" : money(it.price * it.quantity)}</td>
           </tr>`;
   }).join("");
   const discount = Number(order.discount_amount) > 0
     ? `<tr>
             <td></td>
-            <td style="padding:6px 0;font-size:14px;color:#1a7a4a;">Discount${order.discount_code ? ` (${order.discount_code})` : ""}</td>
-            <td style="padding:6px 0;font-size:14px;color:#1a7a4a;text-align:right;">−${money(order.discount_amount)}</td>
+            <td style="padding:6px 0;font-size:14px;color:#1a7a4a;word-break:break-word;">Discount${order.discount_code ? ` (${order.discount_code})` : ""}</td>
+            <td style="padding:6px 0;font-size:14px;color:#1a7a4a;text-align:right;white-space:nowrap;">−${money(order.discount_amount)}</td>
           </tr>` : "";
-  return `<div style="background:#f7f8fa;border-radius:10px;padding:20px 24px;margin-bottom:24px;">
+  return `<div style="background:#f7f8fa;border-radius:10px;padding:18px;margin-bottom:24px;">
         <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;">Order <span style="font-family:monospace;color:#555;">${order.id.slice(0, 10)}</span></p>
-        <table style="width:100%;border-collapse:collapse;">${rows}${discount}
+        <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+          <colgroup><col style="width:52px;"><col><col style="width:84px;"></colgroup>${rows}${discount}
           <tr>
             <td></td>
             <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#0f1a2e;border-top:1px solid #e5e7eb;">Total</td>
-            <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#0f1a2e;text-align:right;border-top:1px solid #e5e7eb;">${money(order.net_amount)}</td>
+            <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#0f1a2e;text-align:right;border-top:1px solid #e5e7eb;white-space:nowrap;">${money(order.net_amount)}</td>
           </tr>
         </table>
       </div>`;
