@@ -12,6 +12,7 @@ import { ArrowRight, Tag, Check, Loader2, ShoppingBag } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
+import { getPromoCode, clearPromoCode } from "@/lib/promo";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
 
@@ -70,8 +71,9 @@ export default function Checkout() {
     setError("");
   };
 
-  const handleApplyPromo = async () => {
-    if (!promoCode.trim()) return;
+  const applyPromo = async (codeArg?: string) => {
+    const code = (codeArg ?? promoCode).trim();
+    if (!code) return;
     setPromoLoading(true);
     setPromoError(false);
     setPromoApplied(false);
@@ -79,7 +81,7 @@ export default function Checkout() {
       const res = await fetch("/api/validate-discount", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: promoCode.trim(), subtotal }),
+        body: JSON.stringify({ code, subtotal }),
       });
       const data = await res.json();
       if (!res.ok || !data.valid) {
@@ -95,6 +97,19 @@ export default function Checkout() {
       setPromoLoading(false);
     }
   };
+  const handleApplyPromo = () => applyPromo();
+
+  // Auto-apply a code shared via an affiliate/promo link (?code=…), once.
+  useEffect(() => {
+    if (items.length === 0 || promoApplied || promoLoading) return;
+    const stored = getPromoCode();
+    if (stored && !promoCode) {
+      setPromoCode(stored);
+      setPromoOpen(true);
+      applyPromo(stored);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length]);
 
   const discountAmount = promoApplied ? parseFloat((subtotal * discountPct / 100).toFixed(2)) : 0;
   const shippingCost = 0; // Free shipping (flat) — adjust here if a fee is introduced.
@@ -140,6 +155,7 @@ export default function Checkout() {
           body: JSON.stringify({ shipping_address: shippingPayload }),
           keepalive: true,
         }).catch(() => {});
+        clearPromoCode(); // consumed — don't auto-apply on the next order
         if (data.free) {
           // $0 order (e.g. 100% promo) — already confirmed server-side, skip NowPayments.
           clearCart();

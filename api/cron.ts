@@ -1,5 +1,9 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
-import { sendOrderEvent, type EmailOrder } from "./_lib/email.js";
+import { sendOrderEvent, sendLowStockDigest, type EmailOrder } from "./_lib/email.js";
+
+const LOW_STOCK_THRESHOLD = 5;
+// Send the low-stock digest once a day, at 14:00 UTC (~9–10am ET).
+const LOW_STOCK_DIGEST_HOUR_UTC = 14;
 
 const ORDER_COLS =
   "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_address, status, cancel_reason, emails_sent";
@@ -20,7 +24,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const results = { expired: 0, emailed: 0, errors: 0 };
+  const results = { expired: 0, emailed: 0, errors: 0, lowStockDigest: 0 };
 
   try {
     // 1. Expire stale pending orders (mirrors the original pg_cron SQL).
@@ -63,6 +67,24 @@ export default async function handler(req: any, res: any) {
       } catch (err) {
         console.error(`cron: sweep email failed for ${order.id}:`, err);
         results.errors++;
+      }
+    }
+
+    // 3. Low-stock digest to INVENTORY_EMAIL — once per day.
+    if (new Date().getUTCHours() === LOW_STOCK_DIGEST_HOUR_UTC) {
+      const { data: inv } = await supabaseAdmin.from("inventory").select("cart_code, stock");
+      const low = (inv ?? [])
+        .filter((r) => r.stock <= LOW_STOCK_THRESHOLD)
+        .sort((a, b) => a.stock - b.stock)
+        .map((r) => ({ cartCode: r.cart_code as string, stock: r.stock as number }));
+      if (low.length > 0) {
+        try {
+          await sendLowStockDigest(low);
+          results.lowStockDigest = low.length;
+        } catch (err) {
+          console.error("cron: low-stock digest failed:", err);
+          results.errors++;
+        }
       }
     }
 

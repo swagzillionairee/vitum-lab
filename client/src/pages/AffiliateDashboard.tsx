@@ -6,7 +6,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "wouter";
-import { LogOut, Loader2 } from "lucide-react";
+import { LogOut, Loader2, Share2, Copy, Check } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
@@ -38,6 +38,15 @@ export default function AffiliateDashboard() {
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [orders, setOrders] = useState<AffOrder[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  const shareLink = stats ? `${window.location.origin}/shop?code=${stats.code}` : "";
+  const copyShareLink = () => {
+    if (!shareLink) return;
+    navigator.clipboard.writeText(shareLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   useEffect(() => {
     if (!loading && !session) navigate("/affiliate/login");
@@ -102,6 +111,34 @@ export default function AffiliateDashboard() {
             </div>
           ))}
         </div>
+
+        {/* Share link — auto-applies the discount + attributes the order */}
+        {stats && (
+          <div className="bg-white rounded-2xl p-6 shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] mb-8">
+            <div className="flex items-center gap-2 mb-2">
+              <Share2 className="w-4 h-4 text-[oklch(0.35_0.15_260)]" />
+              <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Your share link</h2>
+            </div>
+            <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-4">
+              Share this link anywhere. It automatically applies your {stats.discountPercent}% discount at checkout and credits the sale to you — customers don't have to type a code.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                readOnly
+                value={shareLink}
+                onFocus={(e) => e.currentTarget.select()}
+                className="flex-1 min-w-0 font-mono text-[0.8125rem] border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 bg-[oklch(0.98_0.002_260)] text-[oklch(0.30_0.01_260)] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)]"
+              />
+              <button
+                onClick={copyShareLink}
+                className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg bg-[oklch(0.40_0.16_260)] text-white text-[0.875rem] font-semibold hover:bg-[oklch(0.35_0.16_260)] whitespace-nowrap"
+              >
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {copied ? "Copied!" : "Copy link"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Chart */}
         <div className="bg-white rounded-2xl p-6 shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] mb-8">

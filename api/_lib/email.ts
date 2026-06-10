@@ -341,3 +341,46 @@ export async function sendWelcome(to: string) {
     ),
   );
 }
+
+// ─── Back-in-stock (waitlist) ─────────────────────────────────────────────────
+const inventoryInbox = () => process.env.INVENTORY_EMAIL || process.env.GMAIL_USER!;
+
+export async function sendBackInStock(to: string, opts: { name: string; url: string; image?: string }) {
+  const thumb = opts.image
+    ? `<div style="margin:0 0 20px;"><img src="${absoluteUrl(opts.image)}" width="72" height="72" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:12px;border:1px solid #e5e7eb;" /></div>`
+    : "";
+  await send(
+    to,
+    `Back in stock: ${opts.name}`,
+    layout(
+      pill("Back in Stock", "#edfaf3", "#1a7a4a") +
+      heading(`${opts.name} is back in stock`, "The item you asked about is available again. Quantities can be limited, so order soon to secure yours.") +
+      thumb +
+      button("Shop Now", opts.url) +
+      `<p style="margin:0;font-size:13px;color:#888;line-height:1.6;">You're receiving this because you asked to be notified when this item returned. No further emails about it will be sent.</p>`,
+    ),
+  );
+}
+
+// ─── Low-stock digest (admin, via cron) ──────────────────────────────────────
+export async function sendLowStockDigest(rows: { cartCode: string; stock: number }[]) {
+  if (rows.length === 0) return;
+  const list = rows
+    .map((r) => `
+          <tr>
+            <td style="padding:7px 0;font-family:monospace;font-size:13px;color:#333;">${r.cartCode}</td>
+            <td style="padding:7px 0;font-size:13px;font-weight:700;text-align:right;color:${r.stock === 0 ? "#c0392b" : "#9a6b15"};">${r.stock === 0 ? "OUT OF STOCK" : `${r.stock} left`}</td>
+          </tr>`)
+    .join("");
+  await send(
+    inventoryInbox(),
+    `Low stock — ${rows.length} item${rows.length === 1 ? "" : "s"} need attention`,
+    layout(
+      pill("Inventory", "#fdf6e7", "#9a6b15") +
+      heading("Low / out-of-stock items", "These products are at or below the low-stock threshold (5 units). Restock to keep them sellable.") +
+      `<div style="background:#f7f8fa;border-radius:10px;padding:16px 20px;margin-bottom:24px;"><table style="width:100%;border-collapse:collapse;">${list}</table></div>` +
+      button("Open Admin → Inventory", `${baseUrl()}/admin`),
+    ),
+  );
+}
+

@@ -18,6 +18,7 @@ import CookieConsent from "./components/CookieConsent";
 import CartDrawer from "./components/CartDrawer";
 import BackToTop from "./components/BackToTop";
 import { CartProvider } from "./contexts/CartContext";
+import { capturePromoFromUrl } from "./lib/promo";
 import Home from "./pages/Home";
 import ResearchDisclaimer from "./pages/ResearchDisclaimer";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -108,6 +109,8 @@ function AppLayout() {
 
   useEffect(() => {
     setVerified(isAgeVerified());
+    // Capture a shared affiliate/promo code from the landing URL (?code=…).
+    capturePromoFromUrl();
   }, []);
 
   // Admin + affiliate routes bypass the age gate and storefront chrome.

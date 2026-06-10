@@ -6,12 +6,68 @@
 
 import { useState } from "react";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, FileText, Check, ChevronDown, ChevronUp, ShieldCheck, Truck, FlaskConical } from "lucide-react";
+import { ArrowLeft, FileText, Check, ChevronDown, ChevronUp, ShieldCheck, Truck, FlaskConical, Bell, Loader2 } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useInventory } from "@/hooks/useInventory";
 import ReconstitutionCalculator from "@/components/ReconstitutionCalculator";
 import SEO from "@/components/SEO";
+
+// ── Back-in-stock waitlist signup (shown when a variant is out of stock) ──────
+function BackInStockForm({ cartCode }: { cartCode: string }) {
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
+
+  const submit = async () => {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setState("error"); return; }
+    setState("loading");
+    try {
+      const res = await fetch("/api/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cartCode, email: email.trim() }),
+      });
+      setState(res.ok ? "done" : "error");
+    } catch {
+      setState("error");
+    }
+  };
+
+  if (state === "done") {
+    return (
+      <p className="flex items-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.40_0.14_155)]">
+        <Check className="w-4 h-4" /> You're on the list — we'll email you the moment it's back.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex flex-col sm:flex-row gap-2 max-w-md">
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("idle"); }}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+          placeholder="you@example.com"
+          className="flex-1 min-w-0 border border-[oklch(0.88_0.004_260)] rounded-full px-4 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)]"
+        />
+        <button
+          onClick={submit}
+          disabled={state === "loading"}
+          className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full font-semibold text-[0.875rem] btn-primary disabled:opacity-60 whitespace-nowrap"
+        >
+          {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+          Notify me
+        </button>
+      </div>
+      {state === "error" && (
+        <p className="text-[0.75rem] text-red-500 mt-1.5">Please enter a valid email address.</p>
+      )}
+      <p className="text-[0.6875rem] text-[oklch(0.60_0.01_260)] mt-1.5">One email when this dose is restocked — nothing else.</p>
+    </div>
+  );
+}
 
 export default function ProductDetail() {
   const [, params] = useRoute("/shop/:slug");
@@ -187,9 +243,12 @@ export default function ProductDetail() {
               <p className="text-[0.8125rem] font-semibold text-amber-600 mb-6">{stockMsg}</p>
             )}
             {!available && (
-              <p className="text-[0.8125rem] font-semibold text-[oklch(0.50_0.18_25)] mb-6">
-                This dose is currently out of stock.
-              </p>
+              <div className="mb-6">
+                <p className="text-[0.8125rem] font-semibold text-[oklch(0.50_0.18_25)] mb-3">
+                  This dose is currently out of stock.
+                </p>
+                <BackInStockForm key={selected.cartCode} cartCode={selected.cartCode} />
+              </div>
             )}
             {available && !stockMsg && <div className="mb-6" />}
 
