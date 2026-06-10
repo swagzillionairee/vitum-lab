@@ -4,7 +4,7 @@ import { products as staticProducts, type Product } from "@/lib/products";
 let cache: Product[] | null = null;
 let fetchPromise: Promise<Product[]> | null = null;
 
-function dbRowToProduct(row: Record<string, unknown>): Product {
+export function dbRowToProduct(row: Record<string, unknown>): Product {
   const variants = (row.variants as Record<string, unknown>[]) ?? [];
   return {
     slug: row.slug as string,

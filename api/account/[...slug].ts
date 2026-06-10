@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { requireUser } from "../_lib/requireUser.js";
+import { getBalance, getOrCreateReferralCode } from "../_lib/credit.js";
 
 /**
  * Handles all /api/account/* routes for the logged-in customer:
@@ -89,6 +90,29 @@ export default async function handler(req: any, res: any) {
     }
 
     res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  // ── GET /api/account/credit — store-credit balance + recent ledger ──────────
+  if (route === "credit") {
+    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const balance = await getBalance(user.email);
+    const { data: ledger } = await supabaseAdmin
+      .from("store_credit_ledger")
+      .select("amount, reason, order_id, created_at")
+      .eq("email", user.email)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    res.status(200).json({ balance, ledger: ledger ?? [] });
+    return;
+  }
+
+  // ── GET /api/account/referral — the customer's referral code + share link ───
+  if (route === "referral") {
+    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const code = await getOrCreateReferralCode(user.email);
+    const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
+    res.status(200).json({ code, link: `${baseUrl}/?ref=${code}` });
     return;
   }
 

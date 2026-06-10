@@ -27,6 +27,9 @@ export interface OrderRow {
   gross_amount?: number;
   discount_amount?: number;
   discount_code?: string | null;
+  discount_breakdown?: { type: string; label: string; amount: number }[] | null;
+  credit_applied?: number | null;
+  referral_code?: string | null;
   commission_amount?: number | null;
   status: string;
   created_at: string;
@@ -68,9 +71,23 @@ export interface PromoRow {
   min_subtotal: number;
   max_uses: number | null;
   used_count: number;
+  starts_at: string | null;
   expires_at: string | null;
   is_active: boolean;
   created_at: string;
+}
+
+export interface SitePromo {
+  sitewide_active: boolean;
+  sitewide_percent: number | null;
+  sitewide_label: string | null;
+  sitewide_starts_at: string | null;
+  sitewide_ends_at: string | null;
+}
+
+export interface QuantityTier {
+  min_qty: number;
+  percent: number;
 }
 
 export interface Variant {

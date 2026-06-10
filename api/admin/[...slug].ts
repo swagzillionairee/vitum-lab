@@ -3,6 +3,7 @@ import { requireAdmin } from "../_lib/requireAdmin.js";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { sendOrderEvent, sendBackInStock, sendAffiliateCommission, deferEmail, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
 import { buyLabel, getTrackingStatus, shippoConfigured, shipFromConfigured, shipFromPhoneConfigured } from "../_lib/shippo.js";
+import { getRewardConfig, earnLoyalty, grantReferralReward } from "../_lib/credit.js";
 
 // Notify (once) everyone on the back-in-stock waitlist for a cart_code that
 // just went from 0 → in stock, then mark those rows notified.
@@ -356,7 +357,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── /api/admin/orders ────────────────────────────────────────────────────
   if (route === "orders") {
     const orderSelect =
-      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
+      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, discount_breakdown, credit_applied, referral_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
 
     // Sends an order email and reloads emails_sent so the response reflects the
     // new stamp. Email failures never fail the admin action.
@@ -563,6 +564,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
           await emailAndRefresh(data, "confirmed");
           await emailAndRefresh(data, "admin_new_order");
+          // Loyalty earn + referral reward (idempotent via the ledger).
+          try {
+            const cfg = await getRewardConfig();
+            await earnLoyalty(data, cfg.loyaltyPercent);
+            await grantReferralReward(data, cfg.referrerAmount);
+          } catch (err) { console.error("rewards (recheck) failed:", err); }
           // Notify the attributed affiliate of their commission (idempotent).
           if (data.affiliate_id && Number(data.commission_amount) > 0) {
             try {
@@ -584,6 +591,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       return res.status(400).json({ error: "Unknown action" });
+    }
+
+    // Permanently delete one or more orders (hard delete). Does NOT restock —
+    // use the Cancel action to restock a paid order. Bulk: pass { ids: [...] }.
+    if (req.method === "DELETE") {
+      const body = req.body as { id?: string; ids?: string[] };
+      const ids = (body.ids?.length ? body.ids : body.id ? [body.id] : []).filter(Boolean);
+      if (ids.length === 0) return res.status(400).json({ error: "id or ids required" });
+      const { error } = await supabaseAdmin.from("orders").delete().in("id", ids);
+      if (error) return res.status(500).json({ error: "Failed to delete orders" });
+      return res.json({ ok: true, deleted: ids.length });
     }
 
     return res.status(405).json({ error: "Method not allowed" });
@@ -704,7 +722,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "POST") {
-      const { code, percent_off, min_subtotal, max_uses, expires_at, is_active } = req.body ?? {};
+      const { code, percent_off, min_subtotal, max_uses, starts_at, expires_at, is_active } = req.body ?? {};
       const pct = Number(percent_off);
       if (!code || !(pct >= 1 && pct <= 100)) return res.status(400).json({ error: "code and percent_off (1-100) are required" });
       const { data, error } = await supabaseAdmin
@@ -714,6 +732,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           percent_off: pct,
           min_subtotal: Number(min_subtotal) || 0,
           max_uses: max_uses != null && max_uses !== "" ? Number(max_uses) : null,
+          starts_at: starts_at || null,
           expires_at: expires_at || null,
           is_active: is_active ?? true,
         })
@@ -727,7 +746,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { id, ...patch } = req.body ?? {};
       if (!id) return res.status(400).json({ error: "id required" });
       const allowed: Record<string, unknown> = {};
-      for (const k of ["code", "percent_off", "min_subtotal", "max_uses", "expires_at", "is_active"]) {
+      for (const k of ["code", "percent_off", "min_subtotal", "max_uses", "starts_at", "expires_at", "is_active"]) {
         if (patch[k] !== undefined) allowed[k] = k === "code" ? String(patch[k]).toUpperCase().trim() : patch[k];
       }
       const { data, error } = await supabaseAdmin.from("promo_codes").update(allowed).eq("id", id).select().single();
@@ -743,6 +762,117 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.json({ ok: true });
     }
 
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── /api/admin/site-promo — the optional store-wide sale ────────────────────
+  if (route === "site-promo") {
+    if (req.method === "GET") {
+      const { data, error } = await supabaseAdmin.from("store_settings").select("*").maybeSingle();
+      if (error) return res.status(500).json({ error: "Failed to load site settings" });
+      return res.json(data ?? { sitewide_active: false, sitewide_percent: null, sitewide_label: null, sitewide_starts_at: null, sitewide_ends_at: null });
+    }
+
+    if (req.method === "PUT") {
+      const { active, percent, label, starts_at, ends_at } = req.body as {
+        active?: boolean; percent?: number | string | null; label?: string | null; starts_at?: string | null; ends_at?: string | null;
+      };
+      const pct = percent != null && percent !== "" ? Number(percent) : null;
+      if (active && !(pct != null && pct >= 1 && pct <= 99)) {
+        return res.status(400).json({ error: "Enter a percentage between 1 and 99 to enable a site-wide sale." });
+      }
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .upsert(
+          {
+            id: true,
+            sitewide_active: !!active,
+            sitewide_percent: pct,
+            sitewide_label: label || null,
+            sitewide_starts_at: starts_at || null,
+            sitewide_ends_at: ends_at || null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        )
+        .select()
+        .maybeSingle();
+      if (error) return res.status(400).json({ error: error.message });
+
+      // Enabling a site-wide sale clears every per-variant sale price so the
+      // site-wide promo is the only sale in effect (it always takes precedence).
+      if (active) {
+        const { data: prods } = await supabaseAdmin.from("products").select("id, variants");
+        for (const p of prods ?? []) {
+          const variants = (((p.variants as Record<string, unknown>[]) ?? [])).map((v) => ({
+            ...v,
+            sale_price: null,
+            sale_ends_at: null,
+          }));
+          await supabaseAdmin.from("products").update({ variants }).eq("id", p.id);
+        }
+      }
+      return res.json(data);
+    }
+
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── /api/admin/rewards — loyalty % + referral amounts ───────────────────────
+  if (route === "rewards") {
+    if (req.method === "GET") {
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .select("loyalty_percent, referral_referee_amount, referral_referrer_amount, referral_min_subtotal")
+        .maybeSingle();
+      if (error) return res.status(500).json({ error: "Failed to load rewards config" });
+      return res.json(data ?? { loyalty_percent: 0, referral_referee_amount: 0, referral_referrer_amount: 0, referral_min_subtotal: 0 });
+    }
+    if (req.method === "PUT") {
+      const b = req.body ?? {};
+      const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .upsert(
+          {
+            id: true,
+            loyalty_percent: Math.min(100, Math.round(num(b.loyalty_percent))),
+            referral_referee_amount: num(b.referral_referee_amount),
+            referral_referrer_amount: num(b.referral_referrer_amount),
+            referral_min_subtotal: num(b.referral_min_subtotal),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        )
+        .select("loyalty_percent, referral_referee_amount, referral_referrer_amount, referral_min_subtotal")
+        .maybeSingle();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json(data);
+    }
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── /api/admin/quantity-tiers — quantity discount tiers ─────────────────────
+  if (route === "quantity-tiers") {
+    if (req.method === "GET") {
+      const { data, error } = await supabaseAdmin.from("store_settings").select("quantity_tiers").maybeSingle();
+      if (error) return res.status(500).json({ error: "Failed to load tiers" });
+      return res.json({ tiers: (data?.quantity_tiers as unknown[]) ?? [] });
+    }
+    if (req.method === "PUT") {
+      const raw = ((req.body?.tiers ?? []) as { min_qty?: number | string; percent?: number | string }[]);
+      const tiers = raw
+        .map((t) => ({ min_qty: Math.floor(Number(t.min_qty) || 0), percent: Math.round(Number(t.percent) || 0) }))
+        .filter((t) => t.min_qty >= 1 && t.percent >= 1 && t.percent <= 100)
+        .sort((a, b) => a.min_qty - b.min_qty);
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .upsert({ id: true, quantity_tiers: tiers, updated_at: new Date().toISOString() }, { onConflict: "id" })
+        .select("quantity_tiers")
+        .maybeSingle();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json({ tiers: (data?.quantity_tiers as unknown[]) ?? [] });
+    }
     return res.status(405).json({ error: "Method not allowed" });
   }
 

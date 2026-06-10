@@ -1,11 +1,13 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
+import { promoAlreadyRedeemed } from "./_lib/pricing.js";
+import { getRewardConfig } from "./_lib/credit.js";
 
 /**
  * Validates a discount code: either an affiliate code (affiliates table) or
  * a general promo code (promo_codes table — active, unexpired, under its use
- * cap, and meeting any minimum subtotal). The checkout sends `subtotal` so
- * min-subtotal promos validate correctly; create-crypto-payment re-validates
- * server-side regardless.
+ * cap, meeting any minimum subtotal, and not already redeemed by this customer
+ * — promos are one use per customer). The checkout sends `subtotal` + `email`;
+ * create-crypto-payment re-validates server-side regardless.
  */
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
@@ -13,7 +15,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const { code, subtotal } = req.body as { code?: string; subtotal?: number };
+  const { code, subtotal, email } = req.body as { code?: string; subtotal?: number; email?: string };
   if (!code?.trim()) {
     res.status(400).json({ error: "Code is required" });
     return;
@@ -34,13 +36,14 @@ export default async function handler(req: any, res: any) {
 
     const { data: promo } = await supabaseAdmin
       .from("promo_codes")
-      .select("percent_off, min_subtotal, max_uses, used_count, expires_at, is_active")
+      .select("percent_off, min_subtotal, max_uses, used_count, starts_at, expires_at, is_active")
       .ilike("code", normalized)
       .maybeSingle();
 
     if (
       promo &&
       promo.is_active &&
+      (!promo.starts_at || new Date(promo.starts_at) <= new Date()) &&
       (!promo.expires_at || new Date(promo.expires_at) > new Date()) &&
       (promo.max_uses == null || promo.used_count < promo.max_uses)
     ) {
@@ -51,11 +54,47 @@ export default async function handler(req: any, res: any) {
         });
         return;
       }
+      // One use per customer — reject if this email already redeemed it (paid).
+      if (typeof email === "string" && email.includes("@")) {
+        const { data: prior } = await supabaseAdmin
+          .from("orders")
+          .select("email, discount_code")
+          .ilike("discount_code", normalized)
+          .in("status", ["confirmed", "finished"]);
+        if (promoAlreadyRedeemed(prior ?? [], email, normalized)) {
+          res.status(400).json({ valid: false, error: "You've already used this code — it's limited to one use per customer." });
+          return;
+        }
+      }
       res.status(200).json({ valid: true, discountPct: promo.percent_off });
       return;
     }
 
-    res.status(404).json({ valid: false, error: "Invalid or expired promo code." });
+    // Referral code → a flat $ off for a NEW referee (first order only).
+    const { data: ref } = await supabaseAdmin.from("referral_codes").select("email").eq("code", normalized).maybeSingle();
+    if (ref) {
+      const cfg = await getRewardConfig();
+      if (email && ref.email.toLowerCase() === email.toLowerCase()) {
+        res.status(400).json({ valid: false, error: "You can't use your own referral link." });
+        return;
+      }
+      if (email) {
+        const { data: prior } = await supabaseAdmin
+          .from("orders").select("id").ilike("email", email).in("status", ["confirmed", "finished"]).limit(1);
+        if (prior && prior.length > 0) {
+          res.status(400).json({ valid: false, error: "Referral discounts are for first orders only." });
+          return;
+        }
+      }
+      if (typeof subtotal === "number" && subtotal < cfg.referralMinSubtotal) {
+        res.status(400).json({ valid: false, error: `This referral needs a minimum subtotal of $${Number(cfg.referralMinSubtotal).toFixed(2)}.` });
+        return;
+      }
+      res.status(200).json({ valid: true, discountAmount: cfg.refereeAmount });
+      return;
+    }
+
+    res.status(404).json({ valid: false, error: "Invalid or expired code." });
   } catch (err) {
     console.error("validate-discount error:", err);
     res.status(500).json({ error: "Failed to validate code" });

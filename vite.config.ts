@@ -213,11 +213,12 @@ function vitePluginLocalApi(): Plugin {
   const ROUTES: Array<{ test: (p: string) => boolean; file: string }> = [
     { test: (p) => p.startsWith("/admin"), file: "api/admin/[...slug].ts" },
     { test: (p) => p.startsWith("/affiliate"), file: "api/affiliate/[...slug].ts" },
+    { test: (p) => p.startsWith("/public"), file: "api/public/[...slug].ts" },
     { test: (p) => p === "/products", file: "api/products.ts" },
     { test: (p) => p === "/inventory", file: "api/inventory.ts" },
     { test: (p) => p === "/me", file: "api/me.ts" },
     { test: (p) => p === "/validate-discount", file: "api/validate-discount.ts" },
-    { test: (p) => p === "/account/orders", file: "api/account/orders.ts" },
+    { test: (p) => p.startsWith("/account"), file: "api/account/[...slug].ts" },
     { test: (p) => p === "/contact", file: "api/contact.ts" },
     { test: (p) => p === "/create-crypto-payment", file: "api/create-crypto-payment.ts" },
   ];
