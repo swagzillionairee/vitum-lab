@@ -18,7 +18,7 @@ import { money, Field } from "./shared";
 // ─── Site-wide sale card ───────────────────────────────────────────────────────
 function SiteWideSaleCard() {
   const [promo, setPromo] = useState<SitePromo | null>(null);
-  const [form, setForm] = useState({ percent: "", label: "", ends_at: "" });
+  const [form, setForm] = useState({ percent: "", label: "", starts_at: "", ends_at: "" });
   const [saving, setSaving] = useState<"on" | "off" | null>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -31,6 +31,7 @@ function SiteWideSaleCard() {
       setForm({
         percent: d.sitewide_percent != null ? String(d.sitewide_percent) : "",
         label: d.sitewide_label ?? "",
+        starts_at: d.sitewide_starts_at ? d.sitewide_starts_at.slice(0, 10) : "",
         ends_at: d.sitewide_ends_at ? d.sitewide_ends_at.slice(0, 10) : "",
       });
     }
@@ -56,7 +57,9 @@ function SiteWideSaleCard() {
         active,
         percent: form.percent ? pct : null,
         label: form.label.trim() || null,
-        // Store as end-of-day so the sale runs through the chosen date.
+        // Start of the chosen start day; end-of-day for the end so the sale runs
+        // through the chosen dates (scheduling).
+        starts_at: form.starts_at ? new Date(`${form.starts_at}T00:00:00`).toISOString() : null,
         ends_at: form.ends_at ? new Date(`${form.ends_at}T23:59:59`).toISOString() : null,
       }),
     });
@@ -69,6 +72,7 @@ function SiteWideSaleCard() {
 
   const active = !!promo?.sitewide_active;
   const expired = !!promo?.sitewide_ends_at && new Date(promo.sitewide_ends_at) < new Date();
+  const scheduled = !!promo?.sitewide_starts_at && new Date(promo.sitewide_starts_at) > new Date();
 
   return (
     <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
@@ -78,11 +82,14 @@ function SiteWideSaleCard() {
           <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Site-wide Sale</h2>
         </div>
         <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${
-          active && !expired ? "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]"
+          active && !expired && !scheduled ? "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]"
+            : active && scheduled ? "bg-[oklch(0.93_0.05_260)] text-[oklch(0.40_0.16_260)]"
             : active && expired ? "bg-[oklch(0.93_0.04_25)] text-[oklch(0.50_0.18_25)]"
             : "bg-[oklch(0.92_0.005_260)] text-[oklch(0.45_0.01_260)]"
         }`}>
-          {active && !expired ? `${promo?.sitewide_percent}% OFF — live` : active && expired ? "ended" : "off"}
+          {active && !expired && !scheduled ? `${promo?.sitewide_percent}% OFF — live`
+            : active && scheduled ? `${promo?.sitewide_percent}% OFF — scheduled`
+            : active && expired ? "ended" : "off"}
         </span>
       </div>
       <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-5">
@@ -99,6 +106,10 @@ function SiteWideSaleCard() {
         <Field label="Label — optional">
           <input value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
             placeholder="Summer Sale" className="input-sm w-40" />
+        </Field>
+        <Field label="Starts — optional">
+          <input type="date" value={form.starts_at}
+            onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))} className="input-sm w-40" />
         </Field>
         <Field label="Ends — optional">
           <input type="date" value={form.ends_at}
@@ -131,7 +142,7 @@ function SiteWideSaleCard() {
 // ─── Promo codes ───────────────────────────────────────────────────────────────
 export default function PromosTab() {
   const [promos, setPromos] = useState<PromoRow[] | null>(null);
-  const [promoForm, setPromoForm] = useState({ code: "", percent_off: "", min_subtotal: "", max_uses: "", expires_at: "" });
+  const [promoForm, setPromoForm] = useState({ code: "", percent_off: "", min_subtotal: "", max_uses: "", starts_at: "", expires_at: "" });
   const [promoSaving, setPromoSaving] = useState(false);
   const [promoFormError, setPromoFormError] = useState("");
 
@@ -157,12 +168,13 @@ export default function PromosTab() {
         percent_off: pct,
         min_subtotal: promoForm.min_subtotal ? Number(promoForm.min_subtotal) : 0,
         max_uses: promoForm.max_uses ? Number(promoForm.max_uses) : null,
+        starts_at: promoForm.starts_at ? new Date(`${promoForm.starts_at}T00:00:00`).toISOString() : null,
         expires_at: promoForm.expires_at ? new Date(promoForm.expires_at).toISOString() : null,
       }),
     });
     setPromoSaving(false);
     if (!res.ok) { setPromoFormError((await res.json().catch(() => ({}))).error ?? "Failed to create promo"); return; }
-    setPromoForm({ code: "", percent_off: "", min_subtotal: "", max_uses: "", expires_at: "" });
+    setPromoForm({ code: "", percent_off: "", min_subtotal: "", max_uses: "", starts_at: "", expires_at: "" });
     loadPromos();
   };
 
@@ -211,6 +223,10 @@ export default function PromosTab() {
             <input type="number" min={1} value={promoForm.max_uses}
               onChange={(e) => setPromoForm((f) => ({ ...f, max_uses: e.target.value }))} placeholder="∞" className="input-sm w-24" />
           </Field>
+          <Field label="Starts">
+            <input type="date" value={promoForm.starts_at}
+              onChange={(e) => setPromoForm((f) => ({ ...f, starts_at: e.target.value }))} className="input-sm w-36" />
+          </Field>
           <Field label="Expires">
             <input type="date" value={promoForm.expires_at}
               onChange={(e) => setPromoForm((f) => ({ ...f, expires_at: e.target.value }))} className="input-sm w-36" />
@@ -244,6 +260,7 @@ export default function PromosTab() {
                 {promos.map((p) => {
                   const expired = p.expires_at && new Date(p.expires_at) < new Date();
                   const maxedOut = p.max_uses != null && p.used_count >= p.max_uses;
+                  const scheduled = p.starts_at && new Date(p.starts_at) > new Date();
                   return (
                     <tr key={p.id} className="border-b border-[oklch(0.95_0.003_260)]">
                       <td className="py-3 pr-4 font-mono font-semibold text-[oklch(0.13_0.01_260)]">{p.code}</td>
@@ -255,9 +272,10 @@ export default function PromosTab() {
                         <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${
                           !p.is_active ? "bg-[oklch(0.92_0.005_260)] text-[oklch(0.45_0.01_260)]"
                             : expired || maxedOut ? "bg-[oklch(0.93_0.04_25)] text-[oklch(0.50_0.18_25)]"
+                            : scheduled ? "bg-[oklch(0.93_0.05_260)] text-[oklch(0.40_0.16_260)]"
                             : "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]"
                         }`}>
-                          {!p.is_active ? "disabled" : expired ? "expired" : maxedOut ? "maxed out" : "active"}
+                          {!p.is_active ? "disabled" : expired ? "expired" : maxedOut ? "maxed out" : scheduled ? "scheduled" : "active"}
                         </span>
                       </td>
                       <td className="py-3">

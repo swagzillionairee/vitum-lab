@@ -213,6 +213,7 @@ function vitePluginLocalApi(): Plugin {
   const ROUTES: Array<{ test: (p: string) => boolean; file: string }> = [
     { test: (p) => p.startsWith("/admin"), file: "api/admin/[...slug].ts" },
     { test: (p) => p.startsWith("/affiliate"), file: "api/affiliate/[...slug].ts" },
+    { test: (p) => p.startsWith("/public"), file: "api/public/[...slug].ts" },
     { test: (p) => p === "/products", file: "api/products.ts" },
     { test: (p) => p === "/inventory", file: "api/inventory.ts" },
     { test: (p) => p === "/me", file: "api/me.ts" },

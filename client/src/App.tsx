@@ -17,6 +17,7 @@ import Footer from "./components/Footer";
 import CookieConsent from "./components/CookieConsent";
 import CartDrawer from "./components/CartDrawer";
 import BackToTop from "./components/BackToTop";
+import SaleBanner from "./components/SaleBanner";
 import { CartProvider } from "./contexts/CartContext";
 import { capturePromoFromUrl } from "./lib/promo";
 import Home from "./pages/Home";
@@ -33,6 +34,7 @@ import ProductDetail from "./pages/ProductDetail";
 import OrderSuccess from "./pages/OrderSuccess";
 import OrderCancel from "./pages/OrderCancel";
 import Checkout from "./pages/Checkout";
+import OrderTracking from "./pages/OrderTracking";
 import DoseCalculator from "./pages/DoseCalculator";
 import COALibrary from "./pages/COALibrary";
 import Research from "./pages/Research";
@@ -92,6 +94,7 @@ function Router() {
       <Route path="/dose-calculator" component={DoseCalculator} />
       <Route path="/research" component={Research} />
       <Route path="/checkout" component={Checkout} />
+      <Route path="/track" component={OrderTracking} />
       <Route path="/order-success" component={OrderSuccess} />
       <Route path="/order-cancel" component={OrderCancel} />
       <Route path="/login" component={Login} />
@@ -140,6 +143,7 @@ function AppLayout() {
         <AgeGate onVerified={() => setVerified(true)} />
       )}
       <div className={gated ? "pointer-events-none select-none blur-sm" : ""}>
+        <SaleBanner />
         <Navbar />
         <main>
           <Router />

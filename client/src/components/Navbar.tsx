@@ -21,6 +21,7 @@ const navLinks = [
   { label: "Research", href: "/research" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
+  { label: "Track Order", href: "/track" },
 ];
 
 // ─── Marquee items ────────────────────────────────────────────────────────────

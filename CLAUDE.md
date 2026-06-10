@@ -69,6 +69,8 @@ api/                Vercel serverless functions — ALL relative imports MUST us
   affiliate/[...slug].ts     Catch-all for /api/affiliate/* (stats, orders)
   account/[...slug].ts       Catch-all for /api/account/*: orders (order history + timeline fields),
                              profile GET/PUT (saved shipping address in auth user metadata, falls back to last order)
+  public/[...slug].ts        Catch-all for /api/public/* (no auth): site GET → site-wide sale config (countdown banner),
+                             track GET ?order=&email= → order status/timeline (email must match the order)
   _lib/
     supabase-admin.js  Service-role Supabase client
     email.ts           ALL transactional email: one Gmail transport + branded layout + send per event
@@ -92,7 +94,7 @@ server/
 
 **ESM import rule:** `package.json` has `"type": "module"`. All relative imports inside `api/` **must** include `.js` extension (e.g. `import { x } from "./_lib/supabase-admin.js"`). Missing extensions cause `ERR_MODULE_NOT_FOUND` at runtime on Vercel.
 
-**Vercel function limit (Hobby plan):** 12 serverless functions max — currently 11 used (8 root files + 3 catch-alls). Admin, affiliate, and account routes are consolidated into catch-all handlers to stay under the limit. Do NOT add a new root file in `api/` without checking the count. (The site-wide sale + order delete were folded into the admin catch-all and `products.ts` — still 11.)
+**Vercel function limit (Hobby plan):** 12 serverless functions max — **currently 12 used (8 root files + 4 catch-alls)** — AT THE LIMIT. Admin, affiliate, account, and the new **public** routes are consolidated into catch-all handlers. `api/public/[...slug].ts` (`/api/public/site` = site-wide sale banner config; `/api/public/track` = public order tracking) is the 12th. **Do NOT add another serverless function** — fold any new endpoint into an existing catch-all (public/no-auth reads go in `api/public/`).
 
 **Key data flow:**
 1. Cart items live in `CartContext` (sessionStorage). `CartItem.cartCode` is the inventory key.
@@ -129,8 +131,8 @@ Tables in `public`:
 - `orders(id PK, email, items JSONB, shipping_address JSONB, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed/cancelled, fulfillment_status CHECK IN unfulfilled/shipped/delivered, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, confirmed_at, created_at)` — `status` is the payment lifecycle, `fulfillment_status` is the shipping state (orthogonal). `shipping_address` = {name, line1, line2, city, state, postal_code, country, phone}.
 - `affiliates(id UUID PK, user_id → auth.users, code UNIQUE, discount_percent, commission_percent, name, email, created_at)`
 - `affiliate_payouts(id UUID PK, affiliate_id → affiliates, amount NUMERIC > 0, note, created_at)` — payout tracking; **owed = Σ commission on paid orders − Σ payouts** (computed in `/api/admin/affiliates` and the summary).
-- `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, expires_at, is_active, created_at)` — general promo codes, managed in Admin → Promos. **One use per customer** (enforced by `promoAlreadyRedeemed` — checks prior paid orders with that code + email; affiliate codes are unlimited). `used_count` increments on payment confirmation via `increment_promo_use(p_code)`; `max_uses` is an *additional* global cap.
-- `store_settings(id BOOL PK =true singleton, sitewide_active BOOL, sitewide_percent 1-99, sitewide_label, sitewide_ends_at, updated_at)` — the optional **site-wide sale**. Read by `/api/products` (projects the % onto every variant's sale_price → strikethrough storefront-wide) and managed via `PUT /api/admin/site-promo`. Service-role only.
+- `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, starts_at, expires_at, is_active, created_at)` — general promo codes, managed in Admin → Promos. **One use per customer** (enforced by `promoAlreadyRedeemed` — checks prior paid orders with that code + email; affiliate codes are unlimited). Scheduling via `starts_at`/`expires_at` (honored by `isPromoUsable`). `used_count` increments on payment confirmation via `increment_promo_use(p_code)`; `max_uses` is an *additional* global cap.
+- `store_settings(id BOOL PK =true singleton, sitewide_active BOOL, sitewide_percent 1-99, sitewide_label, sitewide_starts_at, sitewide_ends_at, updated_at)` — the optional **site-wide sale** (with scheduling). `isSitewideActive` gates it; `/api/products` projects the % onto every variant's sale_price → strikethrough storefront-wide; `/api/public/site` feeds the countdown banner. Managed via `PUT /api/admin/site-promo`. Service-role only.
 - `stock_waitlist(id UUID PK, cart_code, email, created_at, notified_at, UNIQUE(cart_code,email))` — back-in-stock signups. `POST /api/inventory` upserts (notified_at=null); an admin inventory PATCH that takes stock 0→>0 emails all pending rows then stamps `notified_at`. Service-role only.
 - `orders.emails_sent JSONB DEFAULT '{}'` — `{event: ISO timestamp}` per sent email; the idempotency log shown in the admin order detail (with Resend buttons).
 
@@ -289,6 +291,10 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 **Site-wide sale — built.** `store_settings` singleton + the **Site-wide Sale** card at the top of Admin → **Promos** (set % off 1–99, optional label + end date; Start/Update/Turn off). `/api/products` projects the active sale onto every variant's `sale_price`, so the storefront shows the original price struck through with the new price (and adds the discounted price to the cart) with **no frontend changes** — it reuses the existing per-variant sale rendering. Enabling a site-wide sale **clears all individual product sale prices** (it always takes precedence). Promo/affiliate codes still stack on top at checkout (the code % comes off the already-discounted subtotal).
 
 **Order management (admin) — built.** Admin → **Orders** now has a per-row **Delete** (permanent hard delete, double-confirm, no restock — distinct from Cancel which restocks) plus **bulk select** (checkbox per row + select/deselect-all header) with a **Delete selected** bulk action (also double-confirm). Backed by `DELETE /api/admin/orders {id | ids[]}`.
+
+**Public order tracking — built.** `/track` page (linked in the Navbar next to Contact) — customer enters order number + email → `GET /api/public/track` (email must match the order) → reuses `OrderTimeline`. No sign-in required.
+
+**Site-wide sale countdown + scheduling — built.** The Site-wide Sale card (Admin → Promos) takes optional **start + end** dates (scheduling); `SaleBanner` (storefront-wide, above the Navbar) reads `GET /api/public/site` and shows a live countdown to the end date while the sale is active. Promo **codes** also support a `starts_at` schedule.
 
 **Testing — in progress.** Vitest unit (Node) + component (jsdom) tests, plus a Playwright checkout e2e — see the Commands section. Next candidates: more page/component coverage and CI to run `pnpm test` on PRs.
 

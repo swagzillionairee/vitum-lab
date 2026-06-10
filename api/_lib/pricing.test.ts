@@ -7,6 +7,7 @@ import {
   commissionAmount,
   isFreeOrder,
   isPromoUsable,
+  isSitewideActive,
   sitewideSalePrice,
   promoAlreadyRedeemed,
 } from "./pricing";
@@ -94,6 +95,27 @@ describe("isPromoUsable", () => {
   it("enforces the minimum subtotal", () => {
     expect(isPromoUsable({ ...base, min_subtotal: 150 }, 100, now)).toBe(false);
     expect(isPromoUsable({ ...base, min_subtotal: 150 }, 150, now)).toBe(true);
+  });
+  it("rejects a not-yet-started (scheduled) code", () => {
+    expect(isPromoUsable({ ...base, starts_at: "2026-07-01T00:00:00Z" }, 100, now)).toBe(false);
+    expect(isPromoUsable({ ...base, starts_at: "2026-06-01T00:00:00Z" }, 100, now)).toBe(true);
+  });
+});
+
+describe("isSitewideActive", () => {
+  const now = new Date("2026-06-10T00:00:00Z");
+  it("is false when off, missing, or zero percent", () => {
+    expect(isSitewideActive(null, now)).toBe(false);
+    expect(isSitewideActive({ sitewide_active: false, sitewide_percent: 20 }, now)).toBe(false);
+    expect(isSitewideActive({ sitewide_active: true, sitewide_percent: 0 }, now)).toBe(false);
+  });
+  it("is true when active with a positive percent and no window", () => {
+    expect(isSitewideActive({ sitewide_active: true, sitewide_percent: 20 }, now)).toBe(true);
+  });
+  it("respects the scheduled start/end window", () => {
+    expect(isSitewideActive({ sitewide_active: true, sitewide_percent: 20, sitewide_starts_at: "2026-06-01T00:00:00Z", sitewide_ends_at: "2026-06-30T00:00:00Z" }, now)).toBe(true);
+    expect(isSitewideActive({ sitewide_active: true, sitewide_percent: 20, sitewide_starts_at: "2026-07-01T00:00:00Z" }, now)).toBe(false);
+    expect(isSitewideActive({ sitewide_active: true, sitewide_percent: 20, sitewide_ends_at: "2026-06-01T00:00:00Z" }, now)).toBe(false);
   });
 });
 

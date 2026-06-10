@@ -32,7 +32,7 @@ async function resolveDiscount(code: string, gross: number): Promise<
 
   const { data: promo } = await supabaseAdmin
     .from("promo_codes")
-    .select("code, percent_off, min_subtotal, max_uses, used_count, expires_at, is_active")
+    .select("code, percent_off, min_subtotal, max_uses, used_count, starts_at, expires_at, is_active")
     .ilike("code", normalized)
     .maybeSingle();
   if (!promo || !isPromoUsable(promo, gross)) return null;

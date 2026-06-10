@@ -715,7 +715,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "POST") {
-      const { code, percent_off, min_subtotal, max_uses, expires_at, is_active } = req.body ?? {};
+      const { code, percent_off, min_subtotal, max_uses, starts_at, expires_at, is_active } = req.body ?? {};
       const pct = Number(percent_off);
       if (!code || !(pct >= 1 && pct <= 100)) return res.status(400).json({ error: "code and percent_off (1-100) are required" });
       const { data, error } = await supabaseAdmin
@@ -725,6 +725,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           percent_off: pct,
           min_subtotal: Number(min_subtotal) || 0,
           max_uses: max_uses != null && max_uses !== "" ? Number(max_uses) : null,
+          starts_at: starts_at || null,
           expires_at: expires_at || null,
           is_active: is_active ?? true,
         })
@@ -738,7 +739,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { id, ...patch } = req.body ?? {};
       if (!id) return res.status(400).json({ error: "id required" });
       const allowed: Record<string, unknown> = {};
-      for (const k of ["code", "percent_off", "min_subtotal", "max_uses", "expires_at", "is_active"]) {
+      for (const k of ["code", "percent_off", "min_subtotal", "max_uses", "starts_at", "expires_at", "is_active"]) {
         if (patch[k] !== undefined) allowed[k] = k === "code" ? String(patch[k]).toUpperCase().trim() : patch[k];
       }
       const { data, error } = await supabaseAdmin.from("promo_codes").update(allowed).eq("id", id).select().single();
@@ -762,12 +763,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "GET") {
       const { data, error } = await supabaseAdmin.from("store_settings").select("*").maybeSingle();
       if (error) return res.status(500).json({ error: "Failed to load site settings" });
-      return res.json(data ?? { sitewide_active: false, sitewide_percent: null, sitewide_label: null, sitewide_ends_at: null });
+      return res.json(data ?? { sitewide_active: false, sitewide_percent: null, sitewide_label: null, sitewide_starts_at: null, sitewide_ends_at: null });
     }
 
     if (req.method === "PUT") {
-      const { active, percent, label, ends_at } = req.body as {
-        active?: boolean; percent?: number | string | null; label?: string | null; ends_at?: string | null;
+      const { active, percent, label, starts_at, ends_at } = req.body as {
+        active?: boolean; percent?: number | string | null; label?: string | null; starts_at?: string | null; ends_at?: string | null;
       };
       const pct = percent != null && percent !== "" ? Number(percent) : null;
       if (active && !(pct != null && pct >= 1 && pct <= 99)) {
@@ -781,6 +782,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             sitewide_active: !!active,
             sitewide_percent: pct,
             sitewide_label: label || null,
+            sitewide_starts_at: starts_at || null,
             sitewide_ends_at: ends_at || null,
             updated_at: new Date().toISOString(),
           },

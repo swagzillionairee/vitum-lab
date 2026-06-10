@@ -68,6 +68,7 @@ export interface PromoRow {
   min_subtotal: number;
   max_uses: number | null;
   used_count: number;
+  starts_at: string | null;
   expires_at: string | null;
   is_active: boolean;
   created_at: string;
@@ -77,6 +78,7 @@ export interface SitePromo {
   sitewide_active: boolean;
   sitewide_percent: number | null;
   sitewide_label: string | null;
+  sitewide_starts_at: string | null;
   sitewide_ends_at: string | null;
 }
 

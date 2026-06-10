@@ -62,6 +62,7 @@ export function promoAlreadyRedeemed(
 
 export interface PromoRecord {
   is_active?: boolean;
+  starts_at?: string | null;
   expires_at?: string | null;
   max_uses?: number | null;
   used_count?: number | null;
@@ -70,12 +71,34 @@ export interface PromoRecord {
 
 /**
  * Whether a promo code may be applied to an order with `gross` subtotal:
- * active, not expired, under its usage cap, and meeting any minimum subtotal.
+ * active, within its scheduled start/end window, under its usage cap, and
+ * meeting any minimum subtotal.
  */
 export function isPromoUsable(promo: PromoRecord, gross: number, now: Date = new Date()): boolean {
   if (!promo.is_active) return false;
+  if (promo.starts_at && new Date(promo.starts_at) > now) return false;
   if (promo.expires_at && new Date(promo.expires_at) < now) return false;
   if (promo.max_uses != null && (Number(promo.used_count) || 0) >= promo.max_uses) return false;
   if (gross < Number(promo.min_subtotal || 0)) return false;
+  return true;
+}
+
+export interface SitewideSettings {
+  sitewide_active?: boolean;
+  sitewide_percent?: number | null;
+  sitewide_starts_at?: string | null;
+  sitewide_ends_at?: string | null;
+}
+
+/**
+ * Whether the store-wide sale is currently in effect: toggled on, a positive
+ * percentage, and within its scheduled start/end window. Used by /api/products
+ * (to project sale prices) and /api/public/site (the countdown banner).
+ */
+export function isSitewideActive(s: SitewideSettings | null | undefined, now: Date = new Date()): boolean {
+  if (!s?.sitewide_active) return false;
+  if (!(Number(s.sitewide_percent) > 0)) return false;
+  if (s.sitewide_starts_at && new Date(s.sitewide_starts_at) > now) return false;
+  if (s.sitewide_ends_at && new Date(s.sitewide_ends_at) < now) return false;
   return true;
 }
