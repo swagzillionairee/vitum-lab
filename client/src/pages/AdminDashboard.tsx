@@ -596,6 +596,7 @@ export default function AdminDashboard() {
   // Inventory
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
   const [savedCode, setSavedCode] = useState<string | null>(null);
+  const [waitlistCounts, setWaitlistCounts] = useState<Record<string, number>>({});
 
   // Overview summary
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -720,9 +721,10 @@ export default function AdminDashboard() {
       if (!invRes.ok) throw new Error(`Inventory API returned ${invRes.status}`);
       setInventory(await invRes.json());
 
-      const [prodRes, sumRes] = await Promise.all([
+      const [prodRes, sumRes, wlRes] = await Promise.all([
         authedFetch("/api/admin/products"),
         authedFetch("/api/admin/summary"),
+        authedFetch("/api/admin/waitlist"),
       ]);
       if (prodRes.ok) {
         setProducts(await prodRes.json());
@@ -731,6 +733,7 @@ export default function AdminDashboard() {
         setLoadError(`Failed to load products: ${err.error ?? prodRes.status}`);
       }
       if (sumRes.ok) setSummary(await sumRes.json());
+      if (wlRes.ok) setWaitlistCounts((await wlRes.json()).counts ?? {});
       // Orders are loaded separately by loadOrders (supports search/filter/pagination).
     } catch (err) {
       if (authorized === null) setAuthorized(false);
@@ -1286,7 +1289,14 @@ export default function AdminDashboard() {
                 <tbody>
                   {inventory.map((row) => (
                     <tr key={row.cart_code} className="border-b border-[oklch(0.95_0.003_260)]">
-                      <td className="py-3 pr-4 font-mono text-[0.8125rem] text-[oklch(0.20_0.01_260)]">{row.cart_code}</td>
+                      <td className="py-3 pr-4 font-mono text-[0.8125rem] text-[oklch(0.20_0.01_260)]">
+                        {row.cart_code}
+                        {waitlistCounts[row.cart_code] > 0 && (
+                          <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-[oklch(0.95_0.04_260)] text-[oklch(0.35_0.15_260)]" title="People waiting for restock">
+                            🔔 {waitlistCounts[row.cart_code]} waiting
+                          </span>
+                        )}
+                      </td>
                       <td className="py-3 pr-4">
                         <input
                           type="number"

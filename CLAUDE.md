@@ -40,16 +40,17 @@ client/src/
     useInventory.ts Fetches /api/inventory, exposes isAvailable(cartCode)/stockLabel(cartCode)
 
 api/                Vercel serverless functions — ALL relative imports MUST use .js extensions (ESM)
-  inventory.ts                GET  /api/inventory → {cartCode: stock} map
+  inventory.ts                GET  /api/inventory → {cartCode: stock} map; POST → join back-in-stock waitlist (public, {cartCode, email})
   create-crypto-payment.ts   POST /api/create-crypto-payment (server-side discount/commission calc + "order received" email)
   nowpayments-webhook.ts     POST /api/nowpayments-webhook (raw body, HMAC-verified; confirmed/failed emails, promo use count)
   validate-discount.ts       POST /api/validate-discount (affiliate codes + promo_codes; pass subtotal for min-subtotal checks)
   contact.ts                 POST /api/contact
   me.ts                      GET  /api/me → {email, isAdmin, isAffiliate} (+ one-time welcome email via metadata flag)
   products.ts                GET  /api/products → product list (public)
-  cron.ts                    GET/POST /api/cron — hourly maintenance (expire stale orders + email sweep), CRON_SECRET-protected
-  admin/[...slug].ts         Catch-all for /api/admin/* (summary, inventory, orders GET + PATCH actions, products CRUD, upload,
+  cron.ts                    GET/POST /api/cron — hourly maintenance (expire stale orders + email sweep + daily low-stock digest @14:00 UTC), CRON_SECRET-protected
+  admin/[...slug].ts         Catch-all for /api/admin/* (summary, inventory [PATCH 0→stock emails the back-in-stock waitlist], orders GET + PATCH actions, products CRUD, upload,
                              affiliates GET/POST/PATCH, payouts POST/DELETE, promos CRUD,
+                             waitlist GET → pending back-in-stock counts per cart_code,
                              users GET → Supabase Auth list for the Customers tab,
                              shipments GET → orders with a tracking number for the Shipping tab (bulk-copy for USPS))
                              Order actions (PATCH /api/admin/orders): cancel (restocks paid orders + email),
@@ -115,6 +116,7 @@ Tables in `public`:
 - `affiliates(id UUID PK, user_id → auth.users, code UNIQUE, discount_percent, commission_percent, name, email, created_at)`
 - `affiliate_payouts(id UUID PK, affiliate_id → affiliates, amount NUMERIC > 0, note, created_at)` — payout tracking; **owed = Σ commission on paid orders − Σ payouts** (computed in `/api/admin/affiliates` and the summary).
 - `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, expires_at, is_active, created_at)` — general promo codes, managed in Admin → Promos. `used_count` increments on payment confirmation via `increment_promo_use(p_code)`.
+- `stock_waitlist(id UUID PK, cart_code, email, created_at, notified_at, UNIQUE(cart_code,email))` — back-in-stock signups. `POST /api/inventory` upserts (notified_at=null); an admin inventory PATCH that takes stock 0→>0 emails all pending rows then stamps `notified_at`. Service-role only.
 - `orders.emails_sent JSONB DEFAULT '{}'` — `{event: ISO timestamp}` per sent email; the idempotency log shown in the admin order detail (with Resend buttons).
 
 Key RPCs:
@@ -244,7 +246,13 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 *Explicitly rejected (owner decision — do NOT build or re-suggest):* abandoned-payment reminder emails.
 
-*Tier 3 (deferred — keep in mind, don't build yet):* low-stock digest to INVENTORY_EMAIL (threshold 5, via cron); affiliate commission notifications/monthly statements; post-delivery follow-up (marketing-ish — needs an opt-out line); back-in-stock waitlist (needs UI + table + cron); newsletters/promos (require a real ESP with list management + unsubscribe — never via Gmail SMTP).
+*Tier 3 (deferred — keep in mind, don't build yet):* affiliate commission notifications/monthly statements; post-delivery follow-up (marketing-ish — needs an opt-out line); newsletters/promos (require a real ESP with list management + unsubscribe — never via Gmail SMTP).
+
+**Back-in-stock waitlist — built.** Out-of-stock variants on ProductDetail show a "Notify me" email capture → `POST /api/inventory` (upserts `stock_waitlist`). When an admin sets a cart_code's stock from 0 → >0, the inventory PATCH emails everyone pending (`sendBackInStock`, deferred) and stamps `notified_at`. Admin → Inventory shows a "🔔 N waiting" badge per cart_code (from `GET /api/admin/waitlist`).
+
+**Low-stock digest — built.** `/api/cron` sends a digest of items ≤5 units to `INVENTORY_EMAIL` once a day (only when it runs at 14:00 UTC ≈ 9–10am ET), via `sendLowStockDigest`.
+
+**Promo/affiliate share links — built.** A shared URL like `vitumlab.com/shop?code=ACG10` (`?code` / `?ref` / `?promo`) is captured on landing by `capturePromoFromUrl()` (App mount → localStorage `vitum_promo`, param stripped); Checkout auto-applies it on mount (resolves the discount + affiliate attribution) and clears it once an order is placed. The affiliate dashboard shows a copy-able "Your share link" card so affiliates share one link instead of dictating a code.
 
 **Affiliate payout tracking — built.** Admin → **Affiliates** tab: list w/ earned (commission on paid orders), paid (recorded payouts), owed (earned − paid), Record Payout / Edit % / Add Affiliate actions, expandable payout history (deletable entries). Overview "Commissions Owed" KPI + breakdown are payout-aware. Commission is computed server-side at order creation (was previously never written — fixed). First affiliate: `asiancreativegaming@gmail.com`, code `ACG10` (10% discount / 10% commission).
 
@@ -252,4 +260,4 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 **Customer account upgrades — built.** `/account` shows an order status timeline (Placed → Paid → Shipped → Delivered, cancelled/failed branches, tracking link via the shared `OrderTimeline` component — also rendered in the admin order detail), one-click **Reorder** (re-adds items at current prices, skips unavailable), and a saved shipping address (auth user metadata via `/api/account/profile`, auto-saved at checkout, prefilled on the next checkout, falls back to the latest order's address).
 
-**Shipping labels (USPS) — NOT built; awaiting owner decision.** Owner wants USPS-only label purchase. Plan when approved: EasyPost or Shippo behind a `buy_label` admin order action (no new function slot), storing label URL + auto-filling tracking + firing the shipped email; delivery auto-detection via tracking polling in `/api/cron` (avoids a 12th function for a tracking webhook). Needs an owner-created EasyPost/Shippo account + API key env var before any code.
+**Shipping labels (USPS via Shippo) — APPROVED, not built (awaiting `SHIPPO_API_KEY`).** Owner is going with **Shippo**, shipping **everything via USPS Priority Mail Flat Rate _padded envelopes_** (so the label request can hard-code that service/packaging — no per-order weight/dimension entry needed). Plan: a `buy_label` admin order action in the admin catch-all (no new function slot) → Shippo create-shipment + buy (USPS Priority Mail Flat Rate Padded Envelope) → store label PDF URL + auto-fill tracking + carrier → fire the shipped email. Delivery auto-detection: poll Shippo tracking (or consume its tracking webhook) inside `/api/cron`, and when a tracking number reads "delivered", mark the order delivered → fires the customer `delivered` email AND the `admin_delivered` alert to `delivered@` automatically. **Function budget is 11/12** (waitlist reused `inventory.ts`, no new file) — keep the last slot free: Shippo must live in the admin catch-all + cron (no new root files). Needs `SHIPPO_API_KEY` set in Vercel before any code.

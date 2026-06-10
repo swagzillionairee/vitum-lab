@@ -1,7 +1,39 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireAdmin } from "../_lib/requireAdmin.js";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
-import { sendOrderEvent, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
+import { sendOrderEvent, sendBackInStock, deferEmail, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
+
+// Notify (once) everyone on the back-in-stock waitlist for a cart_code that
+// just went from 0 → in stock, then mark those rows notified.
+async function notifyWaitlist(cartCode: string) {
+  const { data: subs } = await supabaseAdmin
+    .from("stock_waitlist")
+    .select("id, email")
+    .eq("cart_code", cartCode)
+    .is("notified_at", null);
+  if (!subs || subs.length === 0) return;
+
+  const { data: products } = await supabaseAdmin.from("products").select("name, slug, variants");
+  let name = cartCode;
+  let slug = "";
+  let image: string | undefined;
+  for (const p of products ?? []) {
+    const v = ((p.variants as { cart_code?: string; dose?: string; image_url?: string }[]) ?? []).find((x) => x.cart_code === cartCode);
+    if (v) { name = `${p.name} ${v.dose ?? ""}`.trim(); slug = p.slug as string; image = v.image_url; break; }
+  }
+  const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
+  const url = slug ? `${baseUrl}/shop/${slug}` : `${baseUrl}/shop`;
+
+  for (const s of subs) {
+    try { await sendBackInStock(s.email as string, { name, url, image }); }
+    catch (err) { console.error(`back-in-stock email failed for ${s.email}:`, err); }
+  }
+  await supabaseAdmin
+    .from("stock_waitlist")
+    .update({ notified_at: new Date().toISOString() })
+    .eq("cart_code", cartCode)
+    .is("notified_at", null);
+}
 
 // Handles all /api/admin/* routes: inventory, orders, products, upload
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -243,6 +275,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ── /api/admin/inventory ──────────────────────────────────────────────────
+  // ── /api/admin/waitlist — pending back-in-stock counts per cart_code ───────
+  if (route === "waitlist") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    const { data, error } = await supabaseAdmin
+      .from("stock_waitlist")
+      .select("cart_code")
+      .is("notified_at", null);
+    if (error) return res.status(500).json({ error: "Failed to fetch waitlist" });
+    const counts: Record<string, number> = {};
+    for (const r of data ?? []) counts[r.cart_code as string] = (counts[r.cart_code as string] ?? 0) + 1;
+    return res.json({ counts });
+  }
+
   if (route === "inventory") {
     if (req.method === "GET") {
       const { data, error } = await supabaseAdmin
@@ -256,6 +301,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "PATCH") {
       const { cartCode, stock, isActive } = req.body as { cartCode?: string; stock?: number; isActive?: boolean };
       if (!cartCode) return res.status(400).json({ error: "cartCode is required" });
+
+      // Read prior stock so we can detect a 0 → in-stock restock (waitlist trigger).
+      let priorStock: number | null = null;
+      if (typeof stock === "number") {
+        const { data: prior } = await supabaseAdmin.from("inventory").select("stock").eq("cart_code", cartCode).maybeSingle();
+        priorStock = prior?.stock ?? null;
+      }
+
       const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (typeof stock === "number") {
         if (stock < 0) return res.status(400).json({ error: "stock cannot be negative" });
@@ -265,6 +318,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { data, error } = await supabaseAdmin
         .from("inventory").update(update).eq("cart_code", cartCode).select().maybeSingle();
       if (error || !data) return res.status(500).json({ error: "Failed to update inventory" });
+
+      // Restocked from zero → email the back-in-stock waitlist (non-blocking).
+      if (typeof stock === "number" && stock > 0 && priorStock === 0) {
+        deferEmail(notifyWaitlist(cartCode));
+      }
       return res.json(data);
     }
 
