@@ -1,7 +1,7 @@
 import { customAlphabet } from "nanoid";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
-import { grossFromItems, discountAmount as calcDiscount, netAmount as calcNet, commissionAmount as calcCommission, isFreeOrder, isPromoUsable } from "./_lib/pricing.js";
+import { grossFromItems, discountAmount as calcDiscount, netAmount as calcNet, commissionAmount as calcCommission, isFreeOrder, isPromoUsable, promoAlreadyRedeemed } from "./_lib/pricing.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
@@ -92,6 +92,22 @@ export default async function handler(req: any, res: any) {
     if (discountCode && !discount) {
       res.status(400).json({ error: "That promo code is invalid or expired." });
       return;
+    }
+
+    // Promo codes are limited to one use per customer (affiliate codes are exempt).
+    // Codes are A–Z0–9 so ILIKE on the code is safe; the exact email match is done
+    // in JS (emails can contain ILIKE wildcards like "_").
+    if (discount?.kind === "promo") {
+      const normalizedCode = discountCode!.trim().toUpperCase();
+      const { data: prior } = await supabaseAdmin
+        .from("orders")
+        .select("email, discount_code")
+        .ilike("discount_code", normalizedCode)
+        .in("status", ["confirmed", "finished"]);
+      if (promoAlreadyRedeemed(prior ?? [], email, normalizedCode)) {
+        res.status(400).json({ error: "You've already used this promo code — it's limited to one use per customer." });
+        return;
+      }
     }
     const discountAmount = discount ? calcDiscount(grossAmount, discount.percent) : 0;
     const netAmount = calcNet(grossAmount, discountAmount);

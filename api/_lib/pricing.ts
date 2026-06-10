@@ -31,6 +31,35 @@ export function isFreeOrder(net: number): boolean {
   return net <= 0;
 }
 
+/**
+ * Per-unit price after a site-wide sale of `percentOff` is applied to `base`.
+ * Used by /api/products to project the active site-wide sale onto every variant
+ * (so the storefront shows the strikethrough original + the new price, and the
+ * discounted price flows into the cart). Never returns more than the base price.
+ */
+export function sitewideSalePrice(base: number, percentOff: number): number {
+  const pct = Math.max(0, Math.min(100, Number(percentOff) || 0));
+  return round2((Number(base) || 0) * (1 - pct / 100));
+}
+
+/**
+ * Whether `email` has already redeemed promo `code` on a prior (paid) order —
+ * promo codes are limited to one use per customer (affiliate codes are exempt
+ * and never passed here). Comparison is case-insensitive on both fields.
+ */
+export function promoAlreadyRedeemed(
+  priorOrders: { email?: string | null; discount_code?: string | null }[],
+  email: string,
+  code: string,
+): boolean {
+  const e = (email ?? "").trim().toLowerCase();
+  const c = (code ?? "").trim().toUpperCase();
+  if (!e || !c) return false;
+  return priorOrders.some(
+    (o) => (o.email ?? "").trim().toLowerCase() === e && (o.discount_code ?? "").trim().toUpperCase() === c,
+  );
+}
+
 export interface PromoRecord {
   is_active?: boolean;
   expires_at?: string | null;

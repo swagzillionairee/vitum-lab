@@ -177,6 +177,51 @@ export default function AdminDashboard() {
     }
   };
 
+  // ── Bulk selection + permanent delete (Orders tab) ──────────────────────────
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+
+  // Drop any selection when the visible set changes (page / filters / search).
+  useEffect(() => { setSelectedOrders(new Set()); }, [orderPage, orderStatus, orderFulfillment, orderSearch]);
+
+  const toggleOrderSelected = (id: string) =>
+    setSelectedOrders((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
+  const allOnPageSelected = orders.length > 0 && orders.every((o) => selectedOrders.has(o.id));
+  const toggleSelectAll = () =>
+    setSelectedOrders(allOnPageSelected ? new Set() : new Set(orders.map((o) => o.id)));
+
+  const deleteOrders = async (ids: string[]) => {
+    if (ids.length === 0) return false;
+    const body = ids.length === 1 ? { id: ids[0] } : { ids };
+    const res = await authedFetch("/api/admin/orders", { method: "DELETE", body: JSON.stringify(body) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.error ?? "Delete failed"); return false; }
+    setOrders((prev) => prev.filter((o) => !ids.includes(o.id)));
+    setOrderTotal((t) => Math.max(0, t - ids.length));
+    setSelectedOrders((prev) => { const next = new Set(prev); ids.forEach((id) => next.delete(id)); return next; });
+    return true;
+  };
+
+  // Permanent delete is irreversible (and does NOT restock) — confirm twice.
+  const handleDeleteOrder = async (o: OrderRow) => {
+    if (!confirm(`Permanently delete order ${o.id.slice(0, 10)} (${o.email})?\n\nThis erases the order record. It does NOT restock — use Cancel for that.`)) return;
+    if (!confirm("This cannot be undone. Delete this order for good?")) return;
+    setOrderBusy(o.id);
+    try { await deleteOrders([o.id]); } finally { setOrderBusy(null); }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedOrders);
+    if (ids.length === 0) return;
+    const n = ids.length;
+    if (!confirm(`Permanently delete ${n} selected order${n !== 1 ? "s" : ""}?\n\nThis erases the records and does NOT restock.`)) return;
+    if (!confirm(`This cannot be undone. Delete ${n} order${n !== 1 ? "s" : ""} for good?`)) return;
+    await deleteOrders(ids);
+  };
+
   const loadData = useCallback(async () => {
     setLoadError(null);
     try {
@@ -664,6 +709,25 @@ export default function AdminDashboard() {
               </select>
             </div>
 
+            {/* Bulk action bar (appears when one or more orders are selected) */}
+            {selectedOrders.size > 0 && (
+              <div className="flex items-center justify-between gap-3 mb-4 px-4 py-2.5 rounded-xl bg-[oklch(0.97_0.02_260)] border border-[oklch(0.90_0.04_260)]">
+                <span className="text-[0.8125rem] font-semibold text-[oklch(0.30_0.10_260)]">
+                  {selectedOrders.size} selected
+                </span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedOrders(new Set())}
+                    className="text-[0.75rem] font-semibold text-[oklch(0.45_0.01_260)] hover:text-[oklch(0.13_0.01_260)]">
+                    Clear
+                  </button>
+                  <button onClick={handleBulkDelete}
+                    className="flex items-center gap-1.5 text-[0.75rem] font-semibold text-white bg-red-600 px-3 py-1.5 rounded-lg hover:bg-red-700">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete selected
+                  </button>
+                </div>
+              </div>
+            )}
+
             {orders.length === 0 ? (
               <p className="text-[0.875rem] text-[oklch(0.52_0.01_260)] py-4">
                 {orderSearch || orderStatus || orderFulfillment ? "No orders match your filters." : "No orders yet."}
@@ -673,6 +737,11 @@ export default function AdminDashboard() {
                 <table className="w-full text-[0.875rem]">
                   <thead>
                     <tr className="text-left text-[0.6875rem] uppercase tracking-wider text-[oklch(0.60_0.01_260)] border-b border-[oklch(0.93_0.004_260)]">
+                      <th className="py-2 pr-3 w-8">
+                        <input type="checkbox" checked={allOnPageSelected} onChange={toggleSelectAll}
+                          aria-label="Select all orders on this page"
+                          className="w-4 h-4 rounded border-[oklch(0.80_0.01_260)] cursor-pointer accent-[oklch(0.40_0.16_260)]" />
+                      </th>
                       <th className="py-2 pr-4">Order</th>
                       <th className="py-2 pr-4">Email</th>
                       <th className="py-2 pr-4">Items</th>
@@ -692,7 +761,12 @@ export default function AdminDashboard() {
                       const expanded = expandedOrder === o.id;
                       return (
                         <Fragment key={o.id}>
-                          <tr className="border-b border-[oklch(0.95_0.003_260)] align-top">
+                          <tr className={`border-b border-[oklch(0.95_0.003_260)] align-top ${selectedOrders.has(o.id) ? "bg-[oklch(0.975_0.015_260)]" : ""}`}>
+                            <td className="py-3 pr-3">
+                              <input type="checkbox" checked={selectedOrders.has(o.id)} onChange={() => toggleOrderSelected(o.id)}
+                                aria-label={`Select order ${o.id.slice(0, 10)}`}
+                                className="w-4 h-4 rounded border-[oklch(0.80_0.01_260)] cursor-pointer accent-[oklch(0.40_0.16_260)]" />
+                            </td>
                             <td className="py-3 pr-4">
                               <button
                                 onClick={() => setExpandedOrder(expanded ? null : o.id)}
@@ -775,12 +849,16 @@ export default function AdminDashboard() {
                                     <Ban className="w-3 h-3" /> Cancel
                                   </button>
                                 )}
+                                <button onClick={() => handleDeleteOrder(o)} disabled={busy} title="Permanently delete order"
+                                  className="flex items-center gap-1 text-[0.7rem] font-semibold text-red-600 border border-red-300 px-2 py-1 rounded-lg hover:bg-red-50 disabled:opacity-50">
+                                  <Trash2 className="w-3 h-3" /> Delete
+                                </button>
                               </div>
                             </td>
                           </tr>
                           {expanded && (
                             <tr className="border-b border-[oklch(0.95_0.003_260)] bg-[oklch(0.98_0.002_260)]">
-                              <td colSpan={8} className="px-4 py-3">
+                              <td colSpan={9} className="px-4 py-3">
                                 {/* Status timeline */}
                                 <div className="mb-4 max-w-md">
                                   <OrderTimeline order={o} />

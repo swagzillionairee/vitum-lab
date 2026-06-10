@@ -16,12 +16,13 @@ Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (
 pnpm dev          # Start Vite dev server (port 3000) — API routes handled inline via vitePluginLocalApi
 pnpm build        # vite build → dist/public, then esbuild server → dist/index.js
 pnpm check        # TypeScript type-check (no emit)
-pnpm test         # Vitest (run once) — unit tests, config in vitest.config.ts (Node env)
+pnpm test         # Vitest (run once) — unit (Node) + component (jsdom) tests
 pnpm test:watch   # Vitest in watch mode
+pnpm test:e2e     # Playwright e2e (checkout flow) — run `npx playwright install` first
 pnpm format       # Prettier
 ```
 
-Tests use **Vitest** (`vitest.config.ts` at repo root — Node env, dummy Supabase env so DB-importing modules load). Test files live next to their source as `*.test.ts` (e.g. `api/_lib/pricing.test.ts`). The first batch covers the pure order-money logic in `api/_lib/pricing.ts` (discount/net/commission rounding, $0-order detection, promo validation) — extracted from `create-crypto-payment.ts` so the real checkout code path is what's tested. Next layers to add: component tests (jsdom + @testing-library/react) and Playwright e2e for checkout. There is no lint script — use `pnpm check` for type errors.
+Tests use **Vitest** (`vitest.config.ts` at repo root). Two environments via `environmentMatchGlobs`: pure logic + API tests are `*.test.ts` (Node, e.g. `api/_lib/pricing.test.ts`), component tests are `*.test.tsx` (jsdom + `@testing-library/react`, e.g. `client/src/contexts/CartContext.test.tsx`). `vitest.setup.ts` loads `@testing-library/jest-dom` only in the DOM env. Path aliases (`@`, `@shared`, `@assets`) are mirrored in the vitest config, and `esbuild.jsx: "automatic"` lets `.tsx` tests skip a React import. Coverage so far: order-money + promo logic in `pricing.ts` (incl. `sitewideSalePrice`, `promoAlreadyRedeemed`), the cart reducer (`CartContext`), and the sale/strikethrough mapper (`dbRowToProduct`). **Playwright** e2e lives in `e2e/` (`playwright.config.ts`); the checkout spec mocks every `/api/*` call and seeds the age-gate cookie + a fake Supabase session, so it needs no live backend (`pnpm exec playwright install chromium` to get the browser). There is no lint script — use `pnpm check` for type errors.
 
 The Vite root is `client/` (not repo root). Path aliases: `@` → `client/src`, `@shared` → `shared/`, `@assets` → `attached_assets/`.
 
@@ -48,22 +49,23 @@ client/src/
 
 api/                Vercel serverless functions — ALL relative imports MUST use .js extensions (ESM)
   inventory.ts                GET  /api/inventory → {cartCode: stock} map; POST → join back-in-stock waitlist (public, {cartCode, email})
-  create-crypto-payment.ts   POST /api/create-crypto-payment (server-side discount/commission calc + "order received" email)
+  create-crypto-payment.ts   POST /api/create-crypto-payment (server-side discount/commission calc + "order received" email; enforces promo one-use-per-email)
   nowpayments-webhook.ts     POST /api/nowpayments-webhook (raw body, HMAC-verified; confirmed/failed emails, promo use count)
-  validate-discount.ts       POST /api/validate-discount (affiliate codes + promo_codes; pass subtotal for min-subtotal checks)
+  validate-discount.ts       POST /api/validate-discount (affiliate codes + promo_codes; pass subtotal + email — rejects an already-used promo)
   contact.ts                 POST /api/contact
   me.ts                      GET  /api/me → {email, isAdmin, isAffiliate} (+ one-time welcome email via metadata flag)
-  products.ts                GET  /api/products → product list (public)
+  products.ts                GET  /api/products → product list (public); projects the active site-wide sale onto each variant's sale_price
   cron.ts                    GET/POST /api/cron — hourly maintenance (expire stale orders + email sweep + daily low-stock digest @14:00 UTC
                              + Shippo delivery polling → delivered emails + post-delivery follow-up @7d + affiliate monthly statements 1st@15:00 UTC), CRON_SECRET-protected
   admin/[...slug].ts         Catch-all for /api/admin/* (summary, inventory [PATCH 0→stock emails the back-in-stock waitlist], orders GET + PATCH actions, products CRUD, upload,
                              affiliates GET/POST/PATCH, payouts POST/DELETE, promos CRUD,
+                             site-promo GET/PUT → the store-wide sale (enabling it clears all per-variant sale prices),
                              waitlist GET → pending back-in-stock counts per cart_code,
                              users GET → Supabase Auth list + per-customer order count/lifetime spend for the Customers tab,
                              shipments GET → orders with a tracking number for the Shipping tab (bulk-copy for USPS))
                              Order actions (PATCH /api/admin/orders): cancel (restocks paid orders + email),
                              ship (tracking+carrier + email), deliver (+email), recheck (reconciles vs NowPayments + emails),
-                             notes, resend_email {event}
+                             notes, resend_email {event}; DELETE /api/admin/orders {id | ids[]} → permanent hard delete (no restock; single + bulk)
   affiliate/[...slug].ts     Catch-all for /api/affiliate/* (stats, orders)
   account/[...slug].ts       Catch-all for /api/account/*: orders (order history + timeline fields),
                              profile GET/PUT (saved shipping address in auth user metadata, falls back to last order)
@@ -75,7 +77,8 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                        item rows include a 40px product thumbnail (resolved from products.variants by cartCode),
                        idempotent via orders.emails_sent; deferEmail() = waitUntil with local fallback
     shippo.ts          USPS labels (buyLabel — Priority Mail Flat Rate Padded Envelope) + getTrackingStatus; token = test/live
-    pricing.ts         Pure order math + promo validation (gross/discount/net/commission, isFreeOrder, isPromoUsable) — unit-tested
+    pricing.ts         Pure order math + promo validation (gross/discount/net/commission, isFreeOrder, isPromoUsable,
+                       sitewideSalePrice, promoAlreadyRedeemed [one-use-per-email]) — unit-tested
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
     requireAffiliate.ts requireUser + checks affiliates table
@@ -89,11 +92,11 @@ server/
 
 **ESM import rule:** `package.json` has `"type": "module"`. All relative imports inside `api/` **must** include `.js` extension (e.g. `import { x } from "./_lib/supabase-admin.js"`). Missing extensions cause `ERR_MODULE_NOT_FOUND` at runtime on Vercel.
 
-**Vercel function limit (Hobby plan):** 12 serverless functions max — currently 11 used (8 root files + 3 catch-alls). Admin, affiliate, and account routes are consolidated into catch-all handlers to stay under the limit. Do NOT add a new root file in `api/` without checking the count.
+**Vercel function limit (Hobby plan):** 12 serverless functions max — currently 11 used (8 root files + 3 catch-alls). Admin, affiliate, and account routes are consolidated into catch-all handlers to stay under the limit. Do NOT add a new root file in `api/` without checking the count. (The site-wide sale + order delete were folded into the admin catch-all and `products.ts` — still 11.)
 
 **Key data flow:**
 1. Cart items live in `CartContext` (sessionStorage). `CartItem.cartCode` is the inventory key.
-2. Checkout: CartDrawer shows cart items + a "Proceed to Checkout" button. Checkout **requires sign-in** — if not authenticated it routes to `/login?redirect=/checkout`. The dedicated `/checkout` page (`pages/Checkout.tsx`) has a 2/3 contact+shipping form (Google Places autocomplete, email prefilled from the account) and a 1/3 order summary (items, subtotal, discount, shipping, total, promo). Submitting → `POST /api/create-crypto-payment` (validates a complete address) → NowPayments invoice URL → redirect. The invoice page offers crypto **and** card/Apple Pay (fiat on-ramp), so there is a single checkout path. Card/Apple Pay must be enabled in the NowPayments dashboard (on-ramp via Guardarian/Banxa) — no code change needed to toggle it.
+2. Checkout: CartDrawer shows cart items + a "Proceed to Checkout" button. Checkout **requires sign-in** — if not authenticated it routes to `/login?redirect=/checkout`. The dedicated `/checkout` page (`pages/Checkout.tsx`) has a 2/3 contact+shipping form (Google Places autocomplete, email prefilled from the account) and a 1/3 order summary (items, subtotal, discount, shipping, total, promo). Submitting → `POST /api/create-crypto-payment` (validates a complete address) → NowPayments invoice URL → redirect. The invoice page offers crypto **and** card/Apple Pay (fiat on-ramp), so there is a single checkout path. Card/Apple Pay must be enabled in the NowPayments dashboard (on-ramp via Guardarian/Banxa) — no code change needed to toggle it. **⚠️ As of June 2026 the card/Apple Pay on-ramp is pending NowPayments review and not yet live; the storefront copy that mentions it is intentionally left as-is (owner decision).**
 3. Payment confirmed: NowPayments IPN → `POST /api/nowpayments-webhook` → `decrement_stock()` RPC → order status `confirmed` → customer confirmation email + admin new-order alert (idempotent via `orders.emails_sent` — NowPayments fires both `confirmed` and `finished`). `failed`/`expired`/`refunded` IPNs on pending orders → status `failed` + email.
 4. Order ID encodes email: `{10-char-alphanum}--{base64url(email)}` — no DB lookup needed to send the email.
 5. Discounts are resolved **server-side** in `create-crypto-payment` from the code (affiliate → discount+commission; promo → discount only); client-sent amounts are ignored. Commission = `commission_percent` × net, stored on the order at creation.
@@ -126,7 +129,8 @@ Tables in `public`:
 - `orders(id PK, email, items JSONB, shipping_address JSONB, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed/cancelled, fulfillment_status CHECK IN unfulfilled/shipped/delivered, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, confirmed_at, created_at)` — `status` is the payment lifecycle, `fulfillment_status` is the shipping state (orthogonal). `shipping_address` = {name, line1, line2, city, state, postal_code, country, phone}.
 - `affiliates(id UUID PK, user_id → auth.users, code UNIQUE, discount_percent, commission_percent, name, email, created_at)`
 - `affiliate_payouts(id UUID PK, affiliate_id → affiliates, amount NUMERIC > 0, note, created_at)` — payout tracking; **owed = Σ commission on paid orders − Σ payouts** (computed in `/api/admin/affiliates` and the summary).
-- `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, expires_at, is_active, created_at)` — general promo codes, managed in Admin → Promos. `used_count` increments on payment confirmation via `increment_promo_use(p_code)`.
+- `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, expires_at, is_active, created_at)` — general promo codes, managed in Admin → Promos. **One use per customer** (enforced by `promoAlreadyRedeemed` — checks prior paid orders with that code + email; affiliate codes are unlimited). `used_count` increments on payment confirmation via `increment_promo_use(p_code)`; `max_uses` is an *additional* global cap.
+- `store_settings(id BOOL PK =true singleton, sitewide_active BOOL, sitewide_percent 1-99, sitewide_label, sitewide_ends_at, updated_at)` — the optional **site-wide sale**. Read by `/api/products` (projects the % onto every variant's sale_price → strikethrough storefront-wide) and managed via `PUT /api/admin/site-promo`. Service-role only.
 - `stock_waitlist(id UUID PK, cart_code, email, created_at, notified_at, UNIQUE(cart_code,email))` — back-in-stock signups. `POST /api/inventory` upserts (notified_at=null); an admin inventory PATCH that takes stock 0→>0 emails all pending rows then stamps `notified_at`. Service-role only.
 - `orders.emails_sent JSONB DEFAULT '{}'` — `{event: ISO timestamp}` per sent email; the idempotency log shown in the admin order detail (with Resend buttons).
 
@@ -137,7 +141,7 @@ Key RPCs:
 
 **Scheduled jobs (pg_cron):** `expire-stale-orders` runs hourly — sets `status='cancelled'` (reason `auto-expired…`) on `pending` orders older than 24h (pending orders never decremented stock, so no restock needed). `email-cron` runs hourly — pg_net POST to `/api/cron` (CRON_SECRET header), which also expires stale orders AND sends the cancellation emails (idempotent; the two jobs coexist safely — the endpoint's sweep emails anything the SQL job expired).
 
-RLS: `inventory` is publicly readable (anon). `orders`, `affiliates`, `affiliate_payouts`, and `promo_codes` are service-role only.
+RLS: `inventory` is publicly readable (anon). `orders`, `affiliates`, `affiliate_payouts`, `promo_codes`, and `store_settings` are service-role only.
 
 ---
 
@@ -280,7 +284,13 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 **Affiliate payout tracking — built.** Admin → **Affiliates** tab: list w/ earned (commission on paid orders), paid (recorded payouts), owed (earned − paid), Record Payout / Edit % / Add Affiliate actions, expandable payout history (deletable entries). Overview "Commissions Owed" KPI + breakdown are payout-aware. Commission is computed server-side at order creation (was previously never written — fixed). First affiliate: `asiancreativegaming@gmail.com`, code `ACG10` (10% discount / 10% commission).
 
-**General promo codes — built.** `promo_codes` table + Admin → **Promos** tab (create w/ % off, min subtotal, max uses, expiry; enable/disable; delete). `validate-discount` checks affiliates first, then promos; `create-crypto-payment` re-validates server-side and ignores client discount math; `used_count` increments on payment confirmation.
+**General promo codes — built.** `promo_codes` table + Admin → **Promos** tab (create w/ % off, min subtotal, max uses, expiry; enable/disable; delete). `validate-discount` checks affiliates first, then promos; `create-crypto-payment` re-validates server-side and ignores client discount math; `used_count` increments on payment confirmation. **One use per customer** (per email) is enforced server-side in both `validate-discount` (early UI feedback) and `create-crypto-payment` (authoritative) via `promoAlreadyRedeemed`; affiliate codes stay unlimited. Only one code applies per order (affiliate **or** promo, never both).
+
+**Site-wide sale — built.** `store_settings` singleton + the **Site-wide Sale** card at the top of Admin → **Promos** (set % off 1–99, optional label + end date; Start/Update/Turn off). `/api/products` projects the active sale onto every variant's `sale_price`, so the storefront shows the original price struck through with the new price (and adds the discounted price to the cart) with **no frontend changes** — it reuses the existing per-variant sale rendering. Enabling a site-wide sale **clears all individual product sale prices** (it always takes precedence). Promo/affiliate codes still stack on top at checkout (the code % comes off the already-discounted subtotal).
+
+**Order management (admin) — built.** Admin → **Orders** now has a per-row **Delete** (permanent hard delete, double-confirm, no restock — distinct from Cancel which restocks) plus **bulk select** (checkbox per row + select/deselect-all header) with a **Delete selected** bulk action (also double-confirm). Backed by `DELETE /api/admin/orders {id | ids[]}`.
+
+**Testing — in progress.** Vitest unit (Node) + component (jsdom) tests, plus a Playwright checkout e2e — see the Commands section. Next candidates: more page/component coverage and CI to run `pnpm test` on PRs.
 
 **Customer account upgrades — built.** `/account` shows an order status timeline (Placed → Paid → Shipped → Delivered, cancelled/failed branches, tracking link via the shared `OrderTimeline` component — also rendered in the admin order detail), one-click **Reorder** (re-adds items at current prices, skips unavailable), and a saved shipping address (auth user metadata via `/api/account/profile`, auto-saved at checkout, prefilled on the next checkout, falls back to the latest order's address).
 

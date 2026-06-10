@@ -73,6 +73,13 @@ export interface PromoRow {
   created_at: string;
 }
 
+export interface SitePromo {
+  sitewide_active: boolean;
+  sitewide_percent: number | null;
+  sitewide_label: string | null;
+  sitewide_ends_at: string | null;
+}
+
 export interface Variant {
   id: string;
   dose: string;

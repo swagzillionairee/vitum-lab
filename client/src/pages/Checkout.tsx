@@ -30,7 +30,7 @@ export default function Checkout() {
   const [promoOpen, setPromoOpen] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoApplied, setPromoApplied] = useState(false);
-  const [promoError, setPromoError] = useState(false);
+  const [promoError, setPromoError] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
   const [discountPct, setDiscountPct] = useState(0);
   const [affiliateId, setAffiliateId] = useState<string | undefined>();
@@ -75,24 +75,24 @@ export default function Checkout() {
     const code = (codeArg ?? promoCode).trim();
     if (!code) return;
     setPromoLoading(true);
-    setPromoError(false);
+    setPromoError("");
     setPromoApplied(false);
     try {
       const res = await fetch("/api/validate-discount", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, subtotal }),
+        body: JSON.stringify({ code, subtotal, email }),
       });
       const data = await res.json();
       if (!res.ok || !data.valid) {
-        setPromoError(true);
+        setPromoError(data.error || "Invalid or expired promo code.");
       } else {
         setPromoApplied(true);
         setDiscountPct(data.discountPct);
         setAffiliateId(data.affiliateId);
       }
     } catch {
-      setPromoError(true);
+      setPromoError("Couldn't validate that code. Please try again.");
     } finally {
       setPromoLoading(false);
     }
@@ -272,14 +272,14 @@ export default function Checkout() {
               </button>
               {promoOpen && (
                 <div className="mt-2 flex gap-2">
-                  <input type="text" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(false); setPromoApplied(false); setDiscountPct(0); setAffiliateId(undefined); }} placeholder="Enter code" className={`${inputBase} flex-1 min-w-0 py-2`} />
+                  <input type="text" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(""); setPromoApplied(false); setDiscountPct(0); setAffiliateId(undefined); }} placeholder="Enter code" className={`${inputBase} flex-1 min-w-0 py-2`} />
                   <button onClick={handleApplyPromo} disabled={promoLoading} className="flex-shrink-0 px-4 py-2 rounded-lg bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors disabled:opacity-60">
                     {promoLoading ? "…" : "Apply"}
                   </button>
                 </div>
               )}
               {promoApplied && <p className="mt-1.5 text-[0.75rem] text-[oklch(0.35_0.14_155)] flex items-center gap-1"><Check className="w-3 h-3" /> Promo code applied!</p>}
-              {promoError && <p className="mt-1.5 text-[0.75rem] text-red-500">Invalid or expired promo code.</p>}
+              {promoError && <p className="mt-1.5 text-[0.75rem] text-red-500">{promoError}</p>}
             </div>
 
             {/* Totals */}

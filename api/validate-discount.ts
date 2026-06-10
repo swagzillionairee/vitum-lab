@@ -1,11 +1,12 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
+import { promoAlreadyRedeemed } from "./_lib/pricing.js";
 
 /**
  * Validates a discount code: either an affiliate code (affiliates table) or
  * a general promo code (promo_codes table — active, unexpired, under its use
- * cap, and meeting any minimum subtotal). The checkout sends `subtotal` so
- * min-subtotal promos validate correctly; create-crypto-payment re-validates
- * server-side regardless.
+ * cap, meeting any minimum subtotal, and not already redeemed by this customer
+ * — promos are one use per customer). The checkout sends `subtotal` + `email`;
+ * create-crypto-payment re-validates server-side regardless.
  */
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
@@ -13,7 +14,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const { code, subtotal } = req.body as { code?: string; subtotal?: number };
+  const { code, subtotal, email } = req.body as { code?: string; subtotal?: number; email?: string };
   if (!code?.trim()) {
     res.status(400).json({ error: "Code is required" });
     return;
@@ -50,6 +51,18 @@ export default async function handler(req: any, res: any) {
           error: `This code requires a minimum subtotal of $${Number(promo.min_subtotal).toFixed(2)}.`,
         });
         return;
+      }
+      // One use per customer — reject if this email already redeemed it (paid).
+      if (typeof email === "string" && email.includes("@")) {
+        const { data: prior } = await supabaseAdmin
+          .from("orders")
+          .select("email, discount_code")
+          .ilike("discount_code", normalized)
+          .in("status", ["confirmed", "finished"]);
+        if (promoAlreadyRedeemed(prior ?? [], email, normalized)) {
+          res.status(400).json({ valid: false, error: "You've already used this code — it's limited to one use per customer." });
+          return;
+        }
       }
       res.status(200).json({ valid: true, discountPct: promo.percent_off });
       return;

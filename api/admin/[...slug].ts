@@ -586,6 +586,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Unknown action" });
     }
 
+    // Permanently delete one or more orders (hard delete). Does NOT restock —
+    // use the Cancel action to restock a paid order. Bulk: pass { ids: [...] }.
+    if (req.method === "DELETE") {
+      const body = req.body as { id?: string; ids?: string[] };
+      const ids = (body.ids?.length ? body.ids : body.id ? [body.id] : []).filter(Boolean);
+      if (ids.length === 0) return res.status(400).json({ error: "id or ids required" });
+      const { error } = await supabaseAdmin.from("orders").delete().in("id", ids);
+      if (error) return res.status(500).json({ error: "Failed to delete orders" });
+      return res.json({ ok: true, deleted: ids.length });
+    }
+
     return res.status(405).json({ error: "Method not allowed" });
   }
 
@@ -741,6 +752,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { error } = await supabaseAdmin.from("promo_codes").delete().eq("id", id);
       if (error) return res.status(400).json({ error: error.message });
       return res.json({ ok: true });
+    }
+
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── /api/admin/site-promo — the optional store-wide sale ────────────────────
+  if (route === "site-promo") {
+    if (req.method === "GET") {
+      const { data, error } = await supabaseAdmin.from("store_settings").select("*").maybeSingle();
+      if (error) return res.status(500).json({ error: "Failed to load site settings" });
+      return res.json(data ?? { sitewide_active: false, sitewide_percent: null, sitewide_label: null, sitewide_ends_at: null });
+    }
+
+    if (req.method === "PUT") {
+      const { active, percent, label, ends_at } = req.body as {
+        active?: boolean; percent?: number | string | null; label?: string | null; ends_at?: string | null;
+      };
+      const pct = percent != null && percent !== "" ? Number(percent) : null;
+      if (active && !(pct != null && pct >= 1 && pct <= 99)) {
+        return res.status(400).json({ error: "Enter a percentage between 1 and 99 to enable a site-wide sale." });
+      }
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .upsert(
+          {
+            id: true,
+            sitewide_active: !!active,
+            sitewide_percent: pct,
+            sitewide_label: label || null,
+            sitewide_ends_at: ends_at || null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        )
+        .select()
+        .maybeSingle();
+      if (error) return res.status(400).json({ error: error.message });
+
+      // Enabling a site-wide sale clears every per-variant sale price so the
+      // site-wide promo is the only sale in effect (it always takes precedence).
+      if (active) {
+        const { data: prods } = await supabaseAdmin.from("products").select("id, variants");
+        for (const p of prods ?? []) {
+          const variants = (((p.variants as Record<string, unknown>[]) ?? [])).map((v) => ({
+            ...v,
+            sale_price: null,
+            sale_ends_at: null,
+          }));
+          await supabaseAdmin.from("products").update({ variants }).eq("id", p.id);
+        }
+      }
+      return res.json(data);
     }
 
     return res.status(405).json({ error: "Method not allowed" });

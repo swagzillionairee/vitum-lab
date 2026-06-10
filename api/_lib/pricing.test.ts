@@ -7,6 +7,8 @@ import {
   commissionAmount,
   isFreeOrder,
   isPromoUsable,
+  sitewideSalePrice,
+  promoAlreadyRedeemed,
 } from "./pricing";
 
 describe("round2", () => {
@@ -92,5 +94,42 @@ describe("isPromoUsable", () => {
   it("enforces the minimum subtotal", () => {
     expect(isPromoUsable({ ...base, min_subtotal: 150 }, 100, now)).toBe(false);
     expect(isPromoUsable({ ...base, min_subtotal: 150 }, 150, now)).toBe(true);
+  });
+});
+
+describe("sitewideSalePrice", () => {
+  it("applies a site-wide percentage to the base price", () => {
+    expect(sitewideSalePrice(129, 20)).toBe(103.2);
+    expect(sitewideSalePrice(12, 25)).toBe(9);
+    expect(sitewideSalePrice(69, 10)).toBe(62.1);
+  });
+  it("rounds to cents", () => {
+    expect(sitewideSalePrice(189, 15)).toBe(160.65);
+    expect(sitewideSalePrice(99.99, 33)).toBe(66.99); // 66.9933 → 66.99
+  });
+  it("clamps the percentage to 0–100 and coerces junk", () => {
+    expect(sitewideSalePrice(100, -5)).toBe(100); // negative → no discount
+    expect(sitewideSalePrice(100, 150)).toBe(0); // over 100 → free
+    expect(sitewideSalePrice(100, NaN as unknown as number)).toBe(100);
+  });
+});
+
+describe("promoAlreadyRedeemed (one use per customer)", () => {
+  const orders = [
+    { email: "Buyer@Example.com", discount_code: "SPRING20" },
+    { email: "other@example.com", discount_code: "WELCOME10" },
+  ];
+  it("matches case-insensitively on email + code", () => {
+    expect(promoAlreadyRedeemed(orders, "buyer@example.com", "spring20")).toBe(true);
+    expect(promoAlreadyRedeemed(orders, "BUYER@EXAMPLE.COM", "SPRING20")).toBe(true);
+  });
+  it("is false when this customer never used this code", () => {
+    expect(promoAlreadyRedeemed(orders, "buyer@example.com", "WELCOME10")).toBe(false);
+    expect(promoAlreadyRedeemed(orders, "new@example.com", "SPRING20")).toBe(false);
+  });
+  it("is false for empty inputs", () => {
+    expect(promoAlreadyRedeemed([], "buyer@example.com", "SPRING20")).toBe(false);
+    expect(promoAlreadyRedeemed(orders, "", "SPRING20")).toBe(false);
+    expect(promoAlreadyRedeemed(orders, "buyer@example.com", "")).toBe(false);
   });
 });
