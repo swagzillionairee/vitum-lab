@@ -47,11 +47,12 @@ api/                Vercel serverless functions — ALL relative imports MUST us
   contact.ts                 POST /api/contact
   me.ts                      GET  /api/me → {email, isAdmin, isAffiliate} (+ one-time welcome email via metadata flag)
   products.ts                GET  /api/products → product list (public)
-  cron.ts                    GET/POST /api/cron — hourly maintenance (expire stale orders + email sweep + daily low-stock digest @14:00 UTC), CRON_SECRET-protected
+  cron.ts                    GET/POST /api/cron — hourly maintenance (expire stale orders + email sweep + daily low-stock digest @14:00 UTC
+                             + Shippo delivery polling → delivered emails + post-delivery follow-up @7d + affiliate monthly statements 1st@15:00 UTC), CRON_SECRET-protected
   admin/[...slug].ts         Catch-all for /api/admin/* (summary, inventory [PATCH 0→stock emails the back-in-stock waitlist], orders GET + PATCH actions, products CRUD, upload,
                              affiliates GET/POST/PATCH, payouts POST/DELETE, promos CRUD,
                              waitlist GET → pending back-in-stock counts per cart_code,
-                             users GET → Supabase Auth list for the Customers tab,
+                             users GET → Supabase Auth list + per-customer order count/lifetime spend for the Customers tab,
                              shipments GET → orders with a tracking number for the Shipping tab (bulk-copy for USPS))
                              Order actions (PATCH /api/admin/orders): cancel (restocks paid orders + email),
                              ship (tracking+carrier + email), deliver (+email), recheck (reconciles vs NowPayments + emails),
@@ -62,9 +63,11 @@ api/                Vercel serverless functions — ALL relative imports MUST us
   _lib/
     supabase-admin.js  Service-role Supabase client
     email.ts           ALL transactional email: one Gmail transport + branded layout + send per event
-                       (order_created/confirmed/shipped/delivered/cancelled/failed/admin_new_order/admin_delivered/welcome),
+                       (order_created/confirmed/shipped/delivered/cancelled/failed/admin_new_order/admin_delivered/followup/welcome
+                       + sendAffiliateCommission/sendAffiliateStatement/sendBackInStock/sendLowStockDigest),
                        item rows include a 40px product thumbnail (resolved from products.variants by cartCode),
                        idempotent via orders.emails_sent; deferEmail() = waitUntil with local fallback
+    shippo.ts          USPS labels (buyLabel — Priority Mail Flat Rate Padded Envelope) + getTrackingStatus; token = test/live
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
     requireAffiliate.ts requireUser + checks affiliates table
@@ -112,7 +115,7 @@ Free gift `bac-water-free` (price $0) auto-added when subtotal ≥ $150 — **ca
 
 Tables in `public`:
 - `inventory(cart_code PK, stock INT CHECK >= 0, is_active BOOL, updated_at)` — availability is **stock-driven**: `stock = 0` disables Add to Cart on Shop + ProductDetail. The `is_active` flag is retained in the schema but no longer used by the storefront or admin (the manual hide/show toggle was removed; `/api/inventory` returns all rows).
-- `orders(id PK, email, items JSONB, shipping_address JSONB, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed/cancelled, fulfillment_status CHECK IN unfulfilled/shipped/delivered, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, confirmed_at, created_at)` — `status` is the payment lifecycle, `fulfillment_status` is the shipping state (orthogonal). `shipping_address` = {name, line1, line2, city, state, postal_code, country, phone}.
+- `orders(id PK, email, items JSONB, shipping_address JSONB, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed/cancelled, fulfillment_status CHECK IN unfulfilled/shipped/delivered, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, confirmed_at, created_at)` — `status` is the payment lifecycle, `fulfillment_status` is the shipping state (orthogonal). `shipping_address` = {name, line1, line2, city, state, postal_code, country, phone}.
 - `affiliates(id UUID PK, user_id → auth.users, code UNIQUE, discount_percent, commission_percent, name, email, created_at)`
 - `affiliate_payouts(id UUID PK, affiliate_id → affiliates, amount NUMERIC > 0, note, created_at)` — payout tracking; **owed = Σ commission on paid orders − Σ payouts** (computed in `/api/admin/affiliates` and the summary).
 - `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, expires_at, is_active, created_at)` — general promo codes, managed in Admin → Promos. `used_count` increments on payment confirmation via `increment_promo_use(p_code)`.
@@ -146,6 +149,17 @@ ORDERS_EMAIL=orders@vitumlab.com      # admin new-paid-order alerts (free Worksp
 INVENTORY_EMAIL=inventory@vitumlab.com # reserved for the Tier-3 low-stock digest; falls back to GMAIL_USER
 DELIVERED_EMAIL=delivered@vitumlab.com # admin delivered alerts (alias on hello@); falls back to ORDERS_EMAIL → GMAIL_USER
 CRON_SECRET=                           # shared secret for /api/cron (matches the pg_cron email-cron job header)
+
+# Shipping (Shippo — USPS labels + auto-delivery). SHIPPO_API_KEY is set but is a TEST key for now.
+SHIPPO_API_KEY=                        # ShippoToken; test vs live is key-determined (no code change to switch)
+SHIP_FROM_NAME=Vitum Lab               # return address — REQUIRED before "Buy label" works
+SHIP_FROM_STREET1=                     # REQUIRED
+SHIP_FROM_STREET2=                     # optional
+SHIP_FROM_CITY=                        # REQUIRED
+SHIP_FROM_STATE=                       # REQUIRED (2-letter)
+SHIP_FROM_ZIP=                         # REQUIRED
+SHIP_FROM_PHONE=                       # optional
+SHIP_FROM_COUNTRY=US                   # defaults to US
 
 # Browser (Vite needs VITE_ prefix — must be set manually in Vercel)
 VITE_SUPABASE_URL=https://mddgtvwcwsmlbwiafdvq.supabase.co
@@ -246,7 +260,7 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 *Explicitly rejected (owner decision — do NOT build or re-suggest):* abandoned-payment reminder emails.
 
-*Tier 3 (deferred — keep in mind, don't build yet):* affiliate commission notifications/monthly statements; post-delivery follow-up (marketing-ish — needs an opt-out line); newsletters/promos (require a real ESP with list management + unsubscribe — never via Gmail SMTP).
+*Tier 3 — BUILT (June 2026):* **affiliate commission notification** (per-paid-order email to the attributed affiliate, idempotent via `emails_sent.affiliate_commission`, fired in the webhook + admin Re-check); **affiliate monthly statement** (`/api/cron` on the 1st @15:00 UTC — prior-month orders/commission + lifetime owed, via `sendAffiliateStatement`); **post-delivery follow-up** (`/api/cron`, 7 days after delivery, once via `emails_sent.followup`, includes an opt-out line). *Still deferred:* newsletters/promos (require a real ESP with list management + unsubscribe — never via Gmail SMTP).
 
 **Back-in-stock waitlist — built.** Out-of-stock variants on ProductDetail show a "Notify me" email capture → `POST /api/inventory` (upserts `stock_waitlist`). When an admin sets a cart_code's stock from 0 → >0, the inventory PATCH emails everyone pending (`sendBackInStock`, deferred) and stamps `notified_at`. Admin → Inventory shows a "🔔 N waiting" badge per cart_code (from `GET /api/admin/waitlist`).
 
@@ -260,4 +274,4 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 **Customer account upgrades — built.** `/account` shows an order status timeline (Placed → Paid → Shipped → Delivered, cancelled/failed branches, tracking link via the shared `OrderTimeline` component — also rendered in the admin order detail), one-click **Reorder** (re-adds items at current prices, skips unavailable), and a saved shipping address (auth user metadata via `/api/account/profile`, auto-saved at checkout, prefilled on the next checkout, falls back to the latest order's address).
 
-**Shipping labels (USPS via Shippo) — APPROVED, not built. `SHIPPO_API_KEY` is set in Vercel but is currently a TEST key (owner awaiting live-account approval).** Owner is going with **Shippo**, shipping **everything via USPS Priority Mail Flat Rate _padded envelopes_** (so the label request can hard-code that service/packaging — no per-order weight/dimension entry needed). Plan: a `buy_label` admin order action in the admin catch-all (no new function slot) → Shippo create-shipment + buy (USPS Priority Mail Flat Rate Padded Envelope) → store label PDF URL + auto-fill tracking + carrier → fire the shipped email. Delivery auto-detection: poll Shippo tracking (or consume its tracking webhook) inside `/api/cron`, and when a tracking number reads "delivered", mark the order delivered → fires the customer `delivered` email AND the `admin_delivered` alert to `delivered@` automatically. **Test vs live mode is determined by the key, so no code change is needed to switch — just swap the env var** once approved. **With the test key, "Buy label" returns Shippo SAMPLE labels (watermarked, not real postage) and test tracking — fine for building/testing the flow, but real packages can't ship until the live key is in.** **Function budget is 11/12** (waitlist reused `inventory.ts`, no new file) — keep the last slot free: Shippo must live in the admin catch-all + cron (no new root files).
+**Shipping labels + auto-delivery (USPS via Shippo) — BUILT (test mode).** `api/_lib/shippo.ts` wraps Shippo; the token decides test vs live (no code change to switch). Admin → Orders has a **Buy label** button (paid + unfulfilled) → `buy_label` order action → buys a **USPS Priority Mail Flat Rate Padded Envelope** label, stores `orders.label_url` + tracking + carrier, sets `shipped`, fires the shipped email, and opens the label PDF; a **Manual** button still allows typing tracking by hand, and a **Label** link reopens the PDF. **Auto-delivery:** `/api/cron` polls Shippo tracking for shipped orders (`getTrackingStatus`); when a number reads `DELIVERED` it marks the order delivered and fires the customer `delivered` + `admin_delivered` (→ `delivered@`) emails — no manual clicking. **Requires `SHIP_FROM_*` env vars (return address) before Buy label works.** Currently the `SHIPPO_API_KEY` is a TEST key, so Buy label returns SAMPLE labels (watermarked, not real postage) + test tracking — swap to the live token to ship real packages. Lives entirely in the admin catch-all + cron + `_lib` (no new function — still 11/12).

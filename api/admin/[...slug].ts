@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireAdmin } from "../_lib/requireAdmin.js";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
-import { sendOrderEvent, sendBackInStock, deferEmail, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
+import { sendOrderEvent, sendBackInStock, sendAffiliateCommission, deferEmail, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
+import { buyLabel, getTrackingStatus, shippoConfigured, shipFromConfigured } from "../_lib/shippo.js";
 
 // Notify (once) everyone on the back-in-stock waitlist for a cart_code that
 // just went from 0 → in stock, then mark those rows notified.
@@ -73,13 +74,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
     if (error) return res.status(500).json({ error: "Failed to fetch users" });
 
-    const users = (data.users ?? []).map((u) => ({
-      id: u.id,
-      email: u.email ?? null,
-      created_at: u.created_at,
-      last_sign_in_at: u.last_sign_in_at ?? null,
-      provider: (u.app_metadata?.provider as string) ?? null,
-    }));
+    // Per-customer order count + lifetime spend (paid orders, matched by email).
+    const spend: Record<string, { orders: number; spent: number }> = {};
+    for (let from = 0; ; from += 1000) {
+      const { data: batch } = await supabaseAdmin
+        .from("orders")
+        .select("email, net_amount")
+        .in("status", ["confirmed", "finished"])
+        .range(from, from + 999);
+      for (const o of batch ?? []) {
+        const key = (o.email as string | null)?.toLowerCase() ?? "";
+        if (!key) continue;
+        if (!spend[key]) spend[key] = { orders: 0, spent: 0 };
+        spend[key].orders += 1;
+        spend[key].spent += Number(o.net_amount) || 0;
+      }
+      if (!batch || batch.length < 1000) break;
+    }
+
+    const users = (data.users ?? []).map((u) => {
+      const s = spend[(u.email ?? "").toLowerCase()];
+      return {
+        id: u.id,
+        email: u.email ?? null,
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+        provider: (u.app_metadata?.provider as string) ?? null,
+        orders: s?.orders ?? 0,
+        spent: Math.round((s?.spent ?? 0) * 100) / 100,
+      };
+    });
     return res.json({
       users,
       page,
@@ -332,7 +356,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── /api/admin/orders ────────────────────────────────────────────────────
   if (route === "orders") {
     const orderSelect =
-      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
+      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
 
     // Sends an order email and reloads emails_sent so the response reflects the
     // new stamp. Email failures never fail the admin action.
@@ -377,7 +401,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "PATCH") {
       const body = req.body as {
         id?: string;
-        action?: "cancel" | "ship" | "deliver" | "recheck" | "notes" | "resend_email";
+        action?: "cancel" | "ship" | "buy_label" | "deliver" | "recheck" | "notes" | "resend_email";
         reason?: string;
         tracking_number?: string;
         carrier?: string;
@@ -436,6 +460,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.json(await emailAndRefresh(data, "shipped"));
       }
 
+      if (action === "buy_label") {
+        if (!PAID.includes(order.status)) return res.status(400).json({ error: "Order must be paid before buying a label" });
+        if (!shippoConfigured()) return res.status(400).json({ error: "SHIPPO_API_KEY is not set in the environment" });
+        if (!shipFromConfigured()) return res.status(400).json({ error: "Set the ship-from address env vars (SHIP_FROM_STREET1/CITY/STATE/ZIP) before buying labels" });
+        let label;
+        try {
+          label = await buyLabel(order as { email: string; shipping_address?: Record<string, string> | null });
+        } catch (err) {
+          console.error("buy_label failed:", err);
+          return res.status(502).json({ error: err instanceof Error ? err.message : "Shippo label purchase failed" });
+        }
+        const { data, error } = await supabaseAdmin
+          .from("orders")
+          .update({
+            fulfillment_status: "shipped",
+            tracking_number: label.tracking_number,
+            carrier: label.carrier,
+            label_url: label.label_url,
+            shipped_at: new Date().toISOString(),
+          })
+          .eq("id", id)
+          .select(orderSelect)
+          .single();
+        if (error) return res.status(500).json({ error: "Label purchased but failed to save to the order" });
+        return res.json(await emailAndRefresh(data, "shipped"));
+      }
+
       if (action === "deliver") {
         const { data, error } = await supabaseAdmin
           .from("orders")
@@ -449,7 +500,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (action === "resend_email") {
-        const allowed: OrderEmailEvent[] = ["order_created", "confirmed", "shipped", "delivered", "cancelled", "failed", "admin_new_order", "admin_delivered"];
+        const allowed: OrderEmailEvent[] = ["order_created", "confirmed", "shipped", "delivered", "cancelled", "failed", "admin_new_order", "admin_delivered", "followup"];
         const event = body.event as OrderEmailEvent;
         if (!allowed.includes(event)) return res.status(400).json({ error: "Unknown email event" });
         const refreshed = await emailAndRefresh({ ...order }, event, { force: true });
@@ -511,6 +562,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
           await emailAndRefresh(data, "confirmed");
           await emailAndRefresh(data, "admin_new_order");
+          // Notify the attributed affiliate of their commission (idempotent).
+          if (data.affiliate_id && Number(data.commission_amount) > 0) {
+            try {
+              const { data: aff } = await supabaseAdmin.from("affiliates").select("email, code").eq("id", data.affiliate_id).maybeSingle();
+              if (aff?.email) await sendAffiliateCommission(data as EmailOrder, { email: aff.email, code: aff.code, commission: Number(data.commission_amount) });
+            } catch (err) { console.error("affiliate commission email failed:", err); }
+          }
           return res.json({ ...data, recheck: "confirmed" });
         }
 

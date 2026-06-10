@@ -43,7 +43,7 @@ export interface EmailOrder {
 
 export type OrderEmailEvent =
   | "order_created" | "confirmed" | "shipped" | "delivered"
-  | "cancelled" | "failed" | "admin_new_order" | "admin_delivered";
+  | "cancelled" | "failed" | "admin_new_order" | "admin_delivered" | "followup";
 
 // ─── Transport / env ─────────────────────────────────────────────────────────
 let _transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
@@ -307,6 +307,18 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
         ),
       };
     }
+    case "followup":
+      return {
+        to: order.email,
+        subject: "How's your Vitum Lab order?",
+        html: layout(
+          pill("Thanks Again", "#eaf1fd", "#2c5fdb") +
+          heading("How did everything go?", "It's been a little while since your order was delivered. If everything arrived in great shape, we'd love to have you back — and certificates of analysis for every lot are always in our COA library.") +
+          button("Reorder", `${baseUrl()}/shop`) +
+          orderBox(order, images) +
+          `<p style="margin:0;font-size:12px;color:#aaa;line-height:1.6;">You're receiving this one-time follow-up because you placed an order with us. Reply with "stop" and we won't send another.</p>`,
+        ),
+      };
   }
 }
 
@@ -358,6 +370,51 @@ export async function sendBackInStock(to: string, opts: { name: string; url: str
       thumb +
       button("Shop Now", opts.url) +
       `<p style="margin:0;font-size:13px;color:#888;line-height:1.6;">You're receiving this because you asked to be notified when this item returned. No further emails about it will be sent.</p>`,
+    ),
+  );
+}
+
+// ─── Affiliate: per-order commission notification (order-scoped idempotency) ──
+export async function sendAffiliateCommission(
+  order: EmailOrder,
+  affiliate: { email: string; code: string; commission: number },
+): Promise<boolean> {
+  if (order.emails_sent?.["affiliate_commission"]) return false;
+  if (!affiliate.email || affiliate.commission <= 0) return false;
+  await send(
+    affiliate.email,
+    `You earned ${money(affiliate.commission)} in commission`,
+    layout(
+      pill("Commission Earned", "#edfaf3", "#1a7a4a") +
+      heading(`You earned ${money(affiliate.commission)}`, `A customer just completed an order using your code <b>${affiliate.code}</b>. Your commission on order ${order.id.slice(0, 10)} is <b>${money(affiliate.commission)}</b>.`) +
+      button("Open Affiliate Dashboard", `${baseUrl()}/affiliate/dashboard`),
+    ),
+  );
+  await stampEmail(order.id, "affiliate_commission");
+  return true;
+}
+
+// ─── Affiliate: monthly statement (via cron, 1st of the month) ───────────────
+export async function sendAffiliateStatement(
+  to: string,
+  s: { code: string; monthLabel: string; orders: number; commission: number; paidOut: number; owed: number },
+) {
+  if (!to) return;
+  const row = (label: string, value: string, color = "#0f1a2e") =>
+    `<tr><td style="padding:7px 0;font-size:14px;color:#555;">${label}</td><td style="padding:7px 0;font-size:14px;font-weight:700;text-align:right;color:${color};">${value}</td></tr>`;
+  await send(
+    to,
+    `Your ${s.monthLabel} affiliate statement`,
+    layout(
+      pill("Monthly Statement", "#eaf1fd", "#2c5fdb") +
+      heading(`${s.monthLabel} summary`, `Here's how your code <b>${s.code}</b> performed last month.`) +
+      `<div style="background:#f7f8fa;border-radius:10px;padding:16px 20px;margin-bottom:24px;"><table style="width:100%;border-collapse:collapse;">
+        ${row("Orders", String(s.orders))}
+        ${row("Commission earned", money(s.commission), "#1a7a4a")}
+        ${row("Paid out to date", money(s.paidOut))}
+        ${row("Balance owed", money(s.owed), "#9a6b15")}
+      </table></div>` +
+      button("Open Affiliate Dashboard", `${baseUrl()}/affiliate/dashboard`),
     ),
   );
 }

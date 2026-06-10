@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
-import { sendOrderEvent, type EmailOrder } from "./_lib/email.js";
+import { sendOrderEvent, sendAffiliateCommission, type EmailOrder } from "./_lib/email.js";
 
 function sortKeys(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;
@@ -13,7 +13,18 @@ function sortKeys(obj: unknown): unknown {
 }
 
 const ORDER_COLS =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_address, status, emails_sent";
+  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_address, status, affiliate_id, commission_amount, emails_sent";
+
+// Email the attributed affiliate their commission (once, via emails_sent).
+async function notifyAffiliate(order: any) {
+  const commission = Number(order.commission_amount) || 0;
+  if (!order.affiliate_id || commission <= 0) return;
+  const { data: aff } = await supabaseAdmin
+    .from("affiliates").select("email, code").eq("id", order.affiliate_id).maybeSingle();
+  if (aff?.email) {
+    await sendAffiliateCommission(order as EmailOrder, { email: aff.email, code: aff.code, commission });
+  }
+}
 
 export const config = { api: { bodyParser: false } };
 
@@ -99,6 +110,7 @@ export default async function handler(req: any, res: any) {
       try {
         await sendOrderEvent(order as EmailOrder, "confirmed");
         await sendOrderEvent(order as EmailOrder, "admin_new_order");
+        await notifyAffiliate(order);
       } catch (err) {
         console.error("Failed to send confirmation emails:", err);
       }
