@@ -10,7 +10,7 @@ import { ArrowLeft, FileText, Check, ChevronDown, ChevronUp, ShieldCheck, Truck,
 import { useCart } from "@/contexts/CartContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useInventory } from "@/hooks/useInventory";
-import { quantityDiscountPercent } from "@/lib/discounts";
+import { quantityDiscountPercent, round2 } from "@/lib/discounts";
 import ReconstitutionCalculator from "@/components/ReconstitutionCalculator";
 import SEO from "@/components/SEO";
 
@@ -112,6 +112,11 @@ export default function ProductDetail() {
   const effectivePrice = selected.salePrice ?? selected.price;
 
   const tierPercent = quantityDiscountPercent(tiers, quantity);
+  // Active tier = the highest tier whose min_qty ≤ quantity (so only one highlights).
+  const activeMin = tiers.reduce((m, t) => (quantity >= t.min_qty && t.min_qty > m ? t.min_qty : m), 0);
+  // Per-bottle price preview after the quantity-tier discount (checkout is authoritative).
+  const unitPrice = tierPercent > 0 ? round2(effectivePrice * (1 - tierPercent / 100)) : effectivePrice;
+  const fmtPrice = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 
   const handleAdd = () => {
     if (!available) return;
@@ -258,7 +263,7 @@ export default function ProductDetail() {
                           key={t.min_qty}
                           onClick={() => setQuantity(t.min_qty)}
                           className={`px-4 py-2 rounded-xl border text-[0.8125rem] font-semibold transition-colors ${
-                            quantity >= t.min_qty
+                            t.min_qty === activeMin
                               ? "border-[oklch(0.40_0.16_260)] bg-[oklch(0.96_0.03_260)] text-[oklch(0.30_0.14_260)]"
                               : "border-[oklch(0.88_0.004_260)] text-[oklch(0.40_0.01_260)] hover:border-[oklch(0.60_0.01_260)]"
                           }`}
@@ -289,13 +294,14 @@ export default function ProductDetail() {
 
             {/* Price + Add to Cart */}
             <div className="flex items-center gap-5 mb-2">
-              {selected.salePrice != null ? (
+              {unitPrice < selected.price ? (
                 <span className="flex items-baseline gap-2">
-                  <span className="text-[2rem] font-bold text-[oklch(0.50_0.18_25)]">${selected.salePrice}</span>
+                  <span className="text-[2rem] font-bold text-[oklch(0.50_0.18_25)]">${fmtPrice(unitPrice)}</span>
                   <span className="text-[1.125rem] line-through text-[oklch(0.60_0.01_260)]">${selected.price}</span>
+                  {tierPercent > 0 && <span className="text-[0.75rem] font-semibold text-[oklch(0.60_0.01_260)]">/ bottle</span>}
                 </span>
               ) : (
-                <span className="text-[2rem] font-bold text-[oklch(0.13_0.01_260)]">${selected.price}</span>
+                <span className="text-[2rem] font-bold text-[oklch(0.13_0.01_260)]">${fmtPrice(unitPrice)}</span>
               )}
               {available ? (
                 <button
