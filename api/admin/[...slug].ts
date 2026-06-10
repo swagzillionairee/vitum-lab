@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { sendOrderEvent, sendBackInStock, sendAffiliateCommission, deferEmail, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
 import { buyLabel, getTrackingStatus, shippoConfigured, shipFromConfigured, shipFromPhoneConfigured } from "../_lib/shippo.js";
 import { getRewardConfig, earnLoyalty, grantReferralReward } from "../_lib/credit.js";
+import { VT_LOGO_PNG_B64 } from "../_lib/vt-logo.js";
 
 // Notify (once) everyone on the back-in-stock waitlist for a cart_code that
 // just went from 0 → in stock, then mark those rows notified.
@@ -646,26 +647,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.json({ pdf: Buffer.from(bytes).toString("base64"), included, skipped });
     }
 
-    // Packing slips — a polished 4×6 slip per order (matches the label printer).
+    // Packing slips — clean black-on-white 4×6 slips (thermal-printer friendly).
     const doc = await PDFDocument.create();
-    const font = await doc.embedFont(StandardFonts.Helvetica);
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
     const money = (n: number | string | null) => `$${(Number(n) || 0).toFixed(2)}`;
+    const logo = await doc.embedPng(Buffer.from(VT_LOGO_PNG_B64, "base64"));
 
-    const PW = 288, PH = 432, M = 18; // 4×6 inches in points
-    const dark = rgb(0.059, 0.102, 0.18);
-    const muted = rgb(0.5, 0.5, 0.55);
-    const ink = rgb(0.12, 0.12, 0.16);
-    const rule = rgb(0.86, 0.87, 0.9);
-    const green = rgb(0.1, 0.47, 0.29);
+    const PW = 288, PH = 432, M = 20; // 4×6 inches in points
+    const black = rgb(0, 0, 0);
+    const LOGO_H = 30;
+    const LOGO_W = (logo.width / logo.height) * LOGO_H;
+    const CONTENT_TOP = PH - M - LOGO_H - 44;
+    const FOOT = 40; // reserved footer zone
+    // Drop characters Helvetica (WinAnsi) can't encode, so a stray glyph never breaks the PDF.
+    const clean = (s: string) => String(s).replace(/[^\t\n\r\x20-\x7E\xA0-\xFF]/g, "");
 
-    const wrap = (s: string, f: typeof font, size: number, maxW: number): string[] => {
-      const words = String(s).split(/\s+/).filter(Boolean);
+    const wrap = (s: string, size: number, maxW: number): string[] => {
+      const words = clean(s).split(/\s+/).filter(Boolean);
       const lines: string[] = [];
       let cur = "";
       for (const w of words) {
         const test = cur ? `${cur} ${w}` : w;
-        if (cur && f.widthOfTextAtSize(test, size) > maxW) { lines.push(cur); cur = w; }
+        if (cur && bold.widthOfTextAtSize(test, size) > maxW) { lines.push(cur); cur = w; }
         else cur = test;
       }
       if (cur) lines.push(cur);
@@ -673,66 +676,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     const initPage = (pg: ReturnType<typeof doc.addPage>) => {
-      pg.drawRectangle({ x: 0, y: PH - 46, width: PW, height: 46, color: dark });
-      const t = "VITUM LAB";
-      pg.drawText(t, { x: (PW - bold.widthOfTextAtSize(t, 15)) / 2, y: PH - 27, size: 15, font: bold, color: rgb(1, 1, 1) });
-      const s = "PACKING SLIP";
-      pg.drawText(s, { x: (PW - font.widthOfTextAtSize(s, 7)) / 2, y: PH - 39, size: 7, font, color: rgb(0.72, 0.74, 0.8) });
-      pg.drawText("For laboratory / in-vitro research use only.", { x: M, y: 12, size: 6, font, color: rgb(0.62, 0.62, 0.66) });
+      const logoY = PH - M - LOGO_H;
+      pg.drawImage(logo, { x: M, y: logoY, width: LOGO_W, height: LOGO_H });
+      pg.drawText("Vitum Lab", { x: M + LOGO_W + 10, y: logoY + LOGO_H / 2 - 7, size: 19, font: bold, color: black });
+      pg.drawText("PACKING SLIP", { x: M, y: logoY - 20, size: 13, font: bold, color: black });
+      pg.drawLine({ start: { x: M, y: logoY - 28 }, end: { x: PW - M, y: logoY - 28 }, thickness: 1, color: black });
+      pg.drawText("FOR RESEARCH USE ONLY", { x: M, y: 26, size: 10, font: bold, color: black });
+      pg.drawText("vitumlab.com", { x: M, y: 13, size: 10, font: bold, color: black });
     };
 
     for (const o of orders) {
       let page = doc.addPage([PW, PH]);
       initPage(page);
-      let y = PH - 64;
+      let y = CONTENT_TOP;
 
-      const need = (h: number) => { if (y - h < M + 16) { page = doc.addPage([PW, PH]); initPage(page); y = PH - 64; } };
-      const text = (s: string, size: number, f = font, color = ink, x = M) => {
-        need(size);
-        page.drawText(s, { x, y, size, font: f, color });
-        y -= size + 6;
-      };
-      const label = (s: string) => { y -= 3; text(s, 7, bold, muted); };
-      const hr = () => { need(8); page.drawLine({ start: { x: M, y: y + 3 }, end: { x: PW - M, y: y + 3 }, thickness: 0.75, color: rule }); y -= 9; };
+      const need = (h: number) => { if (y - h < FOOT) { page = doc.addPage([PW, PH]); initPage(page); y = CONTENT_TOP; } };
+      const text = (s: string, size: number, x = M) => { need(size); page.drawText(clean(s), { x, y, size, font: bold, color: black }); y -= size + 7; };
+      const hr = () => { need(10); page.drawLine({ start: { x: M, y: y + 5 }, end: { x: PW - M, y: y + 5 }, thickness: 1, color: black }); y -= 12; };
 
       // Order meta
-      text(`Order ${String(o.id).slice(0, 10)}`, 10, bold);
-      text(new Date(o.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }), 8, font, muted);
-      if (o.tracking_number) text(`${o.carrier || "USPS"} · ${o.tracking_number}`, 7, font, muted);
+      text(`Order ${String(o.id).slice(0, 10)}`, 13);
+      text(`Date: ${new Date(o.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}`, 12);
+      if (o.tracking_number) for (const w of wrap(`Tracking: ${o.carrier || "USPS"} ${o.tracking_number}`, 12, PW - 2 * M)) text(w, 12);
       hr();
 
       // Ship to
-      label("SHIP TO");
+      text("SHIP TO", 11);
       const a = o.shipping_address || {};
       const addrLines = [a.name, a.line1, a.line2, [a.city, a.state].filter(Boolean).join(", ") + (a.postal_code ? ` ${a.postal_code}` : ""), a.country]
         .filter((l) => l && String(l).trim());
-      for (const l of addrLines) for (const w of wrap(String(l), font, 9, PW - 2 * M)) text(w, 9);
+      for (const l of addrLines) for (const w of wrap(String(l), 13, PW - 2 * M)) text(w, 13);
       hr();
 
-      // Items (qty in bold, wrapped name)
-      label("ITEMS");
-      const nameX = M + 22;
+      // Items (qty + wrapped name)
+      text("ITEMS", 11);
+      const nameX = M + 28;
       for (const it of o.items ?? []) {
         const isFree = it.cartCode === "bac-water-free";
-        const name = `${it.name} ${it.dose}${isFree ? " (free gift)" : ""}`;
-        const lines = wrap(name, font, 9, PW - M - nameX);
-        need(9);
-        page.drawText(`${it.quantity}×`, { x: M, y, size: 9, font: bold, color: ink });
+        const lines = wrap(`${it.name} ${it.dose}${isFree ? " (free gift)" : ""}`, 13, PW - M - nameX);
+        need(13);
+        page.drawText(`${it.quantity}x`, { x: M, y, size: 13, font: bold, color: black });
         lines.forEach((ln, i) => {
-          if (i > 0) need(9);
-          page.drawText(ln, { x: nameX, y, size: 9, font, color: ink });
-          y -= 9 + (i === lines.length - 1 ? 7 : 3);
+          if (i > 0) need(13);
+          page.drawText(ln, { x: nameX, y, size: 13, font: bold, color: black });
+          y -= 13 + (i === lines.length - 1 ? 9 : 3);
         });
       }
-      y -= 2;
+      hr();
 
-      // Total box
-      need(26);
-      page.drawRectangle({ x: M, y: y - 8, width: PW - 2 * M, height: 24, color: rgb(0.96, 0.97, 0.99) });
-      page.drawText("TOTAL", { x: M + 8, y, size: 8, font: bold, color: muted });
+      // Total
+      need(18);
+      page.drawText("TOTAL", { x: M, y, size: 16, font: bold, color: black });
       const tot = money(o.net_amount);
-      page.drawText(tot, { x: PW - M - 8 - bold.widthOfTextAtSize(tot, 13), y: y - 1, size: 13, font: bold, color: green });
-      y -= 30;
+      page.drawText(tot, { x: PW - M - bold.widthOfTextAtSize(tot, 16), y, size: 16, font: bold, color: black });
+      y -= 24;
     }
     const bytes = await doc.save();
     return res.json({ pdf: Buffer.from(bytes).toString("base64") });
