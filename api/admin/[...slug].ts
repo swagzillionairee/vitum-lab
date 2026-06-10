@@ -646,40 +646,93 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.json({ pdf: Buffer.from(bytes).toString("base64"), included, skipped });
     }
 
-    // Packing slips — one US-Letter page per order (products shipped + total).
+    // Packing slips — a polished 4×6 slip per order (matches the label printer).
     const doc = await PDFDocument.create();
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
     const money = (n: number | string | null) => `$${(Number(n) || 0).toFixed(2)}`;
+
+    const PW = 288, PH = 432, M = 18; // 4×6 inches in points
+    const dark = rgb(0.059, 0.102, 0.18);
+    const muted = rgb(0.5, 0.5, 0.55);
+    const ink = rgb(0.12, 0.12, 0.16);
+    const rule = rgb(0.86, 0.87, 0.9);
+    const green = rgb(0.1, 0.47, 0.29);
+
+    const wrap = (s: string, f: typeof font, size: number, maxW: number): string[] => {
+      const words = String(s).split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      let cur = "";
+      for (const w of words) {
+        const test = cur ? `${cur} ${w}` : w;
+        if (cur && f.widthOfTextAtSize(test, size) > maxW) { lines.push(cur); cur = w; }
+        else cur = test;
+      }
+      if (cur) lines.push(cur);
+      return lines.length ? lines : [""];
+    };
+
+    const initPage = (pg: ReturnType<typeof doc.addPage>) => {
+      pg.drawRectangle({ x: 0, y: PH - 46, width: PW, height: 46, color: dark });
+      const t = "VITUM LAB";
+      pg.drawText(t, { x: (PW - bold.widthOfTextAtSize(t, 15)) / 2, y: PH - 27, size: 15, font: bold, color: rgb(1, 1, 1) });
+      const s = "PACKING SLIP";
+      pg.drawText(s, { x: (PW - font.widthOfTextAtSize(s, 7)) / 2, y: PH - 39, size: 7, font, color: rgb(0.72, 0.74, 0.8) });
+      pg.drawText("For laboratory / in-vitro research use only.", { x: M, y: 12, size: 6, font, color: rgb(0.62, 0.62, 0.66) });
+    };
+
     for (const o of orders) {
-      const page = doc.addPage([612, 792]);
-      const margin = 56;
-      let y = 792 - margin;
-      const line = (s: string, size: number, f = font, color = rgb(0.1, 0.1, 0.15)) => {
-        page.drawText(s, { x: margin, y, size, font: f, color });
-        y -= size + 8;
+      let page = doc.addPage([PW, PH]);
+      initPage(page);
+      let y = PH - 64;
+
+      const need = (h: number) => { if (y - h < M + 16) { page = doc.addPage([PW, PH]); initPage(page); y = PH - 64; } };
+      const text = (s: string, size: number, f = font, color = ink, x = M) => {
+        need(size);
+        page.drawText(s, { x, y, size, font: f, color });
+        y -= size + 6;
       };
-      line("Vitum Lab — Packing Slip", 20, bold);
-      y -= 4;
-      line(`Order ${String(o.id).slice(0, 10)}`, 11, font, rgb(0.4, 0.4, 0.45));
-      line(`Date: ${new Date(o.created_at).toLocaleDateString("en-US")}`, 11, font, rgb(0.4, 0.4, 0.45));
-      if (o.tracking_number) line(`Tracking: ${o.carrier || "USPS"} ${o.tracking_number}`, 11, font, rgb(0.4, 0.4, 0.45));
-      y -= 8;
+      const label = (s: string) => { y -= 3; text(s, 7, bold, muted); };
+      const hr = () => { need(8); page.drawLine({ start: { x: M, y: y + 3 }, end: { x: PW - M, y: y + 3 }, thickness: 0.75, color: rule }); y -= 9; };
+
+      // Order meta
+      text(`Order ${String(o.id).slice(0, 10)}`, 10, bold);
+      text(new Date(o.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }), 8, font, muted);
+      if (o.tracking_number) text(`${o.carrier || "USPS"} · ${o.tracking_number}`, 7, font, muted);
+      hr();
+
+      // Ship to
+      label("SHIP TO");
       const a = o.shipping_address || {};
-      line("SHIP TO", 10, bold, rgb(0.5, 0.5, 0.55));
       const addrLines = [a.name, a.line1, a.line2, [a.city, a.state].filter(Boolean).join(", ") + (a.postal_code ? ` ${a.postal_code}` : ""), a.country]
         .filter((l) => l && String(l).trim());
-      for (const l of addrLines) line(String(l), 12);
-      y -= 12;
-      line("ITEMS", 10, bold, rgb(0.5, 0.5, 0.55));
+      for (const l of addrLines) for (const w of wrap(String(l), font, 9, PW - 2 * M)) text(w, 9);
+      hr();
+
+      // Items (qty in bold, wrapped name)
+      label("ITEMS");
+      const nameX = M + 22;
       for (const it of o.items ?? []) {
-        line(`${it.quantity} x  ${it.name} ${it.dose}${it.cartCode === "bac-water-free" ? "  (free gift)" : ""}`, 12);
+        const isFree = it.cartCode === "bac-water-free";
+        const name = `${it.name} ${it.dose}${isFree ? " (free gift)" : ""}`;
+        const lines = wrap(name, font, 9, PW - M - nameX);
+        need(9);
+        page.drawText(`${it.quantity}×`, { x: M, y, size: 9, font: bold, color: ink });
+        lines.forEach((ln, i) => {
+          if (i > 0) need(9);
+          page.drawText(ln, { x: nameX, y, size: 9, font, color: ink });
+          y -= 9 + (i === lines.length - 1 ? 7 : 3);
+        });
       }
-      y -= 6;
-      page.drawLine({ start: { x: margin, y: y + 6 }, end: { x: 612 - margin, y: y + 6 }, thickness: 1, color: rgb(0.85, 0.85, 0.88) });
-      y -= 6;
-      line(`Order total: ${money(o.net_amount)}`, 14, bold);
-      page.drawText("For laboratory / in-vitro research use only — not for human or veterinary consumption.", { x: margin, y: margin, size: 9, font, color: rgb(0.6, 0.6, 0.65) });
+      y -= 2;
+
+      // Total box
+      need(26);
+      page.drawRectangle({ x: M, y: y - 8, width: PW - 2 * M, height: 24, color: rgb(0.96, 0.97, 0.99) });
+      page.drawText("TOTAL", { x: M + 8, y, size: 8, font: bold, color: muted });
+      const tot = money(o.net_amount);
+      page.drawText(tot, { x: PW - M - 8 - bold.widthOfTextAtSize(tot, 13), y: y - 1, size: 13, font: bold, color: green });
+      y -= 30;
     }
     const bytes = await doc.save();
     return res.json({ pdf: Buffer.from(bytes).toString("base64") });
