@@ -12,6 +12,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pathname = (req.url ?? "").split("?")[0];
   const route = pathname.replace(/^\/api\/admin\/?/, "").split("/")[0];
 
+  // ── /api/admin/shipments — all orders that have a tracking number ──────────
+  if (route === "shipments") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    const all: {
+      id: string; email: string; tracking_number: string | null; carrier: string | null;
+      fulfillment_status: string | null; shipped_at: string | null; delivered_at: string | null;
+    }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from("orders")
+        .select("id, email, tracking_number, carrier, fulfillment_status, shipped_at, delivered_at")
+        .not("tracking_number", "is", null)
+        .order("shipped_at", { ascending: false, nullsFirst: false })
+        .range(from, from + 999);
+      if (error) return res.status(500).json({ error: "Failed to fetch shipments" });
+      all.push(...(data ?? []));
+      if (!data || data.length < 1000) break;
+    }
+    return res.json({ shipments: all });
+  }
+
   // ── /api/admin/users — everyone who has signed in (Supabase Auth) ──────────
   if (route === "users") {
     if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
