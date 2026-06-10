@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireAdmin } from "../_lib/requireAdmin.js";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { sendOrderEvent, sendBackInStock, sendAffiliateCommission, deferEmail, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
-import { buyLabel, getTrackingStatus, shippoConfigured, shipFromConfigured } from "../_lib/shippo.js";
+import { buyLabel, getTrackingStatus, shippoConfigured, shipFromConfigured, shipFromPhoneConfigured } from "../_lib/shippo.js";
 
 // Notify (once) everyone on the back-in-stock waitlist for a cart_code that
 // just went from 0 → in stock, then mark those rows notified.
@@ -464,6 +464,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!PAID.includes(order.status)) return res.status(400).json({ error: "Order must be paid before buying a label" });
         if (!shippoConfigured()) return res.status(400).json({ error: "SHIPPO_API_KEY is not set in the environment" });
         if (!shipFromConfigured()) return res.status(400).json({ error: "Set the ship-from address env vars (SHIP_FROM_STREET1/CITY/STATE/ZIP) before buying labels" });
+        if (!shipFromPhoneConfigured()) return res.status(400).json({ error: "USPS requires a sender phone — add SHIP_FROM_PHONE in Vercel (any number you can be reached at). The sender email is auto-filled from your store email." });
         let label;
         try {
           label = await buyLabel(order as { email: string; shipping_address?: Record<string, string> | null });

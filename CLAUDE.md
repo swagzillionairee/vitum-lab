@@ -158,7 +158,8 @@ SHIP_FROM_STREET2=                     # optional
 SHIP_FROM_CITY=                        # REQUIRED
 SHIP_FROM_STATE=                       # REQUIRED (2-letter)
 SHIP_FROM_ZIP=                         # REQUIRED
-SHIP_FROM_PHONE=                       # optional
+SHIP_FROM_PHONE=                       # REQUIRED — USPS mandates a sender phone (any reachable number)
+SHIP_FROM_EMAIL=                       # optional — sender email; auto-falls back to GMAIL_USER
 SHIP_FROM_COUNTRY=US                   # defaults to US
 
 # Browser (Vite needs VITE_ prefix — must be set manually in Vercel)
