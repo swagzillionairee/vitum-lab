@@ -43,6 +43,7 @@ import AffiliateLogin from "./pages/AffiliateLogin";
 import AffiliateDashboard from "./pages/AffiliateDashboard";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 // ─── Scroll to top on every route change ─────────────────────────────────────
 function ScrollToTop() {
@@ -160,6 +161,7 @@ function App() {
               <AppLayout />
               <CartDrawer />
               <Analytics />
+              <SpeedInsights />
             </CartProvider>
           </AuthProvider>
         </TooltipProvider>
