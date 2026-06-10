@@ -38,6 +38,7 @@ export default function Checkout() {
   const [affiliateId, setAffiliateId] = useState<string | undefined>();
   const [tiers, setTiers] = useState<QuantityTier[]>([]);
   const [creditBalance, setCreditBalance] = useState(0);
+  const [attested, setAttested] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -161,6 +162,10 @@ export default function Checkout() {
       setError("Please fill in your full shipping address.");
       return;
     }
+    if (!attested) {
+      setError("Please confirm the research-use acknowledgment to continue.");
+      return;
+    }
     setBusy(true);
     setError("");
     const shippingPayload = {
@@ -180,6 +185,7 @@ export default function Checkout() {
           discountCode: promoApplied ? promoCode : undefined,
           affiliateId: promoApplied ? affiliateId : undefined,
           discountAmount: promoApplied ? discountAmount : undefined,
+          attestation: attested,
         }),
       });
       const data = await response.json();
@@ -351,7 +357,20 @@ export default function Checkout() {
 
             {error && <p className="text-[0.75rem] text-red-500">{error}</p>}
 
-            <button onClick={handlePay} disabled={busy} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
+            {/* Research-use / age attestation — required to place an order */}
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={attested}
+                onChange={(e) => { setAttested(e.target.checked); setError(""); }}
+                className="mt-0.5 w-4 h-4 rounded border-[oklch(0.80_0.01_260)] accent-[oklch(0.40_0.16_260)] flex-shrink-0"
+              />
+              <span className="text-[0.6875rem] text-[oklch(0.45_0.01_260)] leading-relaxed">
+                I confirm I am at least 21 years old and a qualified researcher, and that these products are purchased strictly for <span className="font-semibold">laboratory / in-vitro research use only</span> — not for human or veterinary consumption.
+              </span>
+            </label>
+
+            <button onClick={handlePay} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
               {busy ? "Processing…" : total <= 0 ? (<>Place Order <ArrowRight className="w-4 h-4" /></>) : (<>Continue to Payment <ArrowRight className="w-4 h-4" /></>)}
             </button>
             <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)] text-center">

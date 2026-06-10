@@ -96,11 +96,11 @@ export async function buyLabel(order: { email: string; shipping_address?: Shippo
     rates[0];
   if (!rate) throw new Error("Shippo returned no USPS rate for this address");
 
-  // 2. Buy the label.
+  // 2. Buy the label as a 4×6 PDF (matches a 4×6 thermal label printer).
   const txnRes = await fetch(`${SHIPPO_API}/transactions/`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ rate: rate.object_id, label_file_type: "PDF", async: false }),
+    body: JSON.stringify({ rate: rate.object_id, label_file_type: "PDF_4x6", async: false }),
   });
   if (!txnRes.ok) throw new Error(`Shippo transaction failed: ${await txnRes.text()}`);
   const txn = await txnRes.json();
@@ -115,6 +115,41 @@ export async function buyLabel(order: { email: string; shipping_address?: Shippo
     label_url: txn.label_url,
     tracking_url: txn.tracking_url_provider ?? null,
   };
+}
+
+/**
+ * Validate a shipping address with Shippo (best-effort). Returns { valid,
+ * messages } — or null when validation is unavailable (no token / API error)
+ * so the caller can fail open and never block checkout on a Shippo outage.
+ */
+export async function validateAddress(a: ShippoAddress): Promise<{ valid: boolean; messages: string[] } | null> {
+  if (!shippoConfigured()) return null;
+  try {
+    const res = await fetch(`${SHIPPO_API}/addresses/`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        name: a.name || "",
+        street1: a.line1 || "",
+        street2: a.line2 || "",
+        city: a.city || "",
+        state: a.state || "",
+        zip: a.postal_code || "",
+        country: a.country || "US",
+        validate: true,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const vr = data?.validation_results;
+    if (!vr || typeof vr.is_valid !== "boolean") return null;
+    const messages: string[] = Array.isArray(vr.messages)
+      ? vr.messages.map((m: { text?: string }) => m.text).filter(Boolean)
+      : [];
+    return { valid: vr.is_valid, messages };
+  } catch {
+    return null;
+  }
 }
 
 /**

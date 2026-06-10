@@ -3,6 +3,7 @@ import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
 import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, type QuantityTier } from "./_lib/pricing.js";
 import { getBalance, reserveCredit, getRewardConfig, earnLoyalty, grantReferralReward, type RewardConfig } from "./_lib/credit.js";
+import { validateAddress } from "./_lib/shippo.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
@@ -59,13 +60,14 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { items, email, discountCode, shipping } = req.body as {
+    const { items, email, discountCode, shipping, attestation } = req.body as {
       items: { name: string; dose: string; quantity: number; cartCode: string; price: number }[];
       email: string;
       total: number;
       discountCode?: string;
       affiliateId?: string;
       discountAmount?: number;
+      attestation?: boolean;
       shipping?: {
         name: string; line1: string; line2?: string; city: string;
         state: string; postal_code: string; country: string; phone?: string;
@@ -77,8 +79,22 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
+    // Require the research-use / age acknowledgment from checkout.
+    if (!attestation) {
+      res.status(400).json({ error: "A research-use acknowledgment is required to place an order." });
+      return;
+    }
+
     if (!shipping?.name || !shipping?.line1 || !shipping?.city || !shipping?.state || !shipping?.postal_code) {
       res.status(400).json({ error: "A complete shipping address is required" });
+      return;
+    }
+
+    // Verify the address is deliverable (best-effort — never blocks on a Shippo
+    // outage; only rejects when Shippo definitively flags it invalid).
+    const addrCheck = await validateAddress(shipping);
+    if (addrCheck && !addrCheck.valid) {
+      res.status(400).json({ error: `We couldn't verify that shipping address. ${addrCheck.messages[0] || "Please double-check it and try again."}` });
       return;
     }
 

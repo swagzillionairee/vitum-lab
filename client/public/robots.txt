@@ -1,4 +1,11 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /affiliate
+Disallow: /account
+Disallow: /checkout
+Disallow: /order-success
+Disallow: /order-cancel
+Disallow: /login
 
 Sitemap: https://vitumlab.com/sitemap.xml

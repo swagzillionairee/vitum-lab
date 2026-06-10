@@ -4,12 +4,13 @@
  * Full product detail page with image, dose selector, specs, and Add to Cart
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, FileText, Check, ChevronDown, ChevronUp, ShieldCheck, Truck, FlaskConical, Bell, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, Check, ChevronDown, ChevronUp, ShieldCheck, Truck, FlaskConical, Bell, Loader2, Minus, Plus } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useInventory } from "@/hooks/useInventory";
+import { quantityDiscountPercent } from "@/lib/discounts";
 import ReconstitutionCalculator from "@/components/ReconstitutionCalculator";
 import SEO from "@/components/SEO";
 
@@ -78,10 +79,22 @@ export default function ProductDetail() {
   const { addItem } = useCart();
   const { isAvailable, stockLabel } = useInventory();
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [quantity, setQuantity] = useState(1);
+  const [tiers, setTiers] = useState<{ min_qty: number; percent: number }[]>([]);
   const [added, setAdded] = useState(false);
   const [specsOpen, setSpecsOpen] = useState(true);
   const [storageOpen, setStorageOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+
+  // Quantity discount tiers (drives the "buy more, save more" selector).
+  useEffect(() => {
+    let stale = false;
+    fetch("/api/public/site")
+      .then((r) => r.json())
+      .then((d) => { if (!stale) setTiers(d.quantity_tiers ?? []); })
+      .catch(() => {});
+    return () => { stale = true; };
+  }, []);
 
   if (!product) {
     return (
@@ -98,25 +111,54 @@ export default function ProductDetail() {
   const stockMsg = stockLabel(selected.cartCode);
   const effectivePrice = selected.salePrice ?? selected.price;
 
+  const tierPercent = quantityDiscountPercent(tiers, quantity);
+
   const handleAdd = () => {
     if (!available) return;
-    addItem({
-      id: selected.id,
-      name: product.name,
-      dose: selected.dose,
-      price: effectivePrice,
-      img: selected.img,
-      cartCode: selected.cartCode,
-    });
+    for (let i = 0; i < quantity; i++) {
+      addItem({
+        id: selected.id,
+        name: product.name,
+        dose: selected.dose,
+        price: effectivePrice,
+        img: selected.img,
+        cartCode: selected.cartCode,
+      });
+    }
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
+  };
+
+  // schema.org Product structured data → richer results for peptide searches.
+  const abs = (u: string) => (u?.startsWith("http") ? u : `https://vitumlab.com${u || ""}`);
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.fullName || product.name,
+    description: product.description,
+    category: product.category,
+    sku: selected.cartCode,
+    brand: { "@type": "Brand", name: "Vitum Lab" },
+    image: abs(selected.img),
+    offers: product.variants.map((v) => ({
+      "@type": "Offer",
+      name: `${product.name} ${v.dose}`,
+      price: (v.salePrice ?? v.price).toFixed(2),
+      priceCurrency: "USD",
+      availability: isAvailable(v.cartCode) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      url: `https://vitumlab.com/shop/${product.slug}`,
+    })),
   };
 
   return (
     <div className="min-h-screen bg-white">
       <SEO
-        title={product.name}
-        description={`${product.fullName} — ${product.tagline}. ≥99% purity, third-party COA tested. For research use only.`}
+        title={`${product.name} — ${product.fullName}`}
+        description={`${product.fullName} — ${product.tagline}. ≥99% purity, third-party HPLC tested, COA with every order. For laboratory research use only.`}
+        canonical={`https://vitumlab.com/shop/${product.slug}`}
+        image={abs(selected.img)}
+        ogType="product"
+        jsonLd={productJsonLd}
       />
 
       {/* ── Breadcrumb ───────────────────────────────────────────────── */}
@@ -202,6 +244,49 @@ export default function ProductDetail() {
               LOT: {selected.lot}
             </p>
 
+            {/* Quantity + bulk-savings tiers */}
+            {available && (
+              <div className="mb-5">
+                {tiers.length > 0 && (
+                  <>
+                    <p className="text-[0.8125rem] font-semibold text-[oklch(0.40_0.01_260)] mb-2">
+                      Buy more, save more <span className="font-normal text-[oklch(0.55_0.01_260)]">— discount applies to your cart total at checkout</span>
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {tiers.map((t) => (
+                        <button
+                          key={t.min_qty}
+                          onClick={() => setQuantity(t.min_qty)}
+                          className={`px-4 py-2 rounded-xl border text-[0.8125rem] font-semibold transition-colors ${
+                            quantity >= t.min_qty
+                              ? "border-[oklch(0.40_0.16_260)] bg-[oklch(0.96_0.03_260)] text-[oklch(0.30_0.14_260)]"
+                              : "border-[oklch(0.88_0.004_260)] text-[oklch(0.40_0.01_260)] hover:border-[oklch(0.60_0.01_260)]"
+                          }`}
+                        >
+                          Buy {t.min_qty} · save {t.percent}%
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <div className="flex items-center gap-3">
+                  <span className="text-[0.8125rem] font-semibold text-[oklch(0.40_0.01_260)]">Quantity</span>
+                  <div className="flex items-center border border-[oklch(0.88_0.004_260)] rounded-full overflow-hidden">
+                    <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-9 h-9 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] active:scale-95" aria-label="Decrease quantity">
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="w-10 text-center text-[0.9375rem] font-semibold text-[oklch(0.13_0.01_260)]">{quantity}</span>
+                    <button onClick={() => setQuantity((q) => q + 1)} className="w-9 h-9 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] active:scale-95" aria-label="Increase quantity">
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {tierPercent > 0 && (
+                    <span className="text-[0.75rem] font-semibold text-[oklch(0.35_0.14_155)]">Saving {tierPercent}% on this order</span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Price + Add to Cart */}
             <div className="flex items-center gap-5 mb-2">
               {selected.salePrice != null ? (
@@ -226,7 +311,7 @@ export default function ProductDetail() {
                       <Check className="w-4 h-4" /> Added to Cart
                     </span>
                   ) : (
-                    "Add to Cart"
+                    quantity > 1 ? `Add ${quantity} to Cart` : "Add to Cart"
                   )}
                 </button>
               ) : (
