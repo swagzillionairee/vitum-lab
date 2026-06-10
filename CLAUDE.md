@@ -60,6 +60,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
   admin/[...slug].ts         Catch-all for /api/admin/* (summary, inventory [PATCH 0→stock emails the back-in-stock waitlist], orders GET + PATCH actions, products CRUD, upload,
                              affiliates GET/POST/PATCH, payouts POST/DELETE, promos CRUD,
                              site-promo GET/PUT → the store-wide sale (enabling it clears all per-variant sale prices),
+                             quantity-tiers GET/PUT → quantity discount tiers,
                              waitlist GET → pending back-in-stock counts per cart_code,
                              users GET → Supabase Auth list + per-customer order count/lifetime spend for the Customers tab,
                              shipments GET → orders with a tracking number for the Shipping tab (bulk-copy for USPS))
@@ -69,7 +70,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
   affiliate/[...slug].ts     Catch-all for /api/affiliate/* (stats, orders)
   account/[...slug].ts       Catch-all for /api/account/*: orders (order history + timeline fields),
                              profile GET/PUT (saved shipping address in auth user metadata, falls back to last order)
-  public/[...slug].ts        Catch-all for /api/public/* (no auth): site GET → site-wide sale config (countdown banner),
+  public/[...slug].ts        Catch-all for /api/public/* (no auth): site GET → site-wide sale config (countdown banner) + quantity_tiers,
                              track GET ?order=&email= → order status/timeline (email must match the order)
   _lib/
     supabase-admin.js  Service-role Supabase client
@@ -80,7 +81,8 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                        idempotent via orders.emails_sent; deferEmail() = waitUntil with local fallback
     shippo.ts          USPS labels (buyLabel — Priority Mail Flat Rate Padded Envelope) + getTrackingStatus; token = test/live
     pricing.ts         Pure order math + promo validation (gross/discount/net/commission, isFreeOrder, isPromoUsable,
-                       sitewideSalePrice, promoAlreadyRedeemed [one-use-per-email]) — unit-tested
+                       sitewideSalePrice, isSitewideActive, promoAlreadyRedeemed [one-use-per-email],
+                       quantityDiscountPercent + computeStackedDiscounts [quantity tier → code, with breakdown lines]) — unit-tested
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
     requireAffiliate.ts requireUser + checks affiliates table
@@ -132,7 +134,7 @@ Tables in `public`:
 - `affiliates(id UUID PK, user_id → auth.users, code UNIQUE, discount_percent, commission_percent, name, email, created_at)`
 - `affiliate_payouts(id UUID PK, affiliate_id → affiliates, amount NUMERIC > 0, note, created_at)` — payout tracking; **owed = Σ commission on paid orders − Σ payouts** (computed in `/api/admin/affiliates` and the summary).
 - `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, starts_at, expires_at, is_active, created_at)` — general promo codes, managed in Admin → Promos. **One use per customer** (enforced by `promoAlreadyRedeemed` — checks prior paid orders with that code + email; affiliate codes are unlimited). Scheduling via `starts_at`/`expires_at` (honored by `isPromoUsable`). `used_count` increments on payment confirmation via `increment_promo_use(p_code)`; `max_uses` is an *additional* global cap.
-- `store_settings(id BOOL PK =true singleton, sitewide_active BOOL, sitewide_percent 1-99, sitewide_label, sitewide_starts_at, sitewide_ends_at, updated_at)` — the optional **site-wide sale** (with scheduling). `isSitewideActive` gates it; `/api/products` projects the % onto every variant's sale_price → strikethrough storefront-wide; `/api/public/site` feeds the countdown banner. Managed via `PUT /api/admin/site-promo`. Service-role only.
+- `store_settings(id BOOL PK =true singleton, sitewide_active BOOL, sitewide_percent 1-99, sitewide_label, sitewide_starts_at, sitewide_ends_at, quantity_tiers JSONB [{min_qty,percent}], updated_at)` — the optional **site-wide sale** (with scheduling) + **quantity discount tiers**. `isSitewideActive` gates the sale; `/api/products` projects the % onto every variant's sale_price → strikethrough storefront-wide; `/api/public/site` feeds the countdown banner + tiers. Managed via `PUT /api/admin/site-promo` and `PUT /api/admin/quantity-tiers`. Service-role only.
 - `stock_waitlist(id UUID PK, cart_code, email, created_at, notified_at, UNIQUE(cart_code,email))` — back-in-stock signups. `POST /api/inventory` upserts (notified_at=null); an admin inventory PATCH that takes stock 0→>0 emails all pending rows then stamps `notified_at`. Service-role only.
 - `orders.emails_sent JSONB DEFAULT '{}'` — `{event: ISO timestamp}` per sent email; the idempotency log shown in the admin order detail (with Resend buttons).
 
@@ -295,6 +297,10 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 **Public order tracking — built.** `/track` page (linked in the Navbar next to Contact) — customer enters order number + email → `GET /api/public/track` (email must match the order) → reuses `OrderTimeline`. No sign-in required.
 
 **Site-wide sale countdown + scheduling — built.** The Site-wide Sale card (Admin → Promos) takes optional **start + end** dates (scheduling); `SaleBanner` (storefront-wide, above the Navbar) reads `GET /api/public/site` and shows a live countdown to the end date while the sale is active. Promo **codes** also support a `starts_at` schedule.
+
+**Tiered quantity discounts — built.** Admin → Promos → **Quantity Discounts** card (tiers of min-qty → % off; "Use recommended" seeds 3→5%, 5→10%, 10→15%). Applied server-side in `create-crypto-payment` via `computeStackedDiscounts`: the best matching tier's % comes off first, then the promo/affiliate % off the remainder — so it **stacks** with the site-wide sale (baked into item prices) and the code. Each discount is shown as its own line at checkout and recorded in `orders.discount_breakdown` (also rendered in the admin order detail).
+
+*Next (designed, confirmed):* **customer referral** (referee $ off first order + referrer store credit) and **loyalty/store credit** (5% back, auto-applied at checkout) — store-credit ledger with a derived balance; amounts admin-adjustable.
 
 **Testing — in progress.** Vitest unit (Node) + component (jsdom) tests, plus a Playwright checkout e2e — see the Commands section. Next candidates: more page/component coverage and CI to run `pnpm test` on PRs.
 

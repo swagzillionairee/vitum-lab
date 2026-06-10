@@ -83,6 +83,67 @@ export function isPromoUsable(promo: PromoRecord, gross: number, now: Date = new
   return true;
 }
 
+export interface QuantityTier {
+  min_qty: number;
+  percent: number;
+}
+
+/** Highest tier percent whose min_qty ≤ units (0 if none qualify). */
+export function quantityDiscountPercent(tiers: QuantityTier[] | null | undefined, units: number): number {
+  let best = 0;
+  for (const t of tiers ?? []) {
+    const min = Number(t.min_qty) || 0;
+    const pct = Number(t.percent) || 0;
+    if (min > 0 && units >= min && pct > best) best = pct;
+  }
+  return best;
+}
+
+export type DiscountKind = "quantity" | "promo" | "affiliate" | "referral";
+export interface DiscountLine {
+  type: DiscountKind;
+  label: string;
+  amount: number;
+}
+
+/**
+ * Stacked order discounts on a gross subtotal (which already reflects any
+ * site-wide sale, baked into item prices). The quantity-tier % comes off first,
+ * then a single code (promo/affiliate as a %, or referral as a flat $) comes off
+ * the remainder. Returns each line for the customer-facing breakdown + the net.
+ */
+export function computeStackedDiscounts(opts: {
+  gross: number;
+  units: number;
+  tiers?: QuantityTier[] | null;
+  code?: { kind: "promo" | "affiliate" | "referral"; label: string; percent?: number; amount?: number } | null;
+}): { lines: DiscountLine[]; totalDiscount: number; net: number; qtyPercent: number } {
+  const gross = round2(opts.gross);
+  const qtyPercent = quantityDiscountPercent(opts.tiers, opts.units);
+  const qtyDiscount = round2((gross * qtyPercent) / 100);
+  const afterQty = round2(gross - qtyDiscount);
+
+  const lines: DiscountLine[] = [];
+  if (qtyDiscount > 0) {
+    lines.push({ type: "quantity", label: `Quantity discount (${qtyPercent}% off ${opts.units} items)`, amount: qtyDiscount });
+  }
+
+  let codeDiscount = 0;
+  if (opts.code) {
+    if (opts.code.amount != null) {
+      // Flat $ off (referral) — never more than the remaining subtotal.
+      codeDiscount = round2(Math.max(0, Math.min(opts.code.amount, afterQty)));
+    } else if (opts.code.percent != null) {
+      codeDiscount = round2((afterQty * opts.code.percent) / 100);
+    }
+    if (codeDiscount > 0) lines.push({ type: opts.code.kind, label: opts.code.label, amount: codeDiscount });
+  }
+
+  const totalDiscount = round2(qtyDiscount + codeDiscount);
+  const net = round2(gross - totalDiscount);
+  return { lines, totalDiscount, net, qtyPercent };
+}
+
 export interface SitewideSettings {
   sitewide_active?: boolean;
   sitewide_percent?: number | null;

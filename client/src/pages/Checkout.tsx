@@ -13,6 +13,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
 import { getPromoCode, clearPromoCode } from "@/lib/promo";
+import { quantityDiscountPercent, round2, type QuantityTier } from "@/lib/discounts";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
 
@@ -34,8 +35,19 @@ export default function Checkout() {
   const [promoLoading, setPromoLoading] = useState(false);
   const [discountPct, setDiscountPct] = useState(0);
   const [affiliateId, setAffiliateId] = useState<string | undefined>();
+  const [tiers, setTiers] = useState<QuantityTier[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // Quantity discount tiers (for the breakdown display; server is authoritative).
+  useEffect(() => {
+    let stale = false;
+    fetch("/api/public/site")
+      .then((r) => r.json())
+      .then((d) => { if (!stale) setTiers(d.quantity_tiers ?? []); })
+      .catch(() => {});
+    return () => { stale = true; };
+  }, []);
 
   // Require sign-in; return here after auth.
   useEffect(() => {
@@ -111,9 +123,16 @@ export default function Checkout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length]);
 
-  const discountAmount = promoApplied ? parseFloat((subtotal * discountPct / 100).toFixed(2)) : 0;
+  // Stacked discounts (mirror of the server): quantity tier first, then the
+  // promo/affiliate % off the remainder. The server recomputes authoritatively.
+  const units = items.filter((i) => !i.isFreeGift).reduce((sum, i) => sum + i.quantity, 0);
+  const qtyPct = quantityDiscountPercent(tiers, units);
+  const qtyDiscount = round2((subtotal * qtyPct) / 100);
+  const afterQty = round2(subtotal - qtyDiscount);
+  const codeDiscount = promoApplied ? round2((afterQty * discountPct) / 100) : 0;
+  const discountAmount = round2(qtyDiscount + codeDiscount);
   const shippingCost = 0; // Free shipping (flat) — adjust here if a fee is introduced.
-  const total = subtotal - discountAmount + shippingCost;
+  const total = round2(subtotal - discountAmount + shippingCost);
 
   const handlePay = async () => {
     if (!email.trim() || !email.includes("@")) {
@@ -287,9 +306,14 @@ export default function Checkout() {
               <div className="flex justify-between text-[0.875rem] text-[oklch(0.40_0.01_260)]">
                 <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
               </div>
-              {discountAmount > 0 && (
+              {qtyDiscount > 0 && (
                 <div className="flex justify-between text-[0.875rem] text-[oklch(0.35_0.14_155)] font-semibold">
-                  <span>Discount ({discountPct}%)</span><span>−${discountAmount.toFixed(2)}</span>
+                  <span>Quantity discount ({qtyPct}% · {units} items)</span><span>−${qtyDiscount.toFixed(2)}</span>
+                </div>
+              )}
+              {codeDiscount > 0 && (
+                <div className="flex justify-between text-[0.875rem] text-[oklch(0.35_0.14_155)] font-semibold">
+                  <span>Promo ({discountPct}%)</span><span>−${codeDiscount.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between text-[0.875rem] text-[oklch(0.40_0.01_260)]">

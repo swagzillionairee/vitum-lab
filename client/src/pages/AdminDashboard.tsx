@@ -904,12 +904,18 @@ export default function AdminDashboard() {
                                   <div className="space-y-1 min-w-[180px]">
                                     <p className="font-semibold text-[oklch(0.20_0.01_260)]">Totals</p>
                                     <div className="flex justify-between gap-6"><span>Subtotal</span><span>${Number(o.gross_amount ?? o.net_amount).toFixed(2)}</span></div>
-                                    {Number(o.discount_amount) > 0 && (
+                                    {Array.isArray(o.discount_breakdown) && o.discount_breakdown.length > 0 ? (
+                                      o.discount_breakdown.map((d, i) => (
+                                        <div key={i} className="flex justify-between gap-6 text-[oklch(0.35_0.14_155)]">
+                                          <span>{d.label}</span><span>−${Number(d.amount).toFixed(2)}</span>
+                                        </div>
+                                      ))
+                                    ) : Number(o.discount_amount) > 0 ? (
                                       <div className="flex justify-between gap-6 text-[oklch(0.35_0.14_155)]">
                                         <span>Discount{o.discount_code ? ` (${o.discount_code})` : ""}</span>
                                         <span>−${Number(o.discount_amount).toFixed(2)}</span>
                                       </div>
-                                    )}
+                                    ) : null}
                                     <div className="flex justify-between gap-6 font-semibold text-[oklch(0.13_0.01_260)] border-t border-[oklch(0.90_0.004_260)] pt-1">
                                       <span>Total</span><span>${Number(o.net_amount).toFixed(2)}</span>
                                     </div>

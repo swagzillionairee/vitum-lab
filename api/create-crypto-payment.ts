@@ -1,7 +1,7 @@
 import { customAlphabet } from "nanoid";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
-import { grossFromItems, discountAmount as calcDiscount, netAmount as calcNet, commissionAmount as calcCommission, isFreeOrder, isPromoUsable, promoAlreadyRedeemed } from "./_lib/pricing.js";
+import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, type QuantityTier } from "./_lib/pricing.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
@@ -93,24 +93,41 @@ export default async function handler(req: any, res: any) {
       res.status(400).json({ error: "That promo code is invalid or expired." });
       return;
     }
+    const discountCodeNorm = discount ? discountCode!.trim().toUpperCase() : null;
 
     // Promo codes are limited to one use per customer (affiliate codes are exempt).
     // Codes are A–Z0–9 so ILIKE on the code is safe; the exact email match is done
     // in JS (emails can contain ILIKE wildcards like "_").
     if (discount?.kind === "promo") {
-      const normalizedCode = discountCode!.trim().toUpperCase();
       const { data: prior } = await supabaseAdmin
         .from("orders")
         .select("email, discount_code")
-        .ilike("discount_code", normalizedCode)
+        .ilike("discount_code", discountCodeNorm!)
         .in("status", ["confirmed", "finished"]);
-      if (promoAlreadyRedeemed(prior ?? [], email, normalizedCode)) {
+      if (promoAlreadyRedeemed(prior ?? [], email, discountCodeNorm!)) {
         res.status(400).json({ error: "You've already used this promo code — it's limited to one use per customer." });
         return;
       }
     }
-    const discountAmount = discount ? calcDiscount(grossAmount, discount.percent) : 0;
-    const netAmount = calcNet(grossAmount, discountAmount);
+
+    // Quantity-tier discount (admin-configurable) stacks with the code discount:
+    // the tier % comes off first, then the code % off the remainder.
+    const units = paidItems.reduce((sum, i) => sum + i.quantity, 0);
+    const { data: settings } = await supabaseAdmin.from("store_settings").select("quantity_tiers").maybeSingle();
+    const tiers = (settings?.quantity_tiers as QuantityTier[] | null) ?? [];
+    const codeArg = discount
+      ? {
+          kind: discount.kind,
+          label: discount.kind === "affiliate" ? `Affiliate (${discountCodeNorm})` : `Promo (${discountCodeNorm})`,
+          percent: discount.percent,
+        }
+      : null;
+    const { lines: discountLines, totalDiscount: discountAmount, net: netAmount } = computeStackedDiscounts({
+      gross: grossAmount,
+      units,
+      tiers,
+      code: codeArg,
+    });
     const affiliateId = discount?.kind === "affiliate" ? discount.affiliateId : null;
     const commissionAmount =
       discount?.kind === "affiliate" ? calcCommission(netAmount, discount.commissionPercent) : null;
@@ -120,7 +137,6 @@ export default async function handler(req: any, res: any) {
       .join(", ");
     const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
     const orderItems = items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price }));
-    const discountCodeNorm = discount ? discountCode!.trim().toUpperCase() : null;
 
     // ── Free order ($0 due, e.g. a 100% promo) — confirm now, skip NowPayments ──
     // A $0 invoice would be rejected by NowPayments anyway, and there's nothing
@@ -137,6 +153,7 @@ export default async function handler(req: any, res: any) {
         discount_amount: discountAmount,
         net_amount: netAmount,
         discount_code: discountCodeNorm,
+        discount_breakdown: discountLines,
         affiliate_id: affiliateId,
         commission_amount: commissionAmount,
         shipping_address: shipping,
@@ -180,6 +197,7 @@ export default async function handler(req: any, res: any) {
       discount_amount: discountAmount,
       net_amount: netAmount,
       discount_code: discountCodeNorm,
+      discount_breakdown: discountLines,
       affiliate_id: affiliateId,
       commission_amount: commissionAmount,
       shipping_address: shipping,

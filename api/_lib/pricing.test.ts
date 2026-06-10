@@ -10,6 +10,8 @@ import {
   isSitewideActive,
   sitewideSalePrice,
   promoAlreadyRedeemed,
+  quantityDiscountPercent,
+  computeStackedDiscounts,
 } from "./pricing";
 
 describe("round2", () => {
@@ -99,6 +101,52 @@ describe("isPromoUsable", () => {
   it("rejects a not-yet-started (scheduled) code", () => {
     expect(isPromoUsable({ ...base, starts_at: "2026-07-01T00:00:00Z" }, 100, now)).toBe(false);
     expect(isPromoUsable({ ...base, starts_at: "2026-06-01T00:00:00Z" }, 100, now)).toBe(true);
+  });
+});
+
+describe("quantityDiscountPercent", () => {
+  const tiers = [{ min_qty: 3, percent: 5 }, { min_qty: 5, percent: 10 }, { min_qty: 10, percent: 15 }];
+  it("picks the highest qualifying tier", () => {
+    expect(quantityDiscountPercent(tiers, 1)).toBe(0);
+    expect(quantityDiscountPercent(tiers, 3)).toBe(5);
+    expect(quantityDiscountPercent(tiers, 4)).toBe(5);
+    expect(quantityDiscountPercent(tiers, 5)).toBe(10);
+    expect(quantityDiscountPercent(tiers, 12)).toBe(15);
+  });
+  it("is 0 for no/empty tiers", () => {
+    expect(quantityDiscountPercent(null, 99)).toBe(0);
+    expect(quantityDiscountPercent([], 99)).toBe(0);
+  });
+});
+
+describe("computeStackedDiscounts", () => {
+  const tiers = [{ min_qty: 3, percent: 10 }];
+  it("applies only the quantity tier when there's no code", () => {
+    const r = computeStackedDiscounts({ gross: 200, units: 3, tiers });
+    expect(r.qtyPercent).toBe(10);
+    expect(r.totalDiscount).toBe(20);
+    expect(r.net).toBe(180);
+    expect(r.lines).toHaveLength(1);
+  });
+  it("stacks a promo % on top of the quantity discount (sequential)", () => {
+    // $200, 10% qty → 180, then 10% promo → 18 off → net 162
+    const r = computeStackedDiscounts({ gross: 200, units: 3, tiers, code: { kind: "promo", label: "Promo (SAVE10)", percent: 10 } });
+    expect(r.totalDiscount).toBe(38);
+    expect(r.net).toBe(162);
+    expect(r.lines.map((l) => l.type)).toEqual(["quantity", "promo"]);
+  });
+  it("applies a flat referral $ off, capped at the remaining subtotal", () => {
+    const r = computeStackedDiscounts({ gross: 50, units: 1, code: { kind: "referral", label: "Referral", amount: 10 } });
+    expect(r.totalDiscount).toBe(10);
+    expect(r.net).toBe(40);
+    const capped = computeStackedDiscounts({ gross: 8, units: 1, code: { kind: "referral", label: "Referral", amount: 10 } });
+    expect(capped.totalDiscount).toBe(8); // never more than the subtotal
+    expect(capped.net).toBe(0);
+  });
+  it("omits zero lines (no qualifying tier)", () => {
+    const r = computeStackedDiscounts({ gross: 100, units: 1, tiers, code: { kind: "promo", label: "P", percent: 10 } });
+    expect(r.lines.map((l) => l.type)).toEqual(["promo"]);
+    expect(r.net).toBe(90);
   });
 });
 

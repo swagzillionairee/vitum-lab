@@ -22,6 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ends_at: (s!.sitewide_ends_at as string | null) ?? null,
           }
         : { active: false },
+      quantity_tiers: (s?.quantity_tiers as { min_qty: number; percent: number }[] | null) ?? [],
     });
   }
 

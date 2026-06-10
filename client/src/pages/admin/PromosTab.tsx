@@ -9,11 +9,92 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { Tag, Loader2, Plus, Trash2, Megaphone, Check, Power } from "lucide-react";
+import { Tag, Loader2, Plus, Trash2, Megaphone, Check, Power, Layers } from "lucide-react";
 import { authedFetch } from "@/lib/api";
 import { invalidateProductsCache } from "@/hooks/useProducts";
-import type { PromoRow, SitePromo } from "./types";
+import type { PromoRow, SitePromo, QuantityTier } from "./types";
 import { money, Field } from "./shared";
+
+// ─── Quantity discount tiers ───────────────────────────────────────────────────
+function QuantityDiscountsCard() {
+  const [tiers, setTiers] = useState<QuantityTier[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    const res = await authedFetch("/api/admin/quantity-tiers");
+    if (res.ok) setTiers((await res.json()).tiers ?? []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const update = (i: number, patch: Partial<QuantityTier>) =>
+    setTiers((t) => (t ?? []).map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  const add = () => setTiers((t) => [...(t ?? []), { min_qty: 0, percent: 0 }]);
+  const remove = (i: number) => setTiers((t) => (t ?? []).filter((_, idx) => idx !== i));
+  const loadRecommended = () => setTiers([{ min_qty: 3, percent: 5 }, { min_qty: 5, percent: 10 }, { min_qty: 10, percent: 15 }]);
+
+  const save = async () => {
+    setErr(""); setMsg("");
+    const clean = (tiers ?? []).filter((t) => Number(t.min_qty) >= 1 && Number(t.percent) >= 1 && Number(t.percent) <= 100);
+    setSaving(true);
+    const res = await authedFetch("/api/admin/quantity-tiers", { method: "PUT", body: JSON.stringify({ tiers: clean }) });
+    setSaving(false);
+    if (!res.ok) { setErr((await res.json().catch(() => ({}))).error ?? "Failed to save"); return; }
+    setTiers((await res.json()).tiers ?? []);
+    setMsg("Quantity discounts saved.");
+  };
+
+  return (
+    <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
+      <div className="flex items-center gap-2 mb-2">
+        <Layers className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
+        <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Quantity Discounts</h2>
+      </div>
+      <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-5">
+        Reward bigger orders: a % off once the cart hits a total item count. The best matching tier applies, and it
+        <span className="font-semibold"> stacks</span> on top of the site-wide sale and any promo/affiliate code. Leave empty to disable.
+      </p>
+
+      {tiers === null ? (
+        <div className="py-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-[oklch(0.52_0.01_260)]" /></div>
+      ) : (
+        <div className="space-y-2 mb-4">
+          {tiers.length === 0 && (
+            <p className="text-[0.8125rem] text-[oklch(0.55_0.01_260)]">No tiers yet — quantity discounts are off.</p>
+          )}
+          {tiers.map((t, i) => (
+            <div key={i} className="flex items-end gap-2 bg-[oklch(0.98_0.002_260)] rounded-xl p-3">
+              <Field label="Buy at least (items)">
+                <input type="number" min={1} value={t.min_qty || ""} onChange={(e) => update(i, { min_qty: Number(e.target.value) })} placeholder="3" className="input-sm w-28" />
+              </Field>
+              <Field label="% Off">
+                <input type="number" min={1} max={100} value={t.percent || ""} onChange={(e) => update(i, { percent: Number(e.target.value) })} placeholder="10" className="input-sm w-20" />
+              </Field>
+              <button onClick={() => remove(i)} className="ml-auto flex items-center gap-1 text-[0.7rem] font-semibold text-red-500 border border-red-200 px-2 py-1.5 rounded-lg hover:bg-red-50">
+                <Trash2 className="w-3 h-3" /> Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button onClick={add} className="flex items-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.35_0.15_260)] border border-[oklch(0.35_0.15_260)] px-3 py-1.5 rounded-lg hover:bg-[oklch(0.96_0.008_260)]">
+          <Plus className="w-4 h-4" /> Add tier
+        </button>
+        {(tiers === null || tiers.length === 0) && (
+          <button onClick={loadRecommended} className="text-[0.8125rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">Use recommended (3→5%, 5→10%, 10→15%)</button>
+        )}
+        <button onClick={save} disabled={saving} className="ml-auto flex items-center gap-1.5 btn-primary text-[0.875rem] py-2 px-4 disabled:opacity-60">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save
+        </button>
+      </div>
+      {err && <p className="text-[0.8125rem] text-red-500 mt-3">{err}</p>}
+      {msg && <p className="text-[0.8125rem] text-[oklch(0.35_0.14_155)] mt-3 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> {msg}</p>}
+    </section>
+  );
+}
 
 // ─── Site-wide sale card ───────────────────────────────────────────────────────
 function SiteWideSaleCard() {
@@ -195,6 +276,7 @@ export default function PromosTab() {
   return (
     <div className="space-y-6">
       <SiteWideSaleCard />
+      <QuantityDiscountsCard />
 
       <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
         <div className="flex items-center gap-2 mb-2">

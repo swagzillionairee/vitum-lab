@@ -356,7 +356,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── /api/admin/orders ────────────────────────────────────────────────────
   if (route === "orders") {
     const orderSelect =
-      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
+      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, discount_breakdown, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
 
     // Sends an order email and reloads emails_sent so the response reflects the
     // new stamp. Email failures never fail the admin action.
@@ -808,6 +808,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.json(data);
     }
 
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── /api/admin/quantity-tiers — quantity discount tiers ─────────────────────
+  if (route === "quantity-tiers") {
+    if (req.method === "GET") {
+      const { data, error } = await supabaseAdmin.from("store_settings").select("quantity_tiers").maybeSingle();
+      if (error) return res.status(500).json({ error: "Failed to load tiers" });
+      return res.json({ tiers: (data?.quantity_tiers as unknown[]) ?? [] });
+    }
+    if (req.method === "PUT") {
+      const raw = ((req.body?.tiers ?? []) as { min_qty?: number | string; percent?: number | string }[]);
+      const tiers = raw
+        .map((t) => ({ min_qty: Math.floor(Number(t.min_qty) || 0), percent: Math.round(Number(t.percent) || 0) }))
+        .filter((t) => t.min_qty >= 1 && t.percent >= 1 && t.percent <= 100)
+        .sort((a, b) => a.min_qty - b.min_qty);
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .upsert({ id: true, quantity_tiers: tiers, updated_at: new Date().toISOString() }, { onConflict: "id" })
+        .select("quantity_tiers")
+        .maybeSingle();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json({ tiers: (data?.quantity_tiers as unknown[]) ?? [] });
+    }
     return res.status(405).json({ error: "Method not allowed" });
   }
 
