@@ -16,10 +16,12 @@ Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (
 pnpm dev          # Start Vite dev server (port 3000) — API routes handled inline via vitePluginLocalApi
 pnpm build        # vite build → dist/public, then esbuild server → dist/index.js
 pnpm check        # TypeScript type-check (no emit)
+pnpm test         # Vitest (run once) — unit tests, config in vitest.config.ts (Node env)
+pnpm test:watch   # Vitest in watch mode
 pnpm format       # Prettier
 ```
 
-No test suite is configured (vitest is installed but unused). There is no lint script — use `pnpm check` for type errors.
+Tests use **Vitest** (`vitest.config.ts` at repo root — Node env, dummy Supabase env so DB-importing modules load). Test files live next to their source as `*.test.ts` (e.g. `api/_lib/pricing.test.ts`). The first batch covers the pure order-money logic in `api/_lib/pricing.ts` (discount/net/commission rounding, $0-order detection, promo validation) — extracted from `create-crypto-payment.ts` so the real checkout code path is what's tested. Next layers to add: component tests (jsdom + @testing-library/react) and Playwright e2e for checkout. There is no lint script — use `pnpm check` for type errors.
 
 The Vite root is `client/` (not repo root). Path aliases: `@` → `client/src`, `@shared` → `shared/`, `@assets` → `attached_assets/`.
 

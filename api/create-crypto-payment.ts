@@ -1,6 +1,7 @@
 import { customAlphabet } from "nanoid";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
+import { grossFromItems, discountAmount as calcDiscount, netAmount as calcNet, commissionAmount as calcCommission, isFreeOrder, isPromoUsable } from "./_lib/pricing.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
@@ -8,8 +9,6 @@ const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
 function buildOrderId(email: string) {
   return `${genId()}--${Buffer.from(email).toString("base64url")}`;
 }
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Server-side discount resolution — never trust the client's discount math.
@@ -36,10 +35,7 @@ async function resolveDiscount(code: string, gross: number): Promise<
     .select("code, percent_off, min_subtotal, max_uses, used_count, expires_at, is_active")
     .ilike("code", normalized)
     .maybeSingle();
-  if (!promo || !promo.is_active) return null;
-  if (promo.expires_at && new Date(promo.expires_at) < new Date()) return null;
-  if (promo.max_uses != null && promo.used_count >= promo.max_uses) return null;
-  if (gross < Number(promo.min_subtotal || 0)) return null;
+  if (!promo || !isPromoUsable(promo, gross)) return null;
   return { kind: "promo", percent: promo.percent_off };
 }
 
@@ -89,7 +85,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const orderId = buildOrderId(email);
-    const grossAmount = round2(items.reduce((sum, i) => sum + i.price * i.quantity, 0));
+    const grossAmount = grossFromItems(items);
 
     // Recompute discount + commission server-side from the code itself.
     const discount = discountCode ? await resolveDiscount(discountCode, grossAmount) : null;
@@ -97,11 +93,11 @@ export default async function handler(req: any, res: any) {
       res.status(400).json({ error: "That promo code is invalid or expired." });
       return;
     }
-    const discountAmount = discount ? round2((grossAmount * discount.percent) / 100) : 0;
-    const netAmount = round2(grossAmount - discountAmount);
+    const discountAmount = discount ? calcDiscount(grossAmount, discount.percent) : 0;
+    const netAmount = calcNet(grossAmount, discountAmount);
     const affiliateId = discount?.kind === "affiliate" ? discount.affiliateId : null;
     const commissionAmount =
-      discount?.kind === "affiliate" ? round2((netAmount * discount.commissionPercent) / 100) : null;
+      discount?.kind === "affiliate" ? calcCommission(netAmount, discount.commissionPercent) : null;
 
     const description = paidItems
       .map((i) => `${i.name} ${i.dose} x${i.quantity}`)
@@ -114,7 +110,7 @@ export default async function handler(req: any, res: any) {
     // A $0 invoice would be rejected by NowPayments anyway, and there's nothing
     // to pay, so we mark the order confirmed and decrement stock immediately
     // (no IPN webhook will fire for it).
-    if (netAmount <= 0) {
+    if (isFreeOrder(netAmount)) {
       const { error: insertError } = await supabaseAdmin.from("orders").insert({
         id: orderId,
         email,
