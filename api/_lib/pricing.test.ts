@@ -6,6 +6,7 @@ import {
   netAmount,
   commissionAmount,
   isFreeOrder,
+  applyCredit,
   isPromoUsable,
   isSitewideActive,
   sitewideSalePrice,
@@ -73,6 +74,21 @@ describe("isFreeOrder", () => {
   it("is false above $0", () => {
     expect(isFreeOrder(0.01)).toBe(false);
     expect(isFreeOrder(129)).toBe(false);
+  });
+});
+
+describe("applyCredit", () => {
+  it("applies partial credit and leaves the rest due", () => {
+    expect(applyCredit(100, 30)).toEqual({ creditApplied: 30, amountDue: 70 });
+  });
+  it("caps credit at the amount owed (covers the whole order → $0 due)", () => {
+    expect(applyCredit(40, 100)).toEqual({ creditApplied: 40, amountDue: 0 });
+  });
+  it("is a no-op with no balance", () => {
+    expect(applyCredit(50, 0)).toEqual({ creditApplied: 0, amountDue: 50 });
+  });
+  it("rounds to cents", () => {
+    expect(applyCredit(19.999, 5.005)).toEqual({ creditApplied: 5.01, amountDue: 14.99 });
   });
 });
 

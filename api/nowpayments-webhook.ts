@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, sendAffiliateCommission, type EmailOrder } from "./_lib/email.js";
+import { getRewardConfig, earnLoyalty, grantReferralReward } from "./_lib/credit.js";
 
 function sortKeys(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;
@@ -13,7 +14,7 @@ function sortKeys(obj: unknown): unknown {
 }
 
 const ORDER_COLS =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_address, status, affiliate_id, commission_amount, emails_sent";
+  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, credit_applied, referral_code, shipping_address, status, affiliate_id, commission_amount, emails_sent";
 
 // Email the attributed affiliate their commission (once, via emails_sent).
 async function notifyAffiliate(order: any) {
@@ -100,6 +101,15 @@ export default async function handler(req: any, res: any) {
               () => {},
               () => {},
             );
+          }
+
+          // Loyalty earn + referral reward (idempotent via the ledger).
+          try {
+            const cfg = await getRewardConfig();
+            await earnLoyalty(order as { id: string; email: string; net_amount: number; credit_applied?: number | null }, cfg.loyaltyPercent);
+            await grantReferralReward(order as { id: string; email: string; referral_code?: string | null }, cfg.referrerAmount);
+          } catch (err) {
+            console.error("Failed to apply loyalty/referral rewards:", err);
           }
         }
       } catch (err) {

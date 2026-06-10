@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { Tag, Loader2, Plus, Trash2, Megaphone, Check, Power, Layers } from "lucide-react";
+import { Tag, Loader2, Plus, Trash2, Megaphone, Check, Power, Layers, Gift } from "lucide-react";
 import { authedFetch } from "@/lib/api";
 import { invalidateProductsCache } from "@/hooks/useProducts";
 import type { PromoRow, SitePromo, QuantityTier } from "./types";
@@ -220,6 +220,84 @@ function SiteWideSaleCard() {
   );
 }
 
+// ─── Loyalty & referral rewards ────────────────────────────────────────────────
+function RewardsCard() {
+  const [form, setForm] = useState<{ loyalty_percent: string; referee: string; referrer: string; min: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(async () => {
+    const res = await authedFetch("/api/admin/rewards");
+    if (res.ok) {
+      const d = await res.json();
+      setForm({
+        loyalty_percent: String(d.loyalty_percent ?? 0),
+        referee: String(d.referral_referee_amount ?? 0),
+        referrer: String(d.referral_referrer_amount ?? 0),
+        min: String(d.referral_min_subtotal ?? 0),
+      });
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    if (!form) return;
+    setMsg(""); setSaving(true);
+    const res = await authedFetch("/api/admin/rewards", {
+      method: "PUT",
+      body: JSON.stringify({
+        loyalty_percent: Number(form.loyalty_percent) || 0,
+        referral_referee_amount: Number(form.referee) || 0,
+        referral_referrer_amount: Number(form.referrer) || 0,
+        referral_min_subtotal: Number(form.min) || 0,
+      }),
+    });
+    setSaving(false);
+    if (res.ok) setMsg("Saved.");
+  };
+
+  return (
+    <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
+      <div className="flex items-center gap-2 mb-2">
+        <Gift className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
+        <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Loyalty &amp; Referrals</h2>
+      </div>
+      <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-5">
+        Store credit earned per paid order (loyalty) and from referrals. Credit is auto-applied at checkout.
+        Set a referral amount to 0 to disable that side. Referees must be new customers (first order).
+      </p>
+
+      {form === null ? (
+        <div className="py-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-[oklch(0.52_0.01_260)]" /></div>
+      ) : (
+        <div className="flex flex-wrap items-end gap-2 bg-[oklch(0.98_0.002_260)] rounded-xl p-4">
+          <Field label="Loyalty % back">
+            <input type="number" min={0} max={100} value={form.loyalty_percent}
+              onChange={(e) => setForm((f) => f && { ...f, loyalty_percent: e.target.value })} className="input-sm w-24" />
+          </Field>
+          <Field label="Referral: friend $ off">
+            <input type="number" min={0} value={form.referee}
+              onChange={(e) => setForm((f) => f && { ...f, referee: e.target.value })} className="input-sm w-28" />
+          </Field>
+          <Field label="Referral: you get $ credit">
+            <input type="number" min={0} value={form.referrer}
+              onChange={(e) => setForm((f) => f && { ...f, referrer: e.target.value })} className="input-sm w-32" />
+          </Field>
+          <Field label="Referral min subtotal ($)">
+            <input type="number" min={0} value={form.min}
+              onChange={(e) => setForm((f) => f && { ...f, min: e.target.value })} className="input-sm w-32" />
+          </Field>
+          <button onClick={save} disabled={saving}
+            className="flex items-center gap-1.5 btn-primary text-[0.875rem] py-2 px-4 disabled:opacity-60">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save
+          </button>
+          {msg && <span className="text-[0.8125rem] text-[oklch(0.35_0.14_155)] flex items-center gap-1"><Check className="w-3.5 h-3.5" /> {msg}</span>}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ─── Promo codes ───────────────────────────────────────────────────────────────
 export default function PromosTab() {
   const [promos, setPromos] = useState<PromoRow[] | null>(null);
@@ -277,6 +355,7 @@ export default function PromosTab() {
     <div className="space-y-6">
       <SiteWideSaleCard />
       <QuantityDiscountsCard />
+      <RewardsCard />
 
       <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
         <div className="flex items-center gap-2 mb-2">

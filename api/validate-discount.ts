@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { promoAlreadyRedeemed } from "./_lib/pricing.js";
+import { getRewardConfig } from "./_lib/credit.js";
 
 /**
  * Validates a discount code: either an affiliate code (affiliates table) or
@@ -69,7 +70,31 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    res.status(404).json({ valid: false, error: "Invalid or expired promo code." });
+    // Referral code → a flat $ off for a NEW referee (first order only).
+    const { data: ref } = await supabaseAdmin.from("referral_codes").select("email").eq("code", normalized).maybeSingle();
+    if (ref) {
+      const cfg = await getRewardConfig();
+      if (email && ref.email.toLowerCase() === email.toLowerCase()) {
+        res.status(400).json({ valid: false, error: "You can't use your own referral link." });
+        return;
+      }
+      if (email) {
+        const { data: prior } = await supabaseAdmin
+          .from("orders").select("id").ilike("email", email).in("status", ["confirmed", "finished"]).limit(1);
+        if (prior && prior.length > 0) {
+          res.status(400).json({ valid: false, error: "Referral discounts are for first orders only." });
+          return;
+        }
+      }
+      if (typeof subtotal === "number" && subtotal < cfg.referralMinSubtotal) {
+        res.status(400).json({ valid: false, error: `This referral needs a minimum subtotal of $${Number(cfg.referralMinSubtotal).toFixed(2)}.` });
+        return;
+      }
+      res.status(200).json({ valid: true, discountAmount: cfg.refereeAmount });
+      return;
+    }
+
+    res.status(404).json({ valid: false, error: "Invalid or expired code." });
   } catch (err) {
     console.error("validate-discount error:", err);
     res.status(500).json({ error: "Failed to validate code" });

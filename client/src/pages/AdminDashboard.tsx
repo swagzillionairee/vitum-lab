@@ -919,6 +919,12 @@ export default function AdminDashboard() {
                                     <div className="flex justify-between gap-6 font-semibold text-[oklch(0.13_0.01_260)] border-t border-[oklch(0.90_0.004_260)] pt-1">
                                       <span>Total</span><span>${Number(o.net_amount).toFixed(2)}</span>
                                     </div>
+                                    {Number(o.credit_applied) > 0 && (
+                                      <>
+                                        <div className="flex justify-between gap-6 text-[oklch(0.35_0.14_155)]"><span>Store credit</span><span>−${Number(o.credit_applied).toFixed(2)}</span></div>
+                                        <div className="flex justify-between gap-6 text-[oklch(0.45_0.01_260)]"><span>Charged</span><span>${(Number(o.net_amount) - Number(o.credit_applied)).toFixed(2)}</span></div>
+                                      </>
+                                    )}
                                     {Number(o.commission_amount) > 0 && (
                                       <div className="flex justify-between gap-6 text-[oklch(0.52_0.01_260)]"><span>Commission</span><span>${Number(o.commission_amount).toFixed(2)}</span></div>
                                     )}

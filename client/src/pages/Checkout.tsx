@@ -34,8 +34,10 @@ export default function Checkout() {
   const [promoError, setPromoError] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
   const [discountPct, setDiscountPct] = useState(0);
+  const [discountFlat, setDiscountFlat] = useState(0);
   const [affiliateId, setAffiliateId] = useState<string | undefined>();
   const [tiers, setTiers] = useState<QuantityTier[]>([]);
+  const [creditBalance, setCreditBalance] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,6 +50,17 @@ export default function Checkout() {
       .catch(() => {});
     return () => { stale = true; };
   }, []);
+
+  // Store-credit balance (auto-applied at checkout; server is authoritative).
+  useEffect(() => {
+    if (!session) return;
+    let stale = false;
+    authedFetch("/api/account/credit")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && !stale) setCreditBalance(Number(d.balance) || 0); })
+      .catch(() => {});
+    return () => { stale = true; };
+  }, [session]);
 
   // Require sign-in; return here after auth.
   useEffect(() => {
@@ -100,7 +113,8 @@ export default function Checkout() {
         setPromoError(data.error || "Invalid or expired promo code.");
       } else {
         setPromoApplied(true);
-        setDiscountPct(data.discountPct);
+        setDiscountPct(data.discountPct ?? 0);
+        setDiscountFlat(data.discountAmount ?? 0);
         setAffiliateId(data.affiliateId);
       }
     } catch {
@@ -129,10 +143,14 @@ export default function Checkout() {
   const qtyPct = quantityDiscountPercent(tiers, units);
   const qtyDiscount = round2((subtotal * qtyPct) / 100);
   const afterQty = round2(subtotal - qtyDiscount);
-  const codeDiscount = promoApplied ? round2((afterQty * discountPct) / 100) : 0;
+  const codeDiscount = promoApplied
+    ? (discountFlat > 0 ? round2(Math.min(discountFlat, afterQty)) : round2((afterQty * discountPct) / 100))
+    : 0;
   const discountAmount = round2(qtyDiscount + codeDiscount);
-  const shippingCost = 0; // Free shipping (flat) — adjust here if a fee is introduced.
-  const total = round2(subtotal - discountAmount + shippingCost);
+  const netAfterDiscounts = round2(subtotal - discountAmount);
+  // Store credit auto-applies as tender, reducing the amount due (server is authoritative).
+  const creditApplied = round2(Math.min(creditBalance, netAfterDiscounts));
+  const total = round2(netAfterDiscounts - creditApplied);
 
   const handlePay = async () => {
     if (!email.trim() || !email.includes("@")) {
@@ -291,7 +309,7 @@ export default function Checkout() {
               </button>
               {promoOpen && (
                 <div className="mt-2 flex gap-2">
-                  <input type="text" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(""); setPromoApplied(false); setDiscountPct(0); setAffiliateId(undefined); }} placeholder="Enter code" className={`${inputBase} flex-1 min-w-0 py-2`} />
+                  <input type="text" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(""); setPromoApplied(false); setDiscountPct(0); setDiscountFlat(0); setAffiliateId(undefined); }} placeholder="Enter code" className={`${inputBase} flex-1 min-w-0 py-2`} />
                   <button onClick={handleApplyPromo} disabled={promoLoading} className="flex-shrink-0 px-4 py-2 rounded-lg bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors disabled:opacity-60">
                     {promoLoading ? "…" : "Apply"}
                   </button>
@@ -313,7 +331,12 @@ export default function Checkout() {
               )}
               {codeDiscount > 0 && (
                 <div className="flex justify-between text-[0.875rem] text-[oklch(0.35_0.14_155)] font-semibold">
-                  <span>Promo ({discountPct}%)</span><span>−${codeDiscount.toFixed(2)}</span>
+                  <span>{discountFlat > 0 ? "Referral discount" : `Promo (${discountPct}%)`}</span><span>−${codeDiscount.toFixed(2)}</span>
+                </div>
+              )}
+              {creditApplied > 0 && (
+                <div className="flex justify-between text-[0.875rem] text-[oklch(0.35_0.14_155)] font-semibold">
+                  <span>Store credit</span><span>−${creditApplied.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between text-[0.875rem] text-[oklch(0.40_0.01_260)]">
@@ -329,10 +352,10 @@ export default function Checkout() {
             {error && <p className="text-[0.75rem] text-red-500">{error}</p>}
 
             <button onClick={handlePay} disabled={busy} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
-              {busy ? "Creating Payment…" : (<>Continue to Payment <ArrowRight className="w-4 h-4" /></>)}
+              {busy ? "Processing…" : total <= 0 ? (<>Place Order <ArrowRight className="w-4 h-4" /></>) : (<>Continue to Payment <ArrowRight className="w-4 h-4" /></>)}
             </button>
             <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)] text-center">
-              Pay with crypto, card, or Apple Pay on the next step.
+              {total <= 0 ? "No payment needed — covered by store credit." : "Pay with crypto, card, or Apple Pay on the next step."}
             </p>
             <p className="text-[0.625rem] text-center text-[oklch(0.70_0.01_260)]">
               Research use only — not for human consumption.

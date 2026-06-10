@@ -28,6 +28,8 @@ export interface OrderRow {
   discount_amount?: number;
   discount_code?: string | null;
   discount_breakdown?: { type: string; label: string; amount: number }[] | null;
+  credit_applied?: number | null;
+  referral_code?: string | null;
   commission_amount?: number | null;
   status: string;
   created_at: string;

@@ -32,6 +32,16 @@ export function isFreeOrder(net: number): boolean {
 }
 
 /**
+ * Store credit applied to an order: never more than the balance or the amount
+ * owed. Returns the credit used and the remaining cash amount due.
+ */
+export function applyCredit(net: number, balance: number): { creditApplied: number; amountDue: number } {
+  const owed = round2(net);
+  const creditApplied = round2(Math.max(0, Math.min(Number(balance) || 0, owed)));
+  return { creditApplied, amountDue: round2(owed - creditApplied) };
+}
+
+/**
  * Per-unit price after a site-wide sale of `percentOff` is applied to `base`.
  * Used by /api/products to project the active site-wide sale onto every variant
  * (so the storefront shows the strikethrough original + the new price, and the

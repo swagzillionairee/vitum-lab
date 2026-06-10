@@ -3,6 +3,7 @@ import { requireAdmin } from "../_lib/requireAdmin.js";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { sendOrderEvent, sendBackInStock, sendAffiliateCommission, deferEmail, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
 import { buyLabel, getTrackingStatus, shippoConfigured, shipFromConfigured, shipFromPhoneConfigured } from "../_lib/shippo.js";
+import { getRewardConfig, earnLoyalty, grantReferralReward } from "../_lib/credit.js";
 
 // Notify (once) everyone on the back-in-stock waitlist for a cart_code that
 // just went from 0 → in stock, then mark those rows notified.
@@ -356,7 +357,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── /api/admin/orders ────────────────────────────────────────────────────
   if (route === "orders") {
     const orderSelect =
-      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, discount_breakdown, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
+      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, discount_breakdown, credit_applied, referral_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
 
     // Sends an order email and reloads emails_sent so the response reflects the
     // new stamp. Email failures never fail the admin action.
@@ -563,6 +564,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
           await emailAndRefresh(data, "confirmed");
           await emailAndRefresh(data, "admin_new_order");
+          // Loyalty earn + referral reward (idempotent via the ledger).
+          try {
+            const cfg = await getRewardConfig();
+            await earnLoyalty(data, cfg.loyaltyPercent);
+            await grantReferralReward(data, cfg.referrerAmount);
+          } catch (err) { console.error("rewards (recheck) failed:", err); }
           // Notify the attributed affiliate of their commission (idempotent).
           if (data.affiliate_id && Number(data.commission_amount) > 0) {
             try {
@@ -808,6 +815,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.json(data);
     }
 
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── /api/admin/rewards — loyalty % + referral amounts ───────────────────────
+  if (route === "rewards") {
+    if (req.method === "GET") {
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .select("loyalty_percent, referral_referee_amount, referral_referrer_amount, referral_min_subtotal")
+        .maybeSingle();
+      if (error) return res.status(500).json({ error: "Failed to load rewards config" });
+      return res.json(data ?? { loyalty_percent: 0, referral_referee_amount: 0, referral_referrer_amount: 0, referral_min_subtotal: 0 });
+    }
+    if (req.method === "PUT") {
+      const b = req.body ?? {};
+      const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .upsert(
+          {
+            id: true,
+            loyalty_percent: Math.min(100, Math.round(num(b.loyalty_percent))),
+            referral_referee_amount: num(b.referral_referee_amount),
+            referral_referrer_amount: num(b.referral_referrer_amount),
+            referral_min_subtotal: num(b.referral_min_subtotal),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        )
+        .select("loyalty_percent, referral_referee_amount, referral_referrer_amount, referral_min_subtotal")
+        .maybeSingle();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json(data);
+    }
     return res.status(405).json({ error: "Method not allowed" });
   }
 

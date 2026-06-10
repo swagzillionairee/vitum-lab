@@ -7,7 +7,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useLocation, Link } from "wouter";
-import { Package, LogOut, Loader2, HelpCircle, RotateCcw } from "lucide-react";
+import { Package, LogOut, Loader2, HelpCircle, RotateCcw, Wallet, Gift, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
@@ -55,6 +55,9 @@ export default function Account() {
   const [, navigate] = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [fetching, setFetching] = useState(true);
+  const [credit, setCredit] = useState<number | null>(null);
+  const [referral, setReferral] = useState<{ code: string; link: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const { products } = useProducts();
   const { isAvailable } = useInventory();
   const { addItem, closeCart } = useCart();
@@ -72,6 +75,20 @@ export default function Account() {
   useEffect(() => {
     if (session) load();
   }, [session, load]);
+
+  // Store credit balance + referral link.
+  useEffect(() => {
+    if (!session) return;
+    authedFetch("/api/account/credit").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setCredit(Number(d.balance) || 0); }).catch(() => {});
+    authedFetch("/api/account/referral").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.link) setReferral({ code: d.code, link: d.link }); }).catch(() => {});
+  }, [session]);
+
+  const copyReferral = () => {
+    if (!referral) return;
+    navigator.clipboard.writeText(referral.link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   // Re-add a past order's items to the cart at CURRENT prices/availability.
   const reorder = (o: Order) => {
@@ -128,6 +145,33 @@ export default function Account() {
           </button>
         </div>
         <p className="text-[0.875rem] text-[oklch(0.52_0.01_260)] mb-8">{user?.email}</p>
+
+        {/* Store credit + referral */}
+        <div className="grid sm:grid-cols-2 gap-4 mb-8">
+          <div className="bg-white rounded-2xl p-5 shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)]">
+            <div className="flex items-center gap-2 mb-1 text-[oklch(0.52_0.01_260)]">
+              <Wallet className="w-4 h-4 text-[oklch(0.35_0.15_260)]" />
+              <span className="text-[0.75rem] font-semibold uppercase tracking-wider">Store Credit</span>
+            </div>
+            <p className="text-[1.75rem] font-bold leading-none text-[oklch(0.32_0.12_155)]">${(credit ?? 0).toFixed(2)}</p>
+            <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-2">Earned on every order and from referrals — applied automatically at checkout.</p>
+          </div>
+          <div className="bg-white rounded-2xl p-5 shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)]">
+            <div className="flex items-center gap-2 mb-1 text-[oklch(0.52_0.01_260)]">
+              <Gift className="w-4 h-4 text-[oklch(0.35_0.15_260)]" />
+              <span className="text-[0.75rem] font-semibold uppercase tracking-wider">Refer a Friend</span>
+            </div>
+            <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mb-2">Share your link — your friend gets a discount on their first order, and you earn store credit when they buy.</p>
+            <div className="flex gap-2">
+              <input readOnly value={referral?.link ?? "Generating…"} onFocus={(e) => e.currentTarget.select()}
+                className="flex-1 min-w-0 border border-[oklch(0.88_0.004_260)] rounded-lg px-2.5 py-1.5 text-[0.75rem] font-mono text-[oklch(0.35_0.01_260)] bg-[oklch(0.98_0.002_260)]" />
+              <button onClick={copyReferral} disabled={!referral}
+                className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.40_0.16_260)] border border-[oklch(0.40_0.16_260)] px-2.5 py-1.5 rounded-lg hover:bg-[oklch(0.96_0.02_260)] disabled:opacity-50">
+                {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div className="flex items-center gap-2 mb-4">
           <Package className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
