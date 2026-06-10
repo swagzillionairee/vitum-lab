@@ -34,7 +34,8 @@ function fromAddress() {
     zip: process.env.SHIP_FROM_ZIP || "",
     country: process.env.SHIP_FROM_COUNTRY || "US",
     phone: process.env.SHIP_FROM_PHONE || "",
-    email: process.env.GMAIL_USER || "",
+    // Auto-filled from the store's email — no separate ship-from email needed.
+    email: process.env.SHIP_FROM_EMAIL || process.env.GMAIL_USER || "",
   };
 }
 
@@ -42,6 +43,11 @@ function fromAddress() {
 export function shipFromConfigured(): boolean {
   const f = fromAddress();
   return !!(f.street1 && f.city && f.state && f.zip);
+}
+
+/** USPS requires the sender to have a phone (email is auto-filled from GMAIL_USER). */
+export function shipFromPhoneConfigured(): boolean {
+  return !!(process.env.SHIP_FROM_PHONE && process.env.SHIP_FROM_PHONE.trim());
 }
 
 function headers() {
