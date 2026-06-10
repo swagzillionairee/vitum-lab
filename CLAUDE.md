@@ -61,7 +61,8 @@ api/                Vercel serverless functions — ALL relative imports MUST us
   _lib/
     supabase-admin.js  Service-role Supabase client
     email.ts           ALL transactional email: one Gmail transport + branded layout + send per event
-                       (order_created/confirmed/shipped/delivered/cancelled/failed/admin_new_order/welcome),
+                       (order_created/confirmed/shipped/delivered/cancelled/failed/admin_new_order/admin_delivered/welcome),
+                       item rows include a 40px product thumbnail (resolved from products.variants by cartCode),
                        idempotent via orders.emails_sent; deferEmail() = waitUntil with local fallback
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
@@ -100,7 +101,7 @@ server/
 | `nad-500mg` | $129 | stock = 0 |
 | `bac-water-10ml` | $12 | |
 
-Free gift `bac-water-free` (price $0) auto-added when subtotal ≥ $150 — skip stock checks for it.
+Free gift `bac-water-free` (price $0) auto-added when subtotal ≥ $150 — **capped at quantity 1 per order** (CartContext pins it; CartDrawer shows a "Free gift · limit 1" badge instead of a stepper). Skip stock checks for it.
 
 ---
 
@@ -141,6 +142,7 @@ GMAIL_APP_PASSWORD=
 BASE_URL=https://vitum-lab.vercel.app
 ORDERS_EMAIL=orders@vitumlab.com      # admin new-paid-order alerts (free Workspace alias on hello@); falls back to GMAIL_USER
 INVENTORY_EMAIL=inventory@vitumlab.com # reserved for the Tier-3 low-stock digest; falls back to GMAIL_USER
+DELIVERED_EMAIL=delivered@vitumlab.com # admin delivered alerts (alias on hello@); falls back to ORDERS_EMAIL → GMAIL_USER
 CRON_SECRET=                           # shared secret for /api/cron (matches the pg_cron email-cron job header)
 
 # Browser (Vite needs VITE_ prefix — must be set manually in Vercel)
@@ -238,7 +240,7 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 **Admin dashboard summary** — built. Admin → **Overview** tab (default) shows revenue (30d + all-time), orders-to-fulfill (paid + unfulfilled), pending-payment count, low/out-of-stock list, orders-this-week, AOV, top sellers, and recent orders — plus a daily revenue bar chart with a 10/30/60/90-day toggle, affiliate commissions owed (total KPI + per-affiliate breakdown), repeat-customer rate, cancelled-orders-30d count, and color-coded KPI tiles via the reusable `<Kpi>` component (green = good, amber = warning, red = urgent, cobalt = info). Backed by `GET /api/admin/summary` (computed in the admin catch-all; pages through orders 1000 rows at a time because PostgREST caps a single response at 1000 rows). KPI tiles deep-link into the Orders tab with filters pre-applied.
 
-**Automated emails — BUILT (Tier 1 + Tier 2, June 2026).** All transactional email lives in `api/_lib/email.ts` (one Gmail transport, one branded layout, idempotent via `orders.emails_sent`). Live emails: welcome (first `/api/me`, deduped via auth-metadata `welcomed` flag), order received w/ invoice link (checkout, via waitUntil), payment confirmed + admin new-paid-order alert → `ORDERS_EMAIL` (webhook + admin Re-check, inside the idempotency guard — fixed the historical double-send bug), shipping confirmation w/ carrier tracking link (USPS default), delivered (links COA library), cancelled/expired w/ reason (admin cancel + `/api/cron`), payment failed (webhook `failed`/`expired`/`refunded` + Re-check). Admin → Orders expanded row shows the per-order email log with Send/Resend buttons (`resend_email` action). **Env configured in Vercel (June 2026):** `GMAIL_APP_PASSWORD`, `ORDERS_EMAIL=orders@vitumlab.com`, `INVENTORY_EMAIL=inventory@vitumlab.com`, `CRON_SECRET` are all set — so admin alerts route to orders@ and the hourly `email-cron` job (pg_cron + pg_net → `/api/cron`) is live and sending auto-expiry cancellation emails.
+**Automated emails — BUILT (Tier 1 + Tier 2, June 2026).** All transactional email lives in `api/_lib/email.ts` (one Gmail transport, one branded layout, idempotent via `orders.emails_sent`). Live emails: welcome (first `/api/me`, deduped via auth-metadata `welcomed` flag), order received w/ invoice link (checkout, via waitUntil), payment confirmed + admin new-paid-order alert → `ORDERS_EMAIL` (webhook + admin Re-check, inside the idempotency guard — fixed the historical double-send bug), shipping confirmation w/ carrier tracking link (USPS default), delivered (customer, links COA library) + admin delivered alert → `DELIVERED_EMAIL` (both fire on the admin `deliver` action), cancelled/expired w/ reason (admin cancel + `/api/cron`), payment failed (webhook `failed`/`expired`/`refunded` + Re-check). Every item row in these emails shows a 40px product thumbnail. Admin → Orders expanded row shows the per-order email log with Send/Resend buttons (`resend_email` action). **Env configured in Vercel (June 2026):** `GMAIL_APP_PASSWORD`, `ORDERS_EMAIL=orders@vitumlab.com`, `INVENTORY_EMAIL=inventory@vitumlab.com`, `CRON_SECRET` are all set — so admin alerts route to orders@ and the hourly `email-cron` job (pg_cron + pg_net → `/api/cron`) is live and sending auto-expiry cancellation emails.
 
 *Explicitly rejected (owner decision — do NOT build or re-suggest):* abandoned-payment reminder emails.
 

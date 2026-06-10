@@ -386,11 +386,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .select(orderSelect)
           .single();
         if (error) return res.status(500).json({ error: "Failed to mark delivered" });
-        return res.json(await emailAndRefresh(data, "delivered"));
+        await emailAndRefresh(data, "delivered");
+        return res.json(await emailAndRefresh(data, "admin_delivered"));
       }
 
       if (action === "resend_email") {
-        const allowed: OrderEmailEvent[] = ["order_created", "confirmed", "shipped", "delivered", "cancelled", "failed", "admin_new_order"];
+        const allowed: OrderEmailEvent[] = ["order_created", "confirmed", "shipped", "delivered", "cancelled", "failed", "admin_new_order", "admin_delivered"];
         const event = body.event as OrderEmailEvent;
         if (!allowed.includes(event)) return res.status(400).json({ error: "Unknown email event" });
         const refreshed = await emailAndRefresh({ ...order }, event, { force: true });

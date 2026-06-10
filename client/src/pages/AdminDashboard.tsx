@@ -953,6 +953,7 @@ export default function AdminDashboard() {
     { event: "admin_new_order", label: "Admin alert", applies: (o) => o.status === "confirmed" || o.status === "finished" },
     { event: "shipped", label: "Shipping confirmation", applies: (o) => !!o.tracking_number || o.fulfillment_status === "shipped" || o.fulfillment_status === "delivered" },
     { event: "delivered", label: "Delivered", applies: (o) => o.fulfillment_status === "delivered" },
+    { event: "admin_delivered", label: "Delivered alert (you)", applies: (o) => o.fulfillment_status === "delivered" },
     { event: "cancelled", label: "Cancelled", applies: (o) => o.status === "cancelled" },
     { event: "failed", label: "Payment failed", applies: (o) => o.status === "failed" },
   ];

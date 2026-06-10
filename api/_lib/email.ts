@@ -43,7 +43,7 @@ export interface EmailOrder {
 
 export type OrderEmailEvent =
   | "order_created" | "confirmed" | "shipped" | "delivered"
-  | "cancelled" | "failed" | "admin_new_order";
+  | "cancelled" | "failed" | "admin_new_order" | "admin_delivered";
 
 // ─── Transport / env ─────────────────────────────────────────────────────────
 let _transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
@@ -61,9 +61,30 @@ function transporter() {
 
 const baseUrl = () => process.env.BASE_URL || "https://vitum-lab.vercel.app";
 const ordersInbox = () => process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
+const deliveredInbox = () => process.env.DELIVERED_EMAIL || process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
 
 async function send(to: string, subject: string, html: string) {
   await transporter().sendMail({ from: `"Vitum Lab" <${process.env.GMAIL_USER}>`, to, subject, html });
+}
+
+/** Make a product image URL absolute so it loads inside an email client. */
+function absoluteUrl(u: string): string {
+  if (/^https?:\/\//i.test(u)) return u;
+  return `${baseUrl()}${u.startsWith("/") ? "" : "/"}${u}`;
+}
+
+/** cartCode → absolute thumbnail URL, read once from the products table. */
+async function productImageMap(): Promise<Record<string, string>> {
+  const { data } = await supabaseAdmin.from("products").select("variants");
+  const map: Record<string, string> = {};
+  for (const p of data ?? []) {
+    for (const v of ((p.variants as { cart_code?: string; image_url?: string }[]) ?? [])) {
+      if (v.cart_code && v.image_url) map[v.cart_code] = absoluteUrl(v.image_url);
+    }
+  }
+  // The free gift reuses the BAC Water product photo.
+  if (map["bac-water-10ml"] && !map["bac-water-free"]) map["bac-water-free"] = map["bac-water-10ml"];
+  return map;
 }
 
 /**
@@ -129,15 +150,23 @@ function heading(title: string, body: string): string {
       <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.65;">${body}</p>`;
 }
 
-function orderBox(order: EmailOrder): string {
+function orderBox(order: EmailOrder, images?: Record<string, string>): string {
   const items = order.items ?? [];
-  const rows = items.map((it) => `
+  const rows = items.map((it) => {
+    const img = images?.[it.cartCode];
+    const thumb = img
+      ? `<img src="${img}" width="40" height="40" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;display:block;" />`
+      : `<div style="width:40px;height:40px;border-radius:8px;background:#eef0f3;"></div>`;
+    return `
           <tr>
-            <td style="padding:6px 0;font-size:14px;color:#333;">${it.name} ${it.dose} <span style="color:#999;">× ${it.quantity}</span></td>
-            <td style="padding:6px 0;font-size:14px;color:#333;text-align:right;">${it.price === 0 ? "Free" : money(it.price * it.quantity)}</td>
-          </tr>`).join("");
+            <td style="padding:8px 12px 8px 0;width:40px;vertical-align:middle;">${thumb}</td>
+            <td style="padding:8px 0;font-size:14px;color:#333;vertical-align:middle;">${it.name} ${it.dose} <span style="color:#999;">× ${it.quantity}</span></td>
+            <td style="padding:8px 0;font-size:14px;color:#333;text-align:right;vertical-align:middle;white-space:nowrap;">${it.price === 0 ? "Free" : money(it.price * it.quantity)}</td>
+          </tr>`;
+  }).join("");
   const discount = Number(order.discount_amount) > 0
     ? `<tr>
+            <td></td>
             <td style="padding:6px 0;font-size:14px;color:#1a7a4a;">Discount${order.discount_code ? ` (${order.discount_code})` : ""}</td>
             <td style="padding:6px 0;font-size:14px;color:#1a7a4a;text-align:right;">−${money(order.discount_amount)}</td>
           </tr>` : "";
@@ -145,6 +174,7 @@ function orderBox(order: EmailOrder): string {
         <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;">Order <span style="font-family:monospace;color:#555;">${order.id.slice(0, 10)}</span></p>
         <table style="width:100%;border-collapse:collapse;">${rows}${discount}
           <tr>
+            <td></td>
             <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#0f1a2e;border-top:1px solid #e5e7eb;">Total</td>
             <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#0f1a2e;text-align:right;border-top:1px solid #e5e7eb;">${money(order.net_amount)}</td>
           </tr>
@@ -177,7 +207,7 @@ export function trackingUrl(carrier: string | null | undefined, tracking: string
 }
 
 // ─── Per-event content ───────────────────────────────────────────────────────
-function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { invoiceUrl?: string; wasPending?: boolean }): { to: string; subject: string; html: string } {
+function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { invoiceUrl?: string; wasPending?: boolean }, images?: Record<string, string>): { to: string; subject: string; html: string } {
   const shortId = order.id.slice(0, 10);
 
   switch (event) {
@@ -189,7 +219,7 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
           pill("Order Received", "#fdf6e7", "#9a6b15") +
           heading("We've received your order", "Your order has been created and is awaiting payment. Complete checkout within 24 hours — unpaid orders are automatically cancelled after that.") +
           (opts?.invoiceUrl ? button("Complete Payment", opts.invoiceUrl) : "") +
-          orderBox(order) + addressBox(order.shipping_address),
+          orderBox(order, images) + addressBox(order.shipping_address),
         ),
       };
     case "confirmed":
@@ -199,7 +229,7 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
         html: layout(
           pill("✓ Payment Confirmed", "#edfaf3", "#1a7a4a") +
           heading("Your order is confirmed", "Thank you for your Vitum Lab order. Your payment has been confirmed and your order is now being processed for shipment.") +
-          orderBox(order) + addressBox(order.shipping_address) +
+          orderBox(order, images) + addressBox(order.shipping_address) +
           `<p style="margin:0 0 4px;font-size:14px;color:#666;line-height:1.65;">You'll receive tracking information once your order ships. East Coast orders typically arrive in 2 days; Central and West Coast orders in 3 days via USPS Priority Mail.</p>`,
         ),
       };
@@ -212,7 +242,7 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
           pill("📦 Shipped", "#eaf1fd", "#2c5fdb") +
           heading("Your order is on the way", `Your order shipped via ${order.carrier || "USPS"}${order.tracking_number ? ` — tracking number <span style="font-family:monospace;font-weight:700;color:#0f1a2e;">${order.tracking_number}</span>` : ""}. East Coast orders typically arrive in 2 days; Central and West Coast in 3 days.`) +
           button("Track Your Package", track) +
-          orderBox(order) + addressBox(order.shipping_address),
+          orderBox(order, images) + addressBox(order.shipping_address),
         ),
       };
     }
@@ -224,7 +254,7 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
           pill("✓ Delivered", "#edfaf3", "#1a7a4a") +
           heading("Your order has been delivered", "Thanks for choosing Vitum Lab. Certificates of analysis for every lot are available in our COA library.") +
           button("View COA Library", `${baseUrl()}/coa-library`) +
-          orderBox(order),
+          orderBox(order, images),
         ),
       };
     case "cancelled":
@@ -234,7 +264,7 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
         html: layout(
           pill("Order Cancelled", "#f4f4f5", "#52525b") +
           heading("Your order was cancelled", `${order.cancel_reason ? `Reason: ${order.cancel_reason}.` : ""} ${opts?.wasPending !== false ? "No payment was collected for this order." : "If you believe this is a mistake, reply to this email and we'll make it right."}`) +
-          orderBox(order) +
+          orderBox(order, images) +
           button("Place a New Order", `${baseUrl()}/shop`),
         ),
       };
@@ -245,7 +275,7 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
         html: layout(
           pill("Payment Failed", "#fdecec", "#c0392b") +
           heading("Your payment didn't complete", "The payment for your order failed or expired, so the order was not processed and you have not been charged. You can place the order again any time.") +
-          orderBox(order) +
+          orderBox(order, images) +
           button("Try Again", `${baseUrl()}/shop`),
         ),
       };
@@ -258,7 +288,21 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
         html: layout(
           pill("New Paid Order", "#edfaf3", "#1a7a4a") +
           heading(`${money(order.net_amount)} — ready to fulfill`, `Customer: ${order.email}<br>Ship to: ${shipTo}`) +
-          orderBox(order) +
+          orderBox(order, images) +
+          button("Open Admin → Orders", `${baseUrl()}/admin`),
+        ),
+      };
+    }
+    case "admin_delivered": {
+      const a = order.shipping_address;
+      const shipTo = a?.line1 ? `${a.name ?? ""}, ${a.line1}${a.line2 ? ` ${a.line2}` : ""}, ${a.city}, ${a.state} ${a.postal_code}` : "no address on file";
+      return {
+        to: deliveredInbox(),
+        subject: `📬 Delivered — ${shortId} (${order.email})`,
+        html: layout(
+          pill("Order Delivered", "#edfaf3", "#1a7a4a") +
+          heading(`Order ${shortId} was delivered`, `Customer: ${order.email}<br>${order.tracking_number ? `Tracking: ${order.carrier || "USPS"} ${order.tracking_number}<br>` : ""}Ship to: ${shipTo}`) +
+          orderBox(order, images) +
           button("Open Admin → Orders", `${baseUrl()}/admin`),
         ),
       };
@@ -277,7 +321,8 @@ export async function sendOrderEvent(
 ): Promise<boolean> {
   if (!opts?.force && order.emails_sent?.[event]) return false;
   if (!order.email) return false;
-  const { to, subject, html } = buildOrderEmail(order, event, opts);
+  const images = await productImageMap().catch(() => ({}));
+  const { to, subject, html } = buildOrderEmail(order, event, opts, images);
   await send(to, subject, html);
   await stampEmail(order.id, event);
   return true;
