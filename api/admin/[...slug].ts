@@ -655,10 +655,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const PW = 288, PH = 432, M = 20; // 4×6 inches in points
     const black = rgb(0, 0, 0);
-    const LOGO_H = 30;
+    const LOGO_H = 26;
     const LOGO_W = (logo.width / logo.height) * LOGO_H;
-    const CONTENT_TOP = PH - M - LOGO_H - 44;
-    const FOOT = 40; // reserved footer zone
+    const CONTENT_TOP = PH - M - LOGO_H - 42;
+    const FOOT = 30; // reserved footer zone
     // Drop characters Helvetica (WinAnsi) can't encode, so a stray glyph never breaks the PDF.
     const clean = (s: string) => String(s).replace(/[^\t\n\r\x20-\x7E\xA0-\xFF]/g, "");
 
@@ -678,11 +678,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const initPage = (pg: ReturnType<typeof doc.addPage>) => {
       const logoY = PH - M - LOGO_H;
       pg.drawImage(logo, { x: M, y: logoY, width: LOGO_W, height: LOGO_H });
-      pg.drawText("Vitum Lab", { x: M + LOGO_W + 10, y: logoY + LOGO_H / 2 - 7, size: 19, font: bold, color: black });
-      pg.drawText("PACKING SLIP", { x: M, y: logoY - 20, size: 13, font: bold, color: black });
-      pg.drawLine({ start: { x: M, y: logoY - 28 }, end: { x: PW - M, y: logoY - 28 }, thickness: 1, color: black });
-      pg.drawText("FOR RESEARCH USE ONLY", { x: M, y: 26, size: 10, font: bold, color: black });
-      pg.drawText("vitumlab.com", { x: M, y: 13, size: 10, font: bold, color: black });
+      pg.drawText("Vitum Lab", { x: M + LOGO_W + 9, y: logoY + LOGO_H / 2 - 6, size: 16, font: bold, color: black });
+      pg.drawText("PACKING SLIP", { x: M, y: logoY - 17, size: 10, font: bold, color: black });
+      pg.drawLine({ start: { x: M, y: logoY - 25 }, end: { x: PW - M, y: logoY - 25 }, thickness: 1, color: black });
+      pg.drawText("FOR RESEARCH USE ONLY", { x: M, y: 21, size: 8, font: bold, color: black });
+      pg.drawText("vitumlab.com", { x: M, y: 11, size: 8, font: bold, color: black });
     };
 
     for (const o of orders) {
@@ -691,45 +691,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let y = CONTENT_TOP;
 
       const need = (h: number) => { if (y - h < FOOT) { page = doc.addPage([PW, PH]); initPage(page); y = CONTENT_TOP; } };
-      const text = (s: string, size: number, x = M) => { need(size); page.drawText(clean(s), { x, y, size, font: bold, color: black }); y -= size + 7; };
-      const hr = () => { need(10); page.drawLine({ start: { x: M, y: y + 5 }, end: { x: PW - M, y: y + 5 }, thickness: 1, color: black }); y -= 12; };
+      const text = (s: string, size: number, x = M) => { need(size); page.drawText(clean(s), { x, y, size, font: bold, color: black }); y -= size + 4; };
+      const hr = () => { need(7); page.drawLine({ start: { x: M, y: y + 4 }, end: { x: PW - M, y: y + 4 }, thickness: 0.8, color: black }); y -= 8; };
 
       // Order meta
-      text(`Order ${String(o.id).slice(0, 10)}`, 13);
-      text(`Date: ${new Date(o.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}`, 12);
-      if (o.tracking_number) for (const w of wrap(`Tracking: ${o.carrier || "USPS"} ${o.tracking_number}`, 12, PW - 2 * M)) text(w, 12);
+      text(`Order ${String(o.id).slice(0, 10)}`, 11);
+      text(`Date: ${new Date(o.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}`, 9);
+      if (o.tracking_number) for (const w of wrap(`Tracking: ${o.carrier || "USPS"} ${o.tracking_number}`, 9, PW - 2 * M)) text(w, 9);
       hr();
 
       // Ship to
-      text("SHIP TO", 11);
+      text("SHIP TO", 9);
       const a = o.shipping_address || {};
       const addrLines = [a.name, a.line1, a.line2, [a.city, a.state].filter(Boolean).join(", ") + (a.postal_code ? ` ${a.postal_code}` : ""), a.country]
         .filter((l) => l && String(l).trim());
-      for (const l of addrLines) for (const w of wrap(String(l), 13, PW - 2 * M)) text(w, 13);
+      for (const l of addrLines) for (const w of wrap(String(l), 10, PW - 2 * M)) text(w, 10);
       hr();
 
       // Items (qty + wrapped name)
-      text("ITEMS", 11);
-      const nameX = M + 28;
+      text("ITEMS", 9);
+      const nameX = M + 24;
       for (const it of o.items ?? []) {
         const isFree = it.cartCode === "bac-water-free";
-        const lines = wrap(`${it.name} ${it.dose}${isFree ? " (free gift)" : ""}`, 13, PW - M - nameX);
-        need(13);
-        page.drawText(`${it.quantity}x`, { x: M, y, size: 13, font: bold, color: black });
+        const lines = wrap(`${it.name} ${it.dose}${isFree ? " (free gift)" : ""}`, 10, PW - M - nameX);
+        need(10);
+        page.drawText(`${it.quantity}x`, { x: M, y, size: 10, font: bold, color: black });
         lines.forEach((ln, i) => {
-          if (i > 0) need(13);
-          page.drawText(ln, { x: nameX, y, size: 13, font: bold, color: black });
-          y -= 13 + (i === lines.length - 1 ? 9 : 3);
+          if (i > 0) need(10);
+          page.drawText(ln, { x: nameX, y, size: 10, font: bold, color: black });
+          y -= 10 + (i === lines.length - 1 ? 6 : 2);
         });
       }
       hr();
 
       // Total
-      need(18);
-      page.drawText("TOTAL", { x: M, y, size: 16, font: bold, color: black });
+      need(15);
+      page.drawText("TOTAL", { x: M, y, size: 13, font: bold, color: black });
       const tot = money(o.net_amount);
-      page.drawText(tot, { x: PW - M - bold.widthOfTextAtSize(tot, 16), y, size: 16, font: bold, color: black });
-      y -= 24;
+      page.drawText(tot, { x: PW - M - bold.widthOfTextAtSize(tot, 13), y, size: 13, font: bold, color: black });
+      y -= 18;
     }
     const bytes = await doc.save();
     return res.json({ pdf: Buffer.from(bytes).toString("base64") });
