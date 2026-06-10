@@ -31,13 +31,18 @@ The Vite root is `client/` (not repo root). Path aliases: `@` → `client/src`, 
 
 ```
 client/src/
-  pages/            Page components (Shop, ProductDetail, Home, COALibrary, AdminDashboard, etc.)
-  components/       Navbar, Footer, CartDrawer, LegalPage, ReconstitutionCalculator, etc.
+  pages/            Page components (Shop, ProductDetail, Home, COALibrary, Checkout, Account, AdminDashboard, etc.)
+    admin/          AdminDashboard split into focused files: types.ts, shared.tsx (money/date
+                    formatters, status color maps, <Kpi>, <RevenueChart>, <Field>), ProductModal.tsx,
+                    and self-contained ShippingTab/CustomersTab/PromosTab/AffiliatesTab. The parent
+                    AdminDashboard.tsx keeps Overview/Products/Inventory/Orders + loadData + order state.
+  components/       Navbar, Footer, CartDrawer, OrderTimeline, AddressAutocomplete, ReconstitutionCalculator, etc.
   lib/
     products.ts     Single source of truth — all product/variant data and cartCodes
     supabase.ts     Browser Supabase client (anon key via VITE_SUPABASE_ANON_KEY)
     api.ts          authedFetch helper — attaches Supabase JWT as Bearer token
-  contexts/         CartContext (sessionStorage), ThemeContext (dark mode), AuthContext (Supabase Auth)
+    promo.ts        Capture/persist a shared ?code= / ?ref= discount code (affiliate share links)
+  contexts/         CartContext (sessionStorage; free gift capped at qty 1), ThemeContext (dark mode), AuthContext (Supabase Auth)
   hooks/
     useInventory.ts Fetches /api/inventory, exposes isAvailable(cartCode)/stockLabel(cartCode)
 
@@ -70,6 +75,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                        item rows include a 40px product thumbnail (resolved from products.variants by cartCode),
                        idempotent via orders.emails_sent; deferEmail() = waitUntil with local fallback
     shippo.ts          USPS labels (buyLabel — Priority Mail Flat Rate Padded Envelope) + getTrackingStatus; token = test/live
+    pricing.ts         Pure order math + promo validation (gross/discount/net/commission, isFreeOrder, isPromoUsable) — unit-tested
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
     requireAffiliate.ts requireUser + checks affiliates table
