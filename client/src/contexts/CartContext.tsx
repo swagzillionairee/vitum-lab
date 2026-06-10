@@ -77,22 +77,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
     saveCart(items);
   }, [items]);
 
-  // Auto-add / auto-remove free BAC Water based on subtotal
+  // Auto-add / auto-remove free BAC Water based on subtotal.
+  // The free gift is always capped at quantity 1 — one per qualifying order.
   useEffect(() => {
     const paidSubtotal = items
       .filter((i) => !i.isFreeGift)
       .reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-    const hasFreeGift = items.some((i) => i.id === FREE_BAC_WATER.id);
+    const freeGift = items.find((i) => i.id === FREE_BAC_WATER.id);
+    const qualifies = paidSubtotal >= FREE_SHIPPING_THRESHOLD;
 
-    if (paidSubtotal >= FREE_SHIPPING_THRESHOLD && !hasFreeGift) {
+    if (qualifies && !freeGift) {
       setItems((prev) => [...prev, { ...FREE_BAC_WATER, quantity: 1 }]);
       toast.success("🎉 Free BAC Water added to your cart!", {
         description: "You've unlocked free shipping + a free BAC Water.",
         duration: 4000,
       });
-    } else if (paidSubtotal < FREE_SHIPPING_THRESHOLD && hasFreeGift) {
+    } else if (!qualifies && freeGift) {
       setItems((prev) => prev.filter((i) => i.id !== FREE_BAC_WATER.id));
+    } else if (qualifies && freeGift && freeGift.quantity !== 1) {
+      // Defensive: never let the free gift exceed 1.
+      setItems((prev) => prev.map((i) => (i.id === FREE_BAC_WATER.id ? { ...i, quantity: 1 } : i)));
     }
   }, [items]);
 
@@ -103,6 +108,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => {
       const existing = prev.find((i) => i.id === newItem.id);
       if (existing) {
+        // Free gifts are limited to one per order — never increment.
+        if (existing.isFreeGift) return prev;
         return prev.map((i) =>
           i.id === newItem.id ? { ...i, quantity: i.quantity + 1 } : i
         );
@@ -121,7 +128,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setItems((prev) => prev.filter((i) => i.id !== id));
     } else {
       setItems((prev) =>
-        prev.map((i) => (i.id === id ? { ...i, quantity } : i))
+        // Free gifts are pinned to quantity 1 regardless of the requested value.
+        prev.map((i) => (i.id === id ? { ...i, quantity: i.isFreeGift ? 1 : quantity } : i))
       );
     }
   }, []);

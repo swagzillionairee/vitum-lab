@@ -181,40 +181,49 @@ export default function CartDrawer() {
                         </p>
 
                         {/* Quantity stepper + price row */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1 border border-[oklch(0.88_0.004_260)] rounded-lg overflow-hidden">
-                            <button
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                              className="w-7 h-7 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] transition-colors active:scale-95"
-                              aria-label="Decrease quantity"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="w-7 text-center text-[0.8125rem] font-semibold text-[oklch(0.13_0.01_260)]">
-                              {item.quantity}
+                        {item.isFreeGift ? (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[0.6875rem] font-semibold px-2.5 py-1 rounded-full bg-[oklch(0.95_0.04_155)] text-[oklch(0.40_0.14_155)]">
+                              Free gift · limit 1
                             </span>
-                            <button
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                              className="w-7 h-7 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] transition-colors active:scale-95"
-                              aria-label="Increase quantity"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
+                            <span className="text-[0.875rem] font-bold text-[oklch(0.40_0.14_155)]">Free</span>
                           </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1 border border-[oklch(0.88_0.004_260)] rounded-lg overflow-hidden">
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                className="w-7 h-7 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] transition-colors active:scale-95"
+                                aria-label="Decrease quantity"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="w-7 text-center text-[0.8125rem] font-semibold text-[oklch(0.13_0.01_260)]">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                className="w-7 h-7 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] transition-colors active:scale-95"
+                                aria-label="Increase quantity"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
 
-                          <div className="flex items-center gap-2">
-                            <span className="text-[0.875rem] font-bold text-[oklch(0.13_0.01_260)]">
-                              ${(item.price * item.quantity).toFixed(2)}
-                            </span>
-                            <button
-                              onClick={() => removeItem(item.id)}
-                              className="w-6 h-6 flex items-center justify-center text-[oklch(0.70_0.01_260)] hover:text-red-500 transition-colors"
-                              aria-label={`Remove ${item.name}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[0.875rem] font-bold text-[oklch(0.13_0.01_260)]">
+                                ${(item.price * item.quantity).toFixed(2)}
+                              </span>
+                              <button
+                                onClick={() => removeItem(item.id)}
+                                className="w-6 h-6 flex items-center justify-center text-[oklch(0.70_0.01_260)] hover:text-red-500 transition-colors"
+                                aria-label={`Remove ${item.name}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </motion.div>
                   ))}
