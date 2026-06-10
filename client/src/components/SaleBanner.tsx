@@ -54,7 +54,7 @@ export default function SaleBanner() {
   return (
     <Link
       href="/shop"
-      className="block bg-[oklch(0.40_0.16_260)] text-white hover:bg-[oklch(0.36_0.16_260)] transition-colors"
+      className="block bg-[oklch(0.84_0.16_85)] text-[oklch(0.24_0.05_70)] hover:bg-[oklch(0.80_0.16_85)] transition-colors"
       aria-label={`${label}: ${sale.percent}% off everything`}
     >
       <div className="container py-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 text-center">
@@ -62,7 +62,7 @@ export default function SaleBanner() {
           🔥 {label} — {sale.percent}% OFF everything
         </span>
         {remaining != null && (
-          <span className="text-[0.75rem] font-semibold tabular-nums bg-white/15 rounded-full px-2.5 py-0.5">
+          <span className="text-[0.75rem] font-bold tabular-nums bg-black/10 rounded-full px-2.5 py-0.5">
             Ends in {formatRemaining(remaining)}
           </span>
         )}

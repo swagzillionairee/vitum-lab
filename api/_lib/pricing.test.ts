@@ -184,14 +184,12 @@ describe("isSitewideActive", () => {
 });
 
 describe("sitewideSalePrice", () => {
-  it("applies a site-wide percentage to the base price", () => {
-    expect(sitewideSalePrice(129, 20)).toBe(103.2);
-    expect(sitewideSalePrice(12, 25)).toBe(9);
-    expect(sitewideSalePrice(69, 10)).toBe(62.1);
-  });
-  it("rounds to cents", () => {
-    expect(sitewideSalePrice(189, 15)).toBe(160.65);
-    expect(sitewideSalePrice(99.99, 33)).toBe(66.99); // 66.9933 → 66.99
+  it("applies a site-wide percentage and rounds UP to the nearest dollar", () => {
+    expect(sitewideSalePrice(129, 20)).toBe(104); // 103.2 → 104
+    expect(sitewideSalePrice(12, 25)).toBe(9); // exactly 9
+    expect(sitewideSalePrice(69, 10)).toBe(63); // 62.1 → 63
+    expect(sitewideSalePrice(189, 15)).toBe(161); // 160.65 → 161
+    expect(sitewideSalePrice(99.99, 33)).toBe(67); // 66.99 → 67
   });
   it("clamps the percentage to 0–100 and coerces junk", () => {
     expect(sitewideSalePrice(100, -5)).toBe(100); // negative → no discount

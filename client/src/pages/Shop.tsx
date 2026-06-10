@@ -103,7 +103,8 @@ function ProductCard({ p }: { p: FlatProduct }) {
         <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-2">LOT: {p.lot}</p>
         <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{p.description}</p>
 
-        <div className="flex items-center justify-between">
+        <div className="space-y-3">
+          {/* Price */}
           <div>
             {p.salePrice != null ? (
               <div className="flex items-baseline gap-2">
@@ -117,10 +118,11 @@ function ProductCard({ p }: { p: FlatProduct }) {
               <p className="text-[0.6875rem] text-amber-600 font-semibold mt-0.5">{label}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          {/* COA + Add to Cart (own row so they never overlap the price) */}
+          <div className="flex items-center justify-between gap-2">
             <a
               href={`/coa-library#${p.cartCode}`}
-              className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors"
+              className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors flex-shrink-0"
             >
               <FileText className="w-3.5 h-3.5" /> COA
             </a>

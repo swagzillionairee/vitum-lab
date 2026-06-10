@@ -42,14 +42,14 @@ export function applyCredit(net: number, balance: number): { creditApplied: numb
 }
 
 /**
- * Per-unit price after a site-wide sale of `percentOff` is applied to `base`.
- * Used by /api/products to project the active site-wide sale onto every variant
- * (so the storefront shows the strikethrough original + the new price, and the
- * discounted price flows into the cart). Never returns more than the base price.
+ * Per-unit price after a site-wide sale of `percentOff` is applied to `base`,
+ * rounded UP to the nearest whole dollar (so the storefront shows clean prices
+ * like $104 instead of $103.20). Used by /api/products to project the active
+ * site-wide sale onto every variant. Never returns more than the base price.
  */
 export function sitewideSalePrice(base: number, percentOff: number): number {
   const pct = Math.max(0, Math.min(100, Number(percentOff) || 0));
-  return round2((Number(base) || 0) * (1 - pct / 100));
+  return Math.ceil((Number(base) || 0) * (1 - pct / 100));
 }
 
 /**

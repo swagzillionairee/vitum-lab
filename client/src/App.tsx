@@ -17,7 +17,6 @@ import Footer from "./components/Footer";
 import CookieConsent from "./components/CookieConsent";
 import CartDrawer from "./components/CartDrawer";
 import BackToTop from "./components/BackToTop";
-import SaleBanner from "./components/SaleBanner";
 import { CartProvider } from "./contexts/CartContext";
 import { capturePromoFromUrl } from "./lib/promo";
 import Home from "./pages/Home";
@@ -143,7 +142,6 @@ function AppLayout() {
         <AgeGate onVerified={() => setVerified(true)} />
       )}
       <div className={gated ? "pointer-events-none select-none blur-sm" : ""}>
-        <SaleBanner />
         <Navbar />
         <main>
           <Router />

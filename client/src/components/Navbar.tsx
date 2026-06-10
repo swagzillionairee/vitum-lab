@@ -13,6 +13,7 @@ import { ShoppingCart, Menu, X, Sun, Moon, User } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import SaleBanner from "@/components/SaleBanner";
 
 const navLinks = [
   { label: "Shop", href: "/shop" },
@@ -46,6 +47,9 @@ export default function Navbar() {
 
   return (
     <header className={`sticky top-0 z-50 bg-white dark:bg-[oklch(0.13_0.02_260)] border-b border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] transition-shadow duration-200 ${scrolled ? "shadow-[0_2px_16px_oklch(0.13_0.01_260/0.12)] dark:shadow-[0_2px_16px_oklch(0_0_0/0.5)]" : "shadow-[0_1px_4px_oklch(0.13_0.01_260/0.06)] dark:shadow-[0_1px_4px_oklch(0_0_0/0.3)]"}`}>
+
+      {/* Site-wide sale banner — first in the sticky header so it stays pinned at the very top on scroll. */}
+      <SaleBanner />
 
       {/* ── Promotional marquee banner ────────────────────────────────── */}
       <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden">
@@ -98,7 +102,7 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`text-sm font-medium transition-colors duration-150 ${
+                className={`text-sm ${link.href === "/shop" ? "font-bold" : "font-medium"} transition-colors duration-150 ${
                   location === link.href
                     ? "text-[oklch(0.13_0.01_260)] dark:text-[oklch(0.94_0.006_260)] border-b-2 border-[oklch(0.13_0.01_260)] dark:border-[oklch(0.94_0.006_260)] pb-0.5"
                     : "text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)] hover:text-[oklch(0.13_0.01_260)] dark:hover:text-[oklch(0.94_0.006_260)]"
@@ -173,7 +177,7 @@ export default function Navbar() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileOpen(false)}
-                className={`text-sm font-medium py-2.5 px-3 rounded-xl transition-colors ${
+                className={`text-sm ${link.href === "/shop" ? "font-bold" : "font-medium"} py-2.5 px-3 rounded-xl transition-colors ${
                   location === link.href
                     ? "bg-[oklch(0.96_0.003_260)] dark:bg-[oklch(0.20_0.02_260)] text-[oklch(0.13_0.01_260)] dark:text-[oklch(0.94_0.006_260)]"
                     : "text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)]"
