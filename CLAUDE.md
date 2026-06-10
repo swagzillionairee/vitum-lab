@@ -61,6 +61,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                              affiliates GET/POST/PATCH, payouts POST/DELETE, promos CRUD,
                              site-promo GET/PUT → the store-wide sale (enabling it clears all per-variant sale prices),
                              quantity-tiers GET/PUT → quantity discount tiers, rewards GET/PUT → loyalty % + referral amounts,
+                             order-pdfs POST {ids,type} → combined 4×6 label PDF or packing slips (bulk, via pdf-lib),
                              waitlist GET → pending back-in-stock counts per cart_code,
                              users GET → Supabase Auth list + per-customer order count/lifetime spend for the Customers tab,
                              shipments GET → orders with a tracking number for the Shipping tab (bulk-copy for USPS))
@@ -80,7 +81,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                        + sendAffiliateCommission/sendAffiliateStatement/sendBackInStock/sendLowStockDigest),
                        item rows include a 40px product thumbnail (resolved from products.variants by cartCode),
                        idempotent via orders.emails_sent; deferEmail() = waitUntil with local fallback
-    shippo.ts          USPS labels (buyLabel — Priority Mail Flat Rate Padded Envelope) + getTrackingStatus; token = test/live
+    shippo.ts          USPS labels (buyLabel — Priority Mail Flat Rate Padded Envelope, 4×6 PDF) + getTrackingStatus + validateAddress (checkout address check); token = test/live
     pricing.ts         Pure order math + promo validation (gross/discount/net/commission, isFreeOrder, applyCredit, isPromoUsable,
                        sitewideSalePrice, isSitewideActive, promoAlreadyRedeemed [one-use-per-email],
                        quantityDiscountPercent + computeStackedDiscounts [quantity tier → code, with breakdown lines]) — unit-tested
@@ -317,14 +318,16 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 ---
 
-## Planned / Next (NOT yet built — requested June 2026)
+## Recently shipped (June 2026)
 
-These are documented for a future implementation pass — do not assume they exist yet.
+**Shippo 4×6 labels — built.** `buyLabel` requests `label_file_type: "PDF_4x6"` so labels print on a 4×6 thermal label printer (Shippo also supports `ZPLII` if a Zebra is ever used).
 
-**1. Shippo labels → 4×6 thermal format.** `buyLabel` in `api/_lib/shippo.ts` currently returns Shippo's default **letter-size** PDF, but the owner prints on a **4×6 label printer**. Fix: pass `label_file_type: "PDF_4x6"` on the Shippo transaction so the label PDF matches a 4×6 printer (Shippo also supports `ZPLII` for Zebra thermal printers if ever needed). Applies to the single Buy-label flow **and** the bulk combined-label PDF below.
+**Bulk order actions (Admin → Orders) — built.** The bulk-select bar (when ≥1 order is selected) has **Re-check / Buy labels / Mark delivered / Cancel** — each loops the selected IDs through the existing per-order PATCH actions with a success/fail summary — plus two combined PDFs: **Label PDF** (merges the selected orders' 4×6 `label_url` PDFs into one print job via `pdf-lib`; skips + reports unlabeled orders) and **Packing slips** (one US-Letter page per order: ship-to + products + total). Backed by `POST /api/admin/order-pdfs {ids, type:"labels"|"slips"}` (admin catch-all; returns a base64 PDF the client opens as a Blob). New dependency: **`pdf-lib`**.
 
-**2. Bulk order actions (Admin → Orders).** The bulk-select bar (currently **Delete selected** only — see `AdminDashboard.tsx`) should gain, when ≥1 order is selected:
-- **Recheck**, **Buy label**, **Mark delivered**, **Cancel** — each loops the selected order IDs through the **existing** per-order PATCH actions in `api/admin/[...slug].ts` (`recheck` / `buy_label` / `deliver` / `cancel`), with a per-order result summary/toast. Mostly a UI loop over actions that already exist.
-- **Label** (combined PDF) — merge all selected orders' shipping labels (`orders.label_url`, the 4×6 PDFs from item 1) into **one combined PDF** so they can be printed in a single job (one 4×6 page per order; skip orders with no label, or buy first).
-- **Billing/packing slip** (separate combined PDF) — **one page per order** listing the products shipped (name/dose/qty) + the order total, for picking/packing.
-- Implementation notes: fold a new route into the **admin catch-all** (functions are at **12/12** — do NOT add a root `api/*` file) that fetches each `label_url` and generates/merges the PDFs with **`pdf-lib`** (new dependency). The combined-label action depends on labels existing (4×6), so it may need to buy labels for any unlabeled selected orders first.
+**Product-page quantity discounts — built.** ProductDetail shows a quantity stepper + bulk-savings shortcut buttons ("Buy 3 · save 5%") from the configured quantity tiers (`/api/public/site`); Add-to-Cart adds the chosen quantity. The tier discount still applies cart-wide at checkout (server-authoritative).
+
+**Researcher / 21+ attestation — built.** A required acknowledgment checkbox at checkout gates the place-order button and is re-validated server-side in `create-crypto-payment` (`attestation` must be true).
+
+**Shippo address validation — built.** `validateAddress()` (`api/_lib/shippo.ts`) runs in `create-crypto-payment` at order creation and rejects undeliverable addresses; **fails open** on any Shippo error/outage so it never blocks sales spuriously.
+
+**SEO — built.** The `SEO` component emits keywords, OG image/url, Twitter card, and JSON-LD; **Product** schema on product pages + **Organization/WebSite** on home. `client/public/sitemap.xml` covers product + content pages (incl. /research, /dose-calculator, /track); `robots.txt` disallows private routes.

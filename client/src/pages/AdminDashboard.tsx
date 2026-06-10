@@ -222,6 +222,51 @@ export default function AdminDashboard() {
     await deleteOrders(ids);
   };
 
+  // Run an existing per-order action across the whole selection.
+  const [bulkBusy, setBulkBusy] = useState<string | null>(null);
+  const handleBulkAction = async (action: "recheck" | "buy_label" | "deliver" | "cancel") => {
+    const ids = Array.from(selectedOrders);
+    if (ids.length === 0) return;
+    const labels: Record<string, string> = { recheck: "Re-check", buy_label: "Buy labels", deliver: "Mark delivered", cancel: "Cancel" };
+    if (action === "cancel" && !confirm(`Cancel ${ids.length} selected order(s)? Paid orders are restocked and a cancellation email is sent.`)) return;
+    setBulkBusy(action);
+    let ok = 0;
+    const fails: string[] = [];
+    for (const id of ids) {
+      try {
+        const body: Record<string, unknown> = { id, action };
+        if (action === "cancel") body.reason = "Cancelled by admin";
+        const res = await authedFetch("/api/admin/orders", { method: "PATCH", body: JSON.stringify(body) });
+        if (res.ok) ok++; else fails.push(id.slice(0, 8));
+      } catch { fails.push(id.slice(0, 8)); }
+    }
+    setBulkBusy(null);
+    await loadOrders();
+    loadData();
+    alert(`${labels[action]}: ${ok} succeeded${fails.length ? `, ${fails.length} failed (${fails.join(", ")})` : ""}.`);
+  };
+
+  // Combined PDF: merged 4×6 shipping labels, or one-page-per-order packing slips.
+  const handleBulkPdf = async (type: "labels" | "slips") => {
+    const ids = Array.from(selectedOrders);
+    if (ids.length === 0) return;
+    setBulkBusy(type);
+    try {
+      const res = await authedFetch("/api/admin/order-pdfs", { method: "POST", body: JSON.stringify({ ids, type }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(data.error ?? "Failed to build PDF"); return; }
+      const bytes = Uint8Array.from(atob(data.pdf), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      if (type === "labels" && Array.isArray(data.skipped) && data.skipped.length) {
+        alert(`Combined ${data.included} label(s). ${data.skipped.length} selected order(s) had no label and were skipped — buy labels for them first.`);
+      }
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
   const loadData = useCallback(async () => {
     setLoadError(null);
     try {
@@ -711,20 +756,38 @@ export default function AdminDashboard() {
 
             {/* Bulk action bar (appears when one or more orders are selected) */}
             {selectedOrders.size > 0 && (
-              <div className="flex items-center justify-between gap-3 mb-4 px-4 py-2.5 rounded-xl bg-[oklch(0.97_0.02_260)] border border-[oklch(0.90_0.04_260)]">
-                <span className="text-[0.8125rem] font-semibold text-[oklch(0.30_0.10_260)]">
+              <div className="flex flex-wrap items-center gap-2 mb-4 px-4 py-2.5 rounded-xl bg-[oklch(0.97_0.02_260)] border border-[oklch(0.90_0.04_260)]">
+                <span className="text-[0.8125rem] font-semibold text-[oklch(0.30_0.10_260)] mr-1">
                   {selectedOrders.size} selected
                 </span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setSelectedOrders(new Set())}
-                    className="text-[0.75rem] font-semibold text-[oklch(0.45_0.01_260)] hover:text-[oklch(0.13_0.01_260)]">
-                    Clear
+                {([
+                  ["recheck", "Re-check"],
+                  ["buy_label", "Buy labels"],
+                  ["deliver", "Mark delivered"],
+                  ["cancel", "Cancel"],
+                ] as const).map(([action, label]) => (
+                  <button key={action} onClick={() => handleBulkAction(action)} disabled={bulkBusy !== null}
+                    className="text-[0.75rem] font-semibold text-[oklch(0.30_0.10_260)] border border-[oklch(0.80_0.04_260)] bg-white px-2.5 py-1.5 rounded-lg hover:bg-[oklch(0.99_0.01_260)] disabled:opacity-50">
+                    {bulkBusy === action ? "…" : label}
                   </button>
-                  <button onClick={handleBulkDelete}
-                    className="flex items-center gap-1.5 text-[0.75rem] font-semibold text-white bg-red-600 px-3 py-1.5 rounded-lg hover:bg-red-700">
-                    <Trash2 className="w-3.5 h-3.5" /> Delete selected
-                  </button>
-                </div>
+                ))}
+                <button onClick={() => handleBulkPdf("labels")} disabled={bulkBusy !== null}
+                  className="text-[0.75rem] font-semibold text-[oklch(0.30_0.10_260)] border border-[oklch(0.80_0.04_260)] bg-white px-2.5 py-1.5 rounded-lg hover:bg-[oklch(0.99_0.01_260)] disabled:opacity-50">
+                  {bulkBusy === "labels" ? "…" : "Label PDF"}
+                </button>
+                <button onClick={() => handleBulkPdf("slips")} disabled={bulkBusy !== null}
+                  className="text-[0.75rem] font-semibold text-[oklch(0.30_0.10_260)] border border-[oklch(0.80_0.04_260)] bg-white px-2.5 py-1.5 rounded-lg hover:bg-[oklch(0.99_0.01_260)] disabled:opacity-50">
+                  {bulkBusy === "slips" ? "…" : "Packing slips"}
+                </button>
+                <div className="flex-1" />
+                <button onClick={handleBulkDelete} disabled={bulkBusy !== null}
+                  className="flex items-center gap-1.5 text-[0.75rem] font-semibold text-white bg-red-600 px-3 py-1.5 rounded-lg hover:bg-red-700 disabled:opacity-50">
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+                <button onClick={() => setSelectedOrders(new Set())}
+                  className="text-[0.75rem] font-semibold text-[oklch(0.45_0.01_260)] hover:text-[oklch(0.13_0.01_260)]">
+                  Clear
+                </button>
               </div>
             )}
 

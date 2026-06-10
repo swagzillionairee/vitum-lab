@@ -607,6 +607,84 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // ── /api/admin/order-pdfs — combined 4×6 labels OR packing slips (bulk) ─────
+  if (route === "order-pdfs") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const { ids, type } = req.body as { ids?: string[]; type?: "labels" | "slips" };
+    if (!ids?.length) return res.status(400).json({ error: "No orders selected" });
+    if (type !== "labels" && type !== "slips") return res.status(400).json({ error: "Invalid PDF type" });
+
+    const { data: rows } = await supabaseAdmin
+      .from("orders")
+      .select("id, email, items, net_amount, shipping_address, label_url, tracking_number, carrier, created_at")
+      .in("id", ids.slice(0, 100));
+    const orders = ids.map((id) => (rows ?? []).find((r) => r.id === id)).filter(Boolean) as Array<{
+      id: string; items: { name: string; dose: string; quantity: number; cartCode?: string }[] | null;
+      net_amount: number | string; shipping_address: Record<string, string> | null;
+      label_url: string | null; tracking_number: string | null; carrier: string | null; created_at: string;
+    }>;
+    if (orders.length === 0) return res.status(404).json({ error: "Orders not found" });
+
+    const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+
+    if (type === "labels") {
+      const merged = await PDFDocument.create();
+      let included = 0;
+      const skipped: string[] = [];
+      for (const o of orders) {
+        if (!o.label_url) { skipped.push(o.id.slice(0, 8)); continue; }
+        try {
+          const buf = await fetch(o.label_url).then((r) => r.arrayBuffer());
+          const src = await PDFDocument.load(buf);
+          const pages = await merged.copyPages(src, src.getPageIndices());
+          pages.forEach((p) => merged.addPage(p));
+          included++;
+        } catch { skipped.push(o.id.slice(0, 8)); }
+      }
+      if (included === 0) return res.status(400).json({ error: "None of the selected orders have a label yet — buy labels first." });
+      const bytes = await merged.save();
+      return res.json({ pdf: Buffer.from(bytes).toString("base64"), included, skipped });
+    }
+
+    // Packing slips — one US-Letter page per order (products shipped + total).
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const money = (n: number | string | null) => `$${(Number(n) || 0).toFixed(2)}`;
+    for (const o of orders) {
+      const page = doc.addPage([612, 792]);
+      const margin = 56;
+      let y = 792 - margin;
+      const line = (s: string, size: number, f = font, color = rgb(0.1, 0.1, 0.15)) => {
+        page.drawText(s, { x: margin, y, size, font: f, color });
+        y -= size + 8;
+      };
+      line("Vitum Lab — Packing Slip", 20, bold);
+      y -= 4;
+      line(`Order ${String(o.id).slice(0, 10)}`, 11, font, rgb(0.4, 0.4, 0.45));
+      line(`Date: ${new Date(o.created_at).toLocaleDateString("en-US")}`, 11, font, rgb(0.4, 0.4, 0.45));
+      if (o.tracking_number) line(`Tracking: ${o.carrier || "USPS"} ${o.tracking_number}`, 11, font, rgb(0.4, 0.4, 0.45));
+      y -= 8;
+      const a = o.shipping_address || {};
+      line("SHIP TO", 10, bold, rgb(0.5, 0.5, 0.55));
+      const addrLines = [a.name, a.line1, a.line2, [a.city, a.state].filter(Boolean).join(", ") + (a.postal_code ? ` ${a.postal_code}` : ""), a.country]
+        .filter((l) => l && String(l).trim());
+      for (const l of addrLines) line(String(l), 12);
+      y -= 12;
+      line("ITEMS", 10, bold, rgb(0.5, 0.5, 0.55));
+      for (const it of o.items ?? []) {
+        line(`${it.quantity} x  ${it.name} ${it.dose}${it.cartCode === "bac-water-free" ? "  (free gift)" : ""}`, 12);
+      }
+      y -= 6;
+      page.drawLine({ start: { x: margin, y: y + 6 }, end: { x: 612 - margin, y: y + 6 }, thickness: 1, color: rgb(0.85, 0.85, 0.88) });
+      y -= 6;
+      line(`Order total: ${money(o.net_amount)}`, 14, bold);
+      page.drawText("For laboratory / in-vitro research use only — not for human or veterinary consumption.", { x: margin, y: margin, size: 9, font, color: rgb(0.6, 0.6, 0.65) });
+    }
+    const bytes = await doc.save();
+    return res.json({ pdf: Buffer.from(bytes).toString("base64") });
+  }
+
   // ── /api/admin/affiliates ────────────────────────────────────────────────
   if (route === "affiliates") {
     if (req.method === "GET") {
