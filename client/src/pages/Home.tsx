@@ -399,7 +399,27 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
-      <SEO description="Vitum Lab — Research grade peptides including GLP-3 (R), GHK-Cu, and NAD+. ≥99% purity, third-party COA tested. Free shipping on orders over $150." />
+      <SEO
+        description="Vitum Lab — research-grade peptides: GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. ≥99% purity, third-party HPLC tested, COA with every order. Free shipping over $150. For laboratory research use only."
+        canonical="https://vitumlab.com/"
+        jsonLd={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "Vitum Lab",
+            url: "https://vitumlab.com",
+            logo: "https://vitumlab.com/vitum%20lab%20logo%20black.png",
+            email: "hello@vitumlab.com",
+            description: "Research-grade peptides — GLP-3 (R) / Retatrutide, GHK-Cu, NAD+ — ≥99% purity, third-party tested, COA with every order. For laboratory research use only.",
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "Vitum Lab",
+            url: "https://vitumlab.com",
+          },
+        ]}
+      />
 
       {/* ═══════════════════════════════════════════════════════════════
           1. HERO — split layout
