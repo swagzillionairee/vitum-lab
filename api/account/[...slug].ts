@@ -29,7 +29,7 @@ export default async function handler(req: any, res: any) {
     const { data, error } = await supabaseAdmin
       .from("orders")
       .select(
-        "id, items, gross_amount, discount_amount, net_amount, status, fulfillment_status, tracking_number, carrier, created_at, confirmed_at, shipped_at, delivered_at, cancelled_at, cancel_reason, shipping_address",
+        "id, items, gross_amount, discount_amount, net_amount, shipping_amount, status, fulfillment_status, tracking_number, carrier, created_at, confirmed_at, shipped_at, delivered_at, cancelled_at, cancel_reason, shipping_address",
       )
       .eq("email", user.email)
       .order("created_at", { ascending: false });

@@ -15,7 +15,7 @@ function sortKeys(obj: unknown): unknown {
 }
 
 const ORDER_COLS =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, credit_applied, referral_code, shipping_address, status, affiliate_id, commission_amount, emails_sent, admin_notes";
+  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, credit_applied, referral_code, shipping_address, status, affiliate_id, commission_amount, emails_sent, admin_notes";
 
 // Email the attributed affiliate their commission (once, via emails_sent).
 async function notifyAffiliate(order: any) {

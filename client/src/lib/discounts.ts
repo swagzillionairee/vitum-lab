@@ -20,3 +20,15 @@ export function quantityDiscountPercent(tiers: QuantityTier[] | null | undefined
 }
 
 export const round2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
+
+export const SHIPPING_FEE = 15;
+export const FREE_SHIPPING_THRESHOLD = 150;
+
+/**
+ * Flat $15 shipping under the free-shipping threshold, free at $150+ —
+ * mirror of api/_lib/pricing.ts → shippingFee. Based on the pre-discount
+ * item subtotal (same basis as the free BAC Water gift).
+ */
+export function shippingFee(subtotal: number): number {
+  return (Number(subtotal) || 0) >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
+}
