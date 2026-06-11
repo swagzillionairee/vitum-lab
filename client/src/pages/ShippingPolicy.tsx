@@ -26,7 +26,7 @@ export default function ShippingPolicy() {
 
       <h2>Free Shipping Promotion</h2>
       <p>
-        Orders totaling <strong>$150 or more</strong> qualify for free shipping. Orders below this threshold are subject to a flat <strong>$15</strong> shipping rate, displayed at checkout. Free shipping applies to domestic U.S. orders only.
+        Orders totaling <strong>$150 or more</strong> qualify for free shipping. Orders below this threshold are subject to a flat <strong>$15</strong> shipping rate, displayed at checkout. The $150 threshold is determined by your item subtotal <strong>before any discount codes or store credit are applied</strong>, so a discount never affects your free-shipping eligibility. Free shipping applies to domestic U.S. orders only.
       </p>
 
       <h2>Complimentary BAC Water</h2>
