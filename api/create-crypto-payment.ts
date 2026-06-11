@@ -4,6 +4,7 @@ import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyC
 import { getBalance, reserveCredit, getRewardConfig, earnLoyalty, grantReferralReward, type RewardConfig } from "./_lib/credit.js";
 import { validateAddress } from "./_lib/shippo.js";
 import { buildOrderId } from "./_lib/orderId.js";
+import { requireUser } from "./_lib/requireUser.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 
@@ -96,10 +97,20 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
+  // Checkout requires a signed-in customer. The order email — which drives store
+  // credit, loyalty, referrals, and order-history matching — comes from the
+  // validated JWT, NEVER the request body, so nobody can place an order as
+  // another customer or spend someone else's store credit.
+  const user = await requireUser(req);
+  if (!user) {
+    res.status(401).json({ error: "Please sign in to place an order." });
+    return;
+  }
+  const email = user.email;
+
   try {
-    const { items, email, discountCode, shipping, attestation } = req.body as {
+    const { items, discountCode, shipping, attestation } = req.body as {
       items: { name: string; dose: string; quantity: number; cartCode: string; price: number }[];
-      email: string;
       total: number;
       discountCode?: string;
       affiliateId?: string;
@@ -111,7 +122,7 @@ export default async function handler(req: any, res: any) {
       };
     };
 
-    if (!items?.length || !email) {
+    if (!items?.length) {
       res.status(400).json({ error: "Missing required fields" });
       return;
     }

@@ -77,10 +77,16 @@ export default async function handler(req: any, res: any) {
           const items = (order.items as { cartCode: string; quantity: number; price: number }[]) ?? [];
           for (const item of items) {
             if (item.price > 0 && item.cartCode !== "bac-water-free") {
-              await supabaseAdmin.rpc("decrement_stock", {
+              const { error: decErr } = await supabaseAdmin.rpc("decrement_stock", {
                 p_cart_code: item.cartCode,
                 p_qty: item.quantity,
               });
+              // The payment succeeded, so we still confirm the order — but a
+              // decrement failure means we oversold (a concurrent last-unit
+              // sale). Log loudly for reconciliation; never block confirmation.
+              if (decErr) {
+                console.error(`⚠️ OVERSOLD: decrement_stock failed for order ${payload.order_id} — ${item.cartCode} x${item.quantity}: ${decErr.message}`);
+              }
             }
           }
 

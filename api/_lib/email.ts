@@ -112,6 +112,16 @@ async function stampEmail(orderId: string, event: string) {
 // ─── Shared layout + fragments ───────────────────────────────────────────────
 const money = (n: number | string | null | undefined) => `$${(Number(n) || 0).toFixed(2)}`;
 
+// Escape any dynamic value (customer shipping address, email, product names)
+// before it goes into an email's HTML, so a crafted value can't inject markup.
+const esc = (s: unknown): string =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 function layout(content: string): string {
   return `<!DOCTYPE html>
 <html>
@@ -173,14 +183,14 @@ function orderBox(order: EmailOrder, images?: Record<string, string>): string {
     return `
           <tr>
             <td style="padding:8px 12px 8px 0;vertical-align:middle;">${thumb}</td>
-            <td style="padding:8px 0;font-size:14px;color:#333;vertical-align:middle;word-break:break-word;">${it.name} ${it.dose} <span style="color:#999;">× ${it.quantity}</span></td>
+            <td style="padding:8px 0;font-size:14px;color:#333;vertical-align:middle;word-break:break-word;">${esc(it.name)} ${esc(it.dose)} <span style="color:#999;">× ${it.quantity}</span></td>
             <td style="padding:8px 0;font-size:14px;color:#333;text-align:right;vertical-align:middle;white-space:nowrap;">${it.price === 0 ? "Free" : money(it.price * it.quantity)}</td>
           </tr>`;
   }).join("");
   const discount = Number(order.discount_amount) > 0
     ? `<tr>
             <td></td>
-            <td style="padding:6px 0;font-size:14px;color:#1a7a4a;word-break:break-word;">Discount${order.discount_code ? ` (${order.discount_code})` : ""}</td>
+            <td style="padding:6px 0;font-size:14px;color:#1a7a4a;word-break:break-word;">Discount${order.discount_code ? ` (${esc(order.discount_code)})` : ""}</td>
             <td style="padding:6px 0;font-size:14px;color:#1a7a4a;text-align:right;white-space:nowrap;">−${money(order.discount_amount)}</td>
           </tr>` : "";
   return `<div style="background:#f7f8fa;border-radius:10px;padding:18px;margin-bottom:24px;">
@@ -199,7 +209,8 @@ function orderBox(order: EmailOrder, images?: Record<string, string>): string {
 function addressBox(a?: EmailAddress | null): string {
   if (!a?.line1) return "";
   const lines = [a.name, a.line1, a.line2, [a.city, a.state].filter(Boolean).join(", ") + (a.postal_code ? ` ${a.postal_code}` : ""), a.country]
-    .filter((l) => l && String(l).trim());
+    .filter((l) => l && String(l).trim())
+    .map((l) => esc(String(l)));
   return `<div style="margin-bottom:24px;">
         <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;">Ships to</p>
         <p style="margin:0;font-size:14px;color:#555;line-height:1.6;">${lines.join("<br>")}</p>
@@ -295,13 +306,13 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
       };
     case "admin_new_order": {
       const a = order.shipping_address;
-      const shipTo = a?.line1 ? `${a.name ?? ""}, ${a.line1}${a.line2 ? ` ${a.line2}` : ""}, ${a.city}, ${a.state} ${a.postal_code}` : "no address on file";
+      const shipTo = a?.line1 ? `${esc(a.name ?? "")}, ${esc(a.line1)}${a.line2 ? ` ${esc(a.line2)}` : ""}, ${esc(a.city)}, ${esc(a.state)} ${esc(a.postal_code)}` : "no address on file";
       return {
         to: ordersInbox(),
         subject: `💰 New paid order ${money(order.net_amount)} — ${shortId}`,
         html: layout(
           pill("New Paid Order", "#edfaf3", "#1a7a4a") +
-          heading(`${money(order.net_amount)} — ready to fulfill`, `Customer: ${order.email}<br>Ship to: ${shipTo}`) +
+          heading(`${money(order.net_amount)} — ready to fulfill`, `Customer: ${esc(order.email)}<br>Ship to: ${shipTo}`) +
           orderBox(order, images) +
           button("Open Admin → Orders", `${baseUrl()}/admin`),
         ),
@@ -309,13 +320,13 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
     }
     case "admin_delivered": {
       const a = order.shipping_address;
-      const shipTo = a?.line1 ? `${a.name ?? ""}, ${a.line1}${a.line2 ? ` ${a.line2}` : ""}, ${a.city}, ${a.state} ${a.postal_code}` : "no address on file";
+      const shipTo = a?.line1 ? `${esc(a.name ?? "")}, ${esc(a.line1)}${a.line2 ? ` ${esc(a.line2)}` : ""}, ${esc(a.city)}, ${esc(a.state)} ${esc(a.postal_code)}` : "no address on file";
       return {
         to: deliveredInbox(),
         subject: `📬 Delivered — ${shortId} (${order.email})`,
         html: layout(
           pill("Order Delivered", "#edfaf3", "#1a7a4a") +
-          heading(`Order ${shortId} was delivered`, `Customer: ${order.email}<br>${order.tracking_number ? `Tracking: ${order.carrier || "USPS"} ${order.tracking_number}<br>` : ""}Ship to: ${shipTo}`) +
+          heading(`Order ${shortId} was delivered`, `Customer: ${esc(order.email)}<br>${order.tracking_number ? `Tracking: ${esc(order.carrier || "USPS")} ${esc(order.tracking_number)}<br>` : ""}Ship to: ${shipTo}`) +
           orderBox(order, images) +
           button("Open Admin → Orders", `${baseUrl()}/admin`),
         ),

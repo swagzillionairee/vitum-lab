@@ -49,9 +49,9 @@ client/src/
 
 api/                Vercel serverless functions — ALL relative imports MUST use .js extensions (ESM)
   inventory.ts                GET  /api/inventory → {cartCode: stock} map; POST → join back-in-stock waitlist (public, {cartCode, email})
-  create-crypto-payment.ts   POST /api/create-crypto-payment (server-side discount/commission calc + "order received" email; enforces promo one-use-per-email)
+  create-crypto-payment.ts   POST /api/create-crypto-payment (REQUIRES auth — the order email is the JWT email, never the body, so nobody can order as another customer or spend their store credit; server-side discount/commission calc + "order received" email; enforces promo one-use-per-email)
   nowpayments-webhook.ts     POST /api/nowpayments-webhook (raw body, HMAC-verified; confirmed/failed emails, promo use count)
-  validate-discount.ts       POST /api/validate-discount (affiliate codes + promo_codes; pass subtotal + email — rejects an already-used promo)
+  validate-discount.ts       POST /api/validate-discount (REQUIRES auth — the one-use / first-order checks use the JWT email, not the body; affiliate codes + promo_codes; pass subtotal — rejects an already-used promo)
   contact.ts                 POST /api/contact
   me.ts                      GET  /api/me → {email, isAdmin, isAffiliate} (+ one-time welcome email via metadata flag)
   products.ts                GET  /api/products → product list (public); projects the active site-wide sale onto each variant's sale_price

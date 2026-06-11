@@ -381,7 +381,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "GET") {
       const page = Math.max(1, parseInt((req.query?.page as string) || "1", 10));
       const perPage = Math.min(2000, Math.max(1, parseInt((req.query?.perPage as string) || "25", 10)));
-      const search = ((req.query?.search as string) || "").trim();
+      // Strip PostgREST .or() metacharacters (`,()*\`) so a search term can't
+      // alter the filter's structure (admin-only, but keep it well-formed).
+      const search = ((req.query?.search as string) || "").replace(/[,()*\\]/g, " ").trim();
       const statusFilter = (req.query?.status as string) || "";
       const fulfillmentFilter = (req.query?.fulfillment as string) || "";
       const from = (page - 1) * perPage;
