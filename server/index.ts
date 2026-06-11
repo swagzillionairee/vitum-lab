@@ -124,7 +124,7 @@ async function startServer() {
 
       const orderId = buildOrderId(email);
       const description = items.map((i) => `${i.name} ${i.dose} x${i.quantity}`).join(", ");
-      const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
+      const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
 
       console.log(`Creating invoice ${orderId}: $${total} for ${email}`);
       const { invoice_url } = await createInvoice(total, orderId, description, baseUrl);

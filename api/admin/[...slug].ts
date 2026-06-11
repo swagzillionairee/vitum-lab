@@ -24,7 +24,7 @@ async function notifyWaitlist(cartCode: string) {
     const v = ((p.variants as { cart_code?: string; dose?: string; image_url?: string }[]) ?? []).find((x) => x.cart_code === cartCode);
     if (v) { name = `${p.name} ${v.dose ?? ""}`.trim(); slug = p.slug as string; image = v.image_url; break; }
   }
-  const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
+  const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
   const url = slug ? `${baseUrl}/shop/${slug}` : `${baseUrl}/shop`;
 
   for (const s of subs) {

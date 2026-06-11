@@ -245,7 +245,7 @@ export default async function handler(req: any, res: any) {
     const description = paidItems
       .map((i) => `${i.name} ${i.dose} x${i.quantity}`)
       .join(", ");
-    const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
+    const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
 
     // ── Nothing due ($0 — covered by discounts and/or store credit): confirm now,
     // skip NowPayments (a $0 invoice would be rejected anyway; no IPN will fire). ──

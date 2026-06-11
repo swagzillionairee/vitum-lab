@@ -111,7 +111,7 @@ export default async function handler(req: any, res: any) {
   if (route === "referral") {
     if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
     const code = await getOrCreateReferralCode(user.email);
-    const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
+    const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
     res.status(200).json({ code, link: `${baseUrl}/?ref=${code}` });
     return;
   }

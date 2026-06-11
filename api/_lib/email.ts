@@ -59,7 +59,7 @@ function transporter() {
   return _transporter;
 }
 
-const baseUrl = () => process.env.BASE_URL || "https://vitum-lab.vercel.app";
+const baseUrl = () => process.env.BASE_URL || "https://vitumlab.com";
 const ordersInbox = () => process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
 const deliveredInbox = () => process.env.DELIVERED_EMAIL || process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
 
