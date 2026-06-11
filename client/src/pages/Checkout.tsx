@@ -104,10 +104,9 @@ export default function Checkout() {
     setPromoError("");
     setPromoApplied(false);
     try {
-      const res = await fetch("/api/validate-discount", {
+      const res = await authedFetch("/api/validate-discount", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, subtotal, email }),
+        body: JSON.stringify({ code, subtotal }),
       });
       const data = await res.json();
       if (!res.ok || !data.valid) {
@@ -174,12 +173,10 @@ export default function Checkout() {
       postal_code: ship.postal_code.trim(), country: ship.country, phone: ship.phone.trim(),
     };
     try {
-      const response = await fetch("/api/create-crypto-payment", {
+      const response = await authedFetch("/api/create-crypto-payment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price })),
-          email,
           shipping: shippingPayload,
           total,
           discountCode: promoApplied ? promoCode : undefined,
@@ -248,7 +245,8 @@ export default function Checkout() {
           <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6">
             <h2 className="text-[1rem] font-bold text-[oklch(0.13_0.01_260)] mb-4">Contact</h2>
             <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)] mb-1.5">Email for order confirmation</label>
-            <input type="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(""); }} placeholder="you@example.com" className={inputClass} />
+            <input type="email" value={email} readOnly aria-readonly className={`${inputClass} bg-[oklch(0.97_0.003_260)] text-[oklch(0.45_0.01_260)] cursor-not-allowed`} />
+            <p className="mt-1.5 text-[0.6875rem] text-[oklch(0.55_0.01_260)]">Order updates go to your account email.</p>
           </section>
 
           {/* Shipping address */}

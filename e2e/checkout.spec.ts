@@ -81,8 +81,9 @@ test("customer can fill checkout, apply a promo, and submit", async ({ page }) =
   // Subtotal reflects the seeded cart.
   await expect(page.getByText("$129.00").first()).toBeVisible();
 
-  // Contact + shipping.
-  await page.getByPlaceholder("you@example.com").fill(CUSTOMER_EMAIL);
+  // Contact + shipping. The email is read-only and prefilled from the account
+  // (the server uses the JWT email, so it isn't an editable field anymore).
+  await expect(page.locator('input[type="email"][readonly]')).toHaveValue(CUSTOMER_EMAIL);
   await page.getByPlaceholder("Full name").fill("Jane Researcher");
   await page.getByPlaceholder("Street address").fill("123 Lab St");
   await page.getByPlaceholder("City").fill("Austin");
@@ -105,7 +106,8 @@ test("customer can fill checkout, apply a promo, and submit", async ({ page }) =
 
   // The submitted payload is correct.
   expect(capture.body).toBeTruthy();
-  expect(capture.body.email).toBe(CUSTOMER_EMAIL);
+  // The order email is now derived server-side from the JWT, not sent in the body.
+  expect(capture.body.email).toBeUndefined();
   expect(capture.body.discountCode).toBe("SAVE10");
   expect(capture.body.items).toHaveLength(1);
   expect(capture.body.items[0].cartCode).toBe("retatrutide-10mg");
