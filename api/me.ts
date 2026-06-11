@@ -15,9 +15,17 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const [{ data: admin }, { data: affiliate }] = await Promise.all([
+  const [{ data: admin }, affiliate] = await Promise.all([
     supabaseAdmin.from("admins").select("id").eq("email", user.email).maybeSingle(),
-    supabaseAdmin.from("affiliates").select("id").or(`email.eq.${user.email},user_id.eq.${user.id}`).maybeSingle(),
+    // Match an affiliate by email OR a previously linked user_id — done as two
+    // typed .eq() lookups rather than a string-built .or() filter (an email can
+    // contain characters that are special inside PostgREST's `.or()` grammar).
+    (async () => {
+      const byEmail = await supabaseAdmin.from("affiliates").select("id").eq("email", user.email).maybeSingle();
+      if (byEmail.data) return byEmail.data;
+      const byUser = await supabaseAdmin.from("affiliates").select("id").eq("user_id", user.id).maybeSingle();
+      return byUser.data;
+    })(),
   ]);
 
   // Welcome email — entirely after the response; never blocks role lookup.

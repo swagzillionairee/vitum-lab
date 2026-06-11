@@ -123,7 +123,7 @@ server/
 | `ghk-cu-50mg` | $69 | LOT: B031 |
 | `ghk-cu-100mg` | $109 | LOT: B031 |
 | `nad-500mg` | $129 | stock = 0 |
-| `bac-water-10ml` | $12 | |
+| `bac-water-10ml` | $15 | |
 
 Free gift `bac-water-free` (price $0) auto-added when subtotal ≥ $150 — **capped at quantity 1 per order** (CartContext pins it; CartDrawer shows a "Free gift · limit 1" badge instead of a stepper). Skip stock checks for it.
 
