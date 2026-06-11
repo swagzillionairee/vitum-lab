@@ -1,9 +1,9 @@
 /*
  * credit.ts — store credit ledger + loyalty + referral rewards.
- * Balance is DERIVED via the store_credit_balance RPC (redemptions on
- * cancelled/failed orders are excluded, so a dead order's credit is auto-refunded
- * with no extra writes). All earns/redemptions/rewards are idempotent per
- * (order_id, reason).
+ * Balance is DERIVED via the store_credit_balance RPC (every ledger entry tied
+ * to a cancelled/failed order is excluded, so a dead order auto-refunds its
+ * reserved credit AND claws back any loyalty/referral it earned — no extra
+ * writes). All earns/redemptions/rewards are idempotent per (order_id, reason).
  */
 import { supabaseAdmin } from "./supabase-admin.js";
 
