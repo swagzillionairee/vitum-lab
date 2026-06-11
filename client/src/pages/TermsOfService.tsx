@@ -13,7 +13,7 @@ export default function TermsOfService() {
 
       <h2>Eligibility</h2>
       <p>
-        You must be at least 18 years of age and a qualified researcher or laboratory professional to purchase from Vitum Lab. By placing an order, you represent and warrant that you meet these requirements and that all products will be used solely for legitimate in vitro laboratory research purposes.
+        You must be at least 21 years of age and a qualified researcher or laboratory professional to purchase from Vitum Lab. By placing an order, you represent and warrant that you meet these requirements and that all products will be used solely for legitimate in vitro laboratory research purposes.
       </p>
 
       <h2>Products and Research Use</h2>

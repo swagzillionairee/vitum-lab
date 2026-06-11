@@ -1,7 +1,7 @@
 /*
  * AgeGate.tsx — Vitum Lab
  * Design: Contemporary Clinical
- * Full-screen modal overlay, formal declaration format, 18+ consent stored in cookie
+ * Full-screen modal overlay, formal declaration format, 21+ consent stored in cookie
  */
 
 import { useState } from "react";
@@ -80,7 +80,7 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
                 />
               </div>
               <span className="text-sm text-[oklch(0.35_0.05_255)] leading-relaxed group-hover:text-[oklch(0.18_0.04_255)] transition-colors">
-                I am at least <strong>18 years of age</strong>.
+                I am at least <strong>21 years of age</strong>.
               </span>
             </label>
 
