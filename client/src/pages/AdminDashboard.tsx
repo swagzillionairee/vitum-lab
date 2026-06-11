@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
 import { invalidateProductsCache } from "@/hooks/useProducts";
+import { formatOrderId } from "@/lib/orders";
 import OrderTimeline from "@/components/OrderTimeline";
 import SEO from "@/components/SEO";
 import type { ProductRow, InventoryRow, OrderRow, Summary } from "./admin/types";
@@ -207,7 +208,7 @@ export default function AdminDashboard() {
 
   // Permanent delete is irreversible (and does NOT restock) — confirm twice.
   const handleDeleteOrder = async (o: OrderRow) => {
-    if (!confirm(`Permanently delete order ${o.id.slice(0, 10)} (${o.email})?\n\nThis erases the order record. It does NOT restock — use Cancel for that.`)) return;
+    if (!confirm(`Permanently delete order ${formatOrderId(o.id)} (${o.email})?\n\nThis erases the order record. It does NOT restock — use Cancel for that.`)) return;
     if (!confirm("This cannot be undone. Delete this order for good?")) return;
     setOrderBusy(o.id);
     try { await deleteOrders([o.id]); } finally { setOrderBusy(null); }
@@ -827,7 +828,7 @@ export default function AdminDashboard() {
                           <tr className={`border-b border-[oklch(0.95_0.003_260)] align-top ${selectedOrders.has(o.id) ? "bg-[oklch(0.975_0.015_260)]" : ""}`}>
                             <td className="py-3 pr-3">
                               <input type="checkbox" checked={selectedOrders.has(o.id)} onChange={() => toggleOrderSelected(o.id)}
-                                aria-label={`Select order ${o.id.slice(0, 10)}`}
+                                aria-label={`Select order ${formatOrderId(o.id)}`}
                                 className="w-4 h-4 rounded border-[oklch(0.80_0.01_260)] cursor-pointer accent-[oklch(0.40_0.16_260)]" />
                             </td>
                             <td className="py-3 pr-4">
@@ -836,7 +837,7 @@ export default function AdminDashboard() {
                                 className="flex items-center gap-1 font-mono text-[0.75rem] text-[oklch(0.20_0.01_260)] hover:text-[oklch(0.40_0.16_260)]"
                               >
                                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? "" : "-rotate-90"}`} />
-                                {o.id.slice(0, 10)}
+                                {formatOrderId(o.id)}
                               </button>
                             </td>
                             <td className="py-3 pr-4 text-[oklch(0.40_0.01_260)]">{o.email}</td>

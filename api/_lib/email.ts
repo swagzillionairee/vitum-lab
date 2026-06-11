@@ -10,6 +10,7 @@
 import nodemailer from "nodemailer";
 import { waitUntil } from "@vercel/functions";
 import { supabaseAdmin } from "./supabase-admin.js";
+import { formatOrderId } from "./orderId.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface EmailOrderItem {
@@ -59,7 +60,7 @@ function transporter() {
   return _transporter;
 }
 
-const baseUrl = () => process.env.BASE_URL || "https://vitum-lab.vercel.app";
+const baseUrl = () => process.env.BASE_URL || "https://vitumlab.com";
 const ordersInbox = () => process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
 const deliveredInbox = () => process.env.DELIVERED_EMAIL || process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
 
@@ -183,7 +184,7 @@ function orderBox(order: EmailOrder, images?: Record<string, string>): string {
             <td style="padding:6px 0;font-size:14px;color:#1a7a4a;text-align:right;white-space:nowrap;">−${money(order.discount_amount)}</td>
           </tr>` : "";
   return `<div style="background:#f7f8fa;border-radius:10px;padding:18px;margin-bottom:24px;">
-        <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;">Order <span style="font-family:monospace;color:#555;">${order.id.slice(0, 10)}</span></p>
+        <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;">Order <span style="font-family:monospace;color:#555;">${formatOrderId(order.id)}</span></p>
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
           <colgroup><col style="width:52px;"><col><col style="width:84px;"></colgroup>${rows}${discount}
           <tr>
@@ -221,7 +222,7 @@ export function trackingUrl(carrier: string | null | undefined, tracking: string
 
 // ─── Per-event content ───────────────────────────────────────────────────────
 function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { invoiceUrl?: string; wasPending?: boolean }, images?: Record<string, string>): { to: string; subject: string; html: string } {
-  const shortId = order.id.slice(0, 10);
+  const shortId = formatOrderId(order.id);
 
   switch (event) {
     case "order_created":
@@ -399,7 +400,7 @@ export async function sendAffiliateCommission(
     `You earned ${money(affiliate.commission)} in commission`,
     layout(
       pill("Commission Earned", "#edfaf3", "#1a7a4a") +
-      heading(`You earned ${money(affiliate.commission)}`, `A customer just completed an order using your code <b>${affiliate.code}</b>. Your commission on order ${order.id.slice(0, 10)} is <b>${money(affiliate.commission)}</b>.`) +
+      heading(`You earned ${money(affiliate.commission)}`, `A customer just completed an order using your code <b>${affiliate.code}</b>. Your commission on order ${formatOrderId(order.id)} is <b>${money(affiliate.commission)}</b>.`) +
       button("Open Affiliate Dashboard", `${baseUrl()}/affiliate/dashboard`),
     ),
   );

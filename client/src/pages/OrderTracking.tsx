@@ -8,6 +8,7 @@ import { Package, Loader2, Search, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 import OrderTimeline from "@/components/OrderTimeline";
 import SEO from "@/components/SEO";
+import { formatOrderId } from "@/lib/orders";
 
 interface TrackedOrder {
   id: string;
@@ -92,7 +93,7 @@ export default function OrderTracking() {
         {state === "done" && order && (
           <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6 mt-5">
             <div className="flex items-center justify-between mb-4">
-              <span className="font-mono text-[0.75rem] text-[oklch(0.55_0.01_260)]">{order.id.slice(0, 10)}</span>
+              <span className="font-mono text-[0.75rem] text-[oklch(0.55_0.01_260)]">{formatOrderId(order.id)}</span>
               {order.net_amount != null && (
                 <span className="text-[0.875rem] font-bold text-[oklch(0.13_0.01_260)]">${Number(order.net_amount).toFixed(2)}</span>
               )}

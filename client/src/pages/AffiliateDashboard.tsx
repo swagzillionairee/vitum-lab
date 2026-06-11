@@ -10,6 +10,7 @@ import { LogOut, Loader2, Share2, Copy, Check } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
+import { formatOrderId } from "@/lib/orders";
 import SEO from "@/components/SEO";
 
 interface Stats {
@@ -176,7 +177,7 @@ export default function AffiliateDashboard() {
                 <tbody>
                   {orders.map((o) => (
                     <tr key={o.id} className="border-b border-[oklch(0.95_0.003_260)]">
-                      <td className="py-3 pr-4 font-mono text-[0.75rem] text-[oklch(0.20_0.01_260)]">{o.id.slice(0, 10)}</td>
+                      <td className="py-3 pr-4 font-mono text-[0.75rem] text-[oklch(0.20_0.01_260)]">{formatOrderId(o.id)}</td>
                       <td className="py-3 pr-4 font-semibold text-[oklch(0.13_0.01_260)]">${Number(o.net_amount).toFixed(2)}</td>
                       <td className="py-3 pr-4 text-[oklch(0.35_0.14_155)] font-semibold">${Number(o.commission_amount ?? 0).toFixed(2)}</td>
                       <td className="py-3 pr-4 text-[oklch(0.40_0.01_260)]">{o.status}</td>

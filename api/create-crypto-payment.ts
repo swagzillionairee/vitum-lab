@@ -1,15 +1,52 @@
-import { customAlphabet } from "nanoid";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
-import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, type QuantityTier } from "./_lib/pricing.js";
+import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, sitewideSalePrice, isSitewideActive, type QuantityTier } from "./_lib/pricing.js";
 import { getBalance, reserveCredit, getRewardConfig, earnLoyalty, grantReferralReward, type RewardConfig } from "./_lib/credit.js";
 import { validateAddress } from "./_lib/shippo.js";
+import { buildOrderId } from "./_lib/orderId.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
-const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
 
-function buildOrderId(email: string) {
-  return `${genId()}--${Buffer.from(email).toString("base64url")}`;
+const FREE_GIFT_CODE = "bac-water-free";
+const FREE_GIFT_THRESHOLD = 150; // paid subtotal that unlocks the free BAC Water
+
+/**
+ * Authoritative per-variant prices, keyed by cartCode, read from the products
+ * table — NEVER trust the client's `price` (the cart lives in the browser). The
+ * effective price mirrors the storefront (/api/products + dbRowToProduct): the
+ * active site-wide sale overrides everything, else a valid per-variant sale
+ * price, else the base price.
+ */
+async function loadCatalog(): Promise<Record<string, { name: string; dose: string; price: number }>> {
+  const [{ data: products }, { data: settings }] = await Promise.all([
+    supabaseAdmin.from("products").select("name, variants"),
+    supabaseAdmin
+      .from("store_settings")
+      .select("sitewide_active, sitewide_percent, sitewide_starts_at, sitewide_ends_at")
+      .maybeSingle(),
+  ]);
+
+  const sitewidePct = isSitewideActive(settings) ? Number(settings!.sitewide_percent) : null;
+  const now = new Date();
+  const map: Record<string, { name: string; dose: string; price: number }> = {};
+
+  for (const p of products ?? []) {
+    const variants = (p.variants as { cart_code?: string; dose?: string; price?: number; sale_price?: number | null; sale_ends_at?: string | null }[]) ?? [];
+    for (const v of variants) {
+      if (!v.cart_code) continue;
+      const base = Number(v.price) || 0;
+      let price = base;
+      if (sitewidePct != null) {
+        price = sitewideSalePrice(base, sitewidePct);
+      } else {
+        const sale = v.sale_price != null ? Number(v.sale_price) : null;
+        const endsAt = v.sale_ends_at ? new Date(v.sale_ends_at) : null;
+        if (sale != null && sale < base && (endsAt == null || endsAt > now)) price = sale;
+      }
+      map[v.cart_code] = { name: p.name as string, dose: v.dose ?? "", price };
+    }
+  }
+  return map;
 }
 
 /**
@@ -98,8 +135,28 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Validate stock for each item (skip free gifts with price 0)
-    const paidItems = items.filter((i) => i.price > 0 && i.cartCode !== "bac-water-free");
+    // ── Re-price every line item SERVER-SIDE from the catalog. The client's
+    // `price` is ignored entirely (the cart is browser state); price, name, and
+    // dose come from the products table. The free gift is re-added at $0 only
+    // when the order actually qualifies — never taken from the request. ──
+    const catalog = await loadCatalog();
+    const paidItems: { name: string; dose: string; quantity: number; cartCode: string; price: number }[] = [];
+    for (const i of items) {
+      if (i.cartCode === FREE_GIFT_CODE) continue; // re-derived below, not trusted
+      const entry = catalog[i.cartCode];
+      if (!entry) {
+        res.status(400).json({ error: `Unknown product in cart: ${i.cartCode}` });
+        return;
+      }
+      const quantity = Math.max(1, Math.floor(Number(i.quantity) || 0));
+      paidItems.push({ name: entry.name, dose: entry.dose, quantity, cartCode: i.cartCode, price: entry.price });
+    }
+    if (paidItems.length === 0) {
+      res.status(400).json({ error: "Your cart has no purchasable items." });
+      return;
+    }
+
+    // Validate stock for each paid item.
     for (const item of paidItems) {
       const { data } = await supabaseAdmin
         .from("inventory")
@@ -113,8 +170,15 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const orderId = buildOrderId(email);
-    const grossAmount = grossFromItems(items);
+    const orderId = buildOrderId();
+    const grossAmount = grossFromItems(paidItems);
+
+    // Re-add the free BAC Water ($0, qty 1) only when the paid subtotal clears
+    // the threshold — server-authoritative mirror of the cart's auto-gift.
+    const wantsFreeGift = items.some((i) => i.cartCode === FREE_GIFT_CODE);
+    const orderItems = wantsFreeGift && grossAmount >= FREE_GIFT_THRESHOLD
+      ? [...paidItems, { name: "BAC Water (Free Gift)", dose: "10 ML", quantity: 1, cartCode: FREE_GIFT_CODE, price: 0 }]
+      : paidItems;
 
     // Reward config (loyalty % + referral amounts) — admin-adjustable.
     const cfg = await getRewardConfig();
@@ -176,8 +240,7 @@ export default async function handler(req: any, res: any) {
     const description = paidItems
       .map((i) => `${i.name} ${i.dose} x${i.quantity}`)
       .join(", ");
-    const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
-    const orderItems = items.map((i) => ({ name: i.name, dose: i.dose, quantity: i.quantity, cartCode: i.cartCode, price: i.price }));
+    const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
 
     // ── Nothing due ($0 — covered by discounts and/or store credit): confirm now,
     // skip NowPayments (a $0 invoice would be rejected anyway; no IPN will fire). ──
@@ -219,7 +282,7 @@ export default async function handler(req: any, res: any) {
       await grantReferralReward(rewardOrder, cfg.referrerAmount);
 
       const freeOrder: EmailOrder = {
-        id: orderId, email, items, gross_amount: grossAmount, discount_amount: discountAmount,
+        id: orderId, email, items: orderItems, gross_amount: grossAmount, discount_amount: discountAmount,
         discount_code: discountCodeNorm, net_amount: netAmount, shipping_address: shipping, emails_sent: {},
       };
       deferEmail(
@@ -292,7 +355,7 @@ export default async function handler(req: any, res: any) {
     const emailOrder: EmailOrder = {
       id: orderId,
       email,
-      items,
+      items: orderItems,
       gross_amount: grossAmount,
       discount_amount: discountAmount,
       discount_code: discountCodeNorm,

@@ -85,7 +85,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
     pricing.ts         Pure order math + promo validation (gross/discount/net/commission, isFreeOrder, applyCredit, isPromoUsable,
                        sitewideSalePrice, isSitewideActive, promoAlreadyRedeemed [one-use-per-email],
                        quantityDiscountPercent + computeStackedDiscounts [quantity tier → code, with breakdown lines]) — unit-tested
-    credit.ts          Store credit ledger + loyalty + referrals: getBalance (RPC, redemptions on dead orders excluded),
+    credit.ts          Store credit ledger + loyalty + referrals: getBalance (RPC, all entries on dead orders excluded),
                        addLedger (idempotent per order+reason), reserveCredit, earnLoyalty, grantReferralReward, getOrCreateReferralCode, getRewardConfig
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
@@ -106,7 +106,7 @@ server/
 1. Cart items live in `CartContext` (sessionStorage). `CartItem.cartCode` is the inventory key.
 2. Checkout: CartDrawer shows cart items + a "Proceed to Checkout" button. Checkout **requires sign-in** — if not authenticated it routes to `/login?redirect=/checkout`. The dedicated `/checkout` page (`pages/Checkout.tsx`) has a 2/3 contact+shipping form (Google Places autocomplete, email prefilled from the account) and a 1/3 order summary (items, subtotal, discount, shipping, total, promo). Submitting → `POST /api/create-crypto-payment` (validates a complete address) → NowPayments invoice URL → redirect. The invoice page offers crypto **and** card/Apple Pay (fiat on-ramp), so there is a single checkout path. Card/Apple Pay must be enabled in the NowPayments dashboard (on-ramp via Guardarian/Banxa) — no code change needed to toggle it. **⚠️ As of June 2026 the card/Apple Pay on-ramp is pending NowPayments review and not yet live; the storefront copy that mentions it is intentionally left as-is (owner decision).**
 3. Payment confirmed: NowPayments IPN → `POST /api/nowpayments-webhook` → `decrement_stock()` RPC → order status `confirmed` → customer confirmation email + admin new-order alert (idempotent via `orders.emails_sent` — NowPayments fires both `confirmed` and `finished`). `failed`/`expired`/`refunded` IPNs on pending orders → status `failed` + email.
-4. Order ID encodes email: `{10-char-alphanum}--{base64url(email)}` — no DB lookup needed to send the email.
+4. Order ID is a random **20-digit** number (`api/_lib/orderId.ts` → `buildOrderId`); the customer email lives in the `orders.email` column. `formatOrderId` renders it for display (legacy IDs were `{10-char-alphanum}--{base64url(email)}`, so it shows the part before `--`).
 5. Discounts are resolved **server-side** in `create-crypto-payment` from the code (affiliate → discount+commission; promo → discount only); client-sent amounts are ignored. Commission = `commission_percent` × net, stored on the order at creation.
 6. **Discounts stack** server-side in `create-crypto-payment` (`computeStackedDiscounts`): the site-wide sale is baked into item prices, then the quantity tier %, then a single code (promo/affiliate % or referral flat $). **Store credit** then applies as tender on top, reducing the cash `amountDue` (`applyCredit`); it's reserved in the ledger at order creation. Each discount line is recorded in `orders.discount_breakdown` and shown at checkout.
 7. **$0 due skips NowPayments:** if the server-computed `amountDue` is ≤ 0 (100%-off promo and/or store credit covering the order), `create-crypto-payment` inserts the order as `confirmed` immediately, decrements stock, counts the promo, earns loyalty + grants the referral reward, sends the confirmed + admin-alert emails, and returns `{free:true, orderId}`. The client clears the cart and routes to `/order-success?...&free=1` — no NowPayments page, no IPN.
@@ -123,7 +123,7 @@ server/
 | `ghk-cu-50mg` | $69 | LOT: B031 |
 | `ghk-cu-100mg` | $109 | LOT: B031 |
 | `nad-500mg` | $129 | stock = 0 |
-| `bac-water-10ml` | $12 | |
+| `bac-water-10ml` | $15 | |
 
 Free gift `bac-water-free` (price $0) auto-added when subtotal ≥ $150 — **capped at quantity 1 per order** (CartContext pins it; CartDrawer shows a "Free gift · limit 1" badge instead of a stepper). Skip stock checks for it.
 
@@ -140,7 +140,7 @@ Tables in `public`:
 - `affiliate_payouts(id UUID PK, affiliate_id → affiliates, amount NUMERIC > 0, note, created_at)` — payout tracking; **owed = Σ commission on paid orders − Σ payouts** (computed in `/api/admin/affiliates` and the summary).
 - `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, starts_at, expires_at, is_active, created_at)` — general promo codes, managed in Admin → Promos. **One use per customer** (enforced by `promoAlreadyRedeemed` — checks prior paid orders with that code + email; affiliate codes are unlimited). Scheduling via `starts_at`/`expires_at` (honored by `isPromoUsable`). `used_count` increments on payment confirmation via `increment_promo_use(p_code)`; `max_uses` is an *additional* global cap.
 - `store_settings(id BOOL PK =true singleton, sitewide_active BOOL, sitewide_percent 1-99, sitewide_label, sitewide_starts_at, sitewide_ends_at, quantity_tiers JSONB [{min_qty,percent}], loyalty_percent, referral_referee_amount, referral_referrer_amount, referral_min_subtotal, updated_at)` — the optional **site-wide sale** (with scheduling) + **quantity discount tiers** + **loyalty/referral reward config**. `isSitewideActive` gates the sale; `/api/products` projects the % onto every variant's sale_price → strikethrough storefront-wide; `/api/public/site` feeds the countdown banner + tiers. Managed via `PUT /api/admin/site-promo`, `PUT /api/admin/quantity-tiers`, `PUT /api/admin/rewards`. Service-role only.
-- `store_credit_ledger(id UUID PK, email, amount NUMERIC [+ earned / − redeemed], reason 'loyalty'|'referral'|'redemption'|'manual', order_id, created_at)` — store-credit wallet. **Balance is derived** via the `store_credit_balance(email)` RPC, which excludes redemptions tied to cancelled/failed orders (so a dead order's reserved credit is auto-refunded — no explicit writes). Idempotent via a unique (order_id, reason) index. Service-role only.
+- `store_credit_ledger(id UUID PK, email, amount NUMERIC [+ earned / − redeemed], reason 'loyalty'|'referral'|'redemption'|'manual', order_id, created_at)` — store-credit wallet. **Balance is derived** via the `store_credit_balance(email)` RPC, which excludes every ledger entry tied to a cancelled/failed order (so a dead order auto-refunds its reserved credit AND claws back any loyalty/referral it earned — no explicit writes). Idempotent via a unique (order_id, reason) index. Service-role only.
 - `referral_codes(code PK, email UNIQUE, created_at)` — one referral code per customer (lazily created by `GET /api/account/referral`). Service-role only.
 - `stock_waitlist(id UUID PK, cart_code, email, created_at, notified_at, UNIQUE(cart_code,email))` — back-in-stock signups. `POST /api/inventory` upserts (notified_at=null); an admin inventory PATCH that takes stock 0→>0 emails all pending rows then stamps `notified_at`. Service-role only.
 - `orders.emails_sent JSONB DEFAULT '{}'` — `{event: ISO timestamp}` per sent email; the idempotency log shown in the admin order detail (with Resend buttons).
@@ -149,7 +149,7 @@ Key RPCs:
 - `decrement_stock(p_cart_code TEXT, p_qty INT) → INT` — atomic UPDATE WHERE stock >= qty, raises `P0001 insufficient_stock` on failure.
 - `increment_stock(p_cart_code TEXT, p_qty INT) → INT` — restocks (used when an admin cancels a *paid* order).
 - `increment_promo_use(p_code TEXT)` — atomic promo usage counter.
-- `store_credit_balance(p_email TEXT) → NUMERIC` — derived store-credit balance (excludes redemptions on cancelled/failed orders).
+- `store_credit_balance(p_email TEXT) → NUMERIC` — derived store-credit balance (excludes every ledger entry tied to a cancelled/failed order — refunds reserved credit and claws back earned loyalty/referral).
 
 **Scheduled jobs (pg_cron):** `expire-stale-orders` runs hourly — sets `status='cancelled'` (reason `auto-expired…`) on `pending` orders older than 24h (pending orders never decremented stock, so no restock needed). `email-cron` runs hourly — pg_net POST to `/api/cron` (CRON_SECRET header), which also expires stale orders AND sends the cancellation emails (idempotent; the two jobs coexist safely — the endpoint's sweep emails anything the SQL job expired).
 
@@ -168,7 +168,7 @@ NOWPAYMENTS_API_KEY=
 NOWPAYMENTS_IPN_SECRET=
 GMAIL_USER=hello@vitumlab.com
 GMAIL_APP_PASSWORD=
-BASE_URL=https://vitum-lab.vercel.app
+BASE_URL=https://vitumlab.com         # canonical site URL (emails, order links, NowPayments callbacks) — set this in Vercel; code default is also vitumlab.com
 ORDERS_EMAIL=orders@vitumlab.com      # admin new-paid-order alerts (free Workspace alias on hello@); falls back to GMAIL_USER
 INVENTORY_EMAIL=inventory@vitumlab.com # reserved for the Tier-3 low-stock digest; falls back to GMAIL_USER
 DELIVERED_EMAIL=delivered@vitumlab.com # admin delivered alerts (alias on hello@); falls back to ORDERS_EMAIL → GMAIL_USER
@@ -308,7 +308,7 @@ Note: The old `server/index.ts` Express server handles `create-crypto-payment` a
 
 **Tiered quantity discounts — built.** Admin → Promos → **Quantity Discounts** card (tiers of min-qty → % off; "Use recommended" seeds 3→5%, 5→10%, 10→15%). Applied server-side in `create-crypto-payment` via `computeStackedDiscounts`: the best matching tier's % comes off first, then the promo/affiliate % off the remainder — so it **stacks** with the site-wide sale (baked into item prices) and the code. Each discount is shown as its own line at checkout and recorded in `orders.discount_breakdown` (also rendered in the admin order detail).
 
-**Loyalty / store credit + customer referrals — built.** Store-credit wallet (`store_credit_ledger`, balance derived via `store_credit_balance` RPC — redemptions on cancelled/failed orders are auto-excluded, so reserved credit frees itself with no refund writes). **Loyalty:** each paid order earns a configurable % back (default 5%) on the cash actually paid — granted on confirmation (webhook + admin Re-check + free-order path), idempotent. **Referrals:** every customer has a referral link (`/?ref=CODE`, shown on `/account`); a NEW referee gets a flat $ off their first order (auto-applied via the existing `?ref` capture), and the referrer earns store credit once the referee's first order is paid (self-referral + first-order guards). **Spending:** store credit auto-applies at checkout as tender — it reduces the cash amount due (reserved at order creation; a fully-covered order uses the $0 path). Balance + referral link on `/account`; amounts/rate configured in Admin → Promos → **Loyalty & Referrals** (`/api/admin/rewards`). `api/_lib/credit.ts` centralizes the logic; `applyCredit` is pure + unit-tested.
+**Loyalty / store credit + customer referrals — built.** Store-credit wallet (`store_credit_ledger`, balance derived via `store_credit_balance` RPC — every ledger entry tied to a cancelled/failed order is auto-excluded, so reserved credit frees itself AND loyalty/referral earned on a since-cancelled order is clawed back, with no refund writes). **Loyalty:** each paid order earns a configurable % back (default 5%) on the cash actually paid — granted on confirmation (webhook + admin Re-check + free-order path), idempotent. **Referrals:** every customer has a referral link (`/?ref=CODE`, shown on `/account`); a NEW referee gets a flat $ off their first order (auto-applied via the existing `?ref` capture), and the referrer earns store credit once the referee's first order is paid (self-referral + first-order guards). **Spending:** store credit auto-applies at checkout as tender — it reduces the cash amount due (reserved at order creation; a fully-covered order uses the $0 path). Balance + referral link on `/account`; amounts/rate configured in Admin → Promos → **Loyalty & Referrals** (`/api/admin/rewards`). `api/_lib/credit.ts` centralizes the logic; `applyCredit` is pure + unit-tested.
 
 **Testing — in progress.** Vitest unit (Node) + component (jsdom) tests, plus a Playwright checkout e2e — see the Commands section. Next candidates: more page/component coverage and CI to run `pnpm test` on PRs.
 

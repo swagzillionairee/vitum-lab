@@ -10,13 +10,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
-const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
+const genId = customAlphabet("0123456789", 20);
 
-// Encode customer email into order_id so webhook can retrieve it without a DB
-// Format: {10-char-id}--{base64url(email)}
-function buildOrderId(email: string) {
-  return `${genId()}--${Buffer.from(email).toString("base64url")}`;
+// Order numbers are a plain 20-digit random string.
+function buildOrderId() {
+  return genId();
 }
+// Legacy order IDs were "{id}--{base64url(email)}"; this still decodes those.
 function parseEmailFromOrderId(orderId: string): string | null {
   const sep = orderId.indexOf("--");
   if (sep === -1) return null;
@@ -122,9 +122,9 @@ async function startServer() {
         return;
       }
 
-      const orderId = buildOrderId(email);
+      const orderId = buildOrderId();
       const description = items.map((i) => `${i.name} ${i.dose} x${i.quantity}`).join(", ");
-      const baseUrl = process.env.BASE_URL || "https://vitum-lab.vercel.app";
+      const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
 
       console.log(`Creating invoice ${orderId}: $${total} for ${email}`);
       const { invoice_url } = await createInvoice(total, orderId, description, baseUrl);
