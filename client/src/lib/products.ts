@@ -218,7 +218,3 @@ export const products: Product[] = [
     coaHref: "/coa-library#bacwater",
   },
 ];
-
-export function getProductBySlug(slug: string): Product | undefined {
-  return products.find((p) => p.slug === slug);
-}

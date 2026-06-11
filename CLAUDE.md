@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. Checkout is via NowPayments — customers pay with crypto, or with card/Apple Pay through the NowPayments fiat on-ramp (auto-converted to crypto). Deployed on Vercel.
 
-**Stack:** React 19 + TypeScript + Tailwind CSS v4 (oklch color space) + wouter routing + Vite. Express backend (`server/index.ts`) for local dev. Vercel serverless functions (`/api/*.ts`) in production. Supabase for inventory, orders, and affiliates.
+**Stack:** React 19 + TypeScript + Tailwind CSS v4 (oklch color space) + wouter routing + Vite. Local dev serves `/api/*` via `vitePluginLocalApi` in `vite.config.ts`. Vercel serverless functions (`/api/*.ts`) in production. Supabase for inventory, orders, and affiliates.
 
 ---
 
@@ -22,9 +22,9 @@ pnpm test:e2e     # Playwright e2e (checkout flow) — run `npx playwright insta
 pnpm format       # Prettier
 ```
 
-Tests use **Vitest** (`vitest.config.ts` at repo root). Two environments via `environmentMatchGlobs`: pure logic + API tests are `*.test.ts` (Node, e.g. `api/_lib/pricing.test.ts`), component tests are `*.test.tsx` (jsdom + `@testing-library/react`, e.g. `client/src/contexts/CartContext.test.tsx`). `vitest.setup.ts` loads `@testing-library/jest-dom` only in the DOM env. Path aliases (`@`, `@shared`, `@assets`) are mirrored in the vitest config, and `esbuild.jsx: "automatic"` lets `.tsx` tests skip a React import. Coverage so far: order-money + promo logic in `pricing.ts` (incl. `sitewideSalePrice`, `promoAlreadyRedeemed`), the cart reducer (`CartContext`), and the sale/strikethrough mapper (`dbRowToProduct`). **Playwright** e2e lives in `e2e/` (`playwright.config.ts`); the checkout spec mocks every `/api/*` call and seeds the age-gate cookie + a fake Supabase session, so it needs no live backend (`pnpm exec playwright install chromium` to get the browser). There is no lint script — use `pnpm check` for type errors.
+Tests use **Vitest** (`vitest.config.ts` at repo root). Two environments via `environmentMatchGlobs`: pure logic + API tests are `*.test.ts` (Node, e.g. `api/_lib/pricing.test.ts`), component tests are `*.test.tsx` (jsdom + `@testing-library/react`, e.g. `client/src/contexts/CartContext.test.tsx`). `vitest.setup.ts` loads `@testing-library/jest-dom` only in the DOM env. The `@` path alias is mirrored in the vitest config, and `esbuild.jsx: "automatic"` lets `.tsx` tests skip a React import. Coverage so far: order-money + promo logic in `pricing.ts` (incl. `sitewideSalePrice`, `promoAlreadyRedeemed`), the cart reducer (`CartContext`), and the sale/strikethrough mapper (`dbRowToProduct` in `client/src/hooks/useProducts.test.ts`). **Playwright** e2e lives in `e2e/` (`playwright.config.ts`); the checkout spec mocks every `/api/*` call and seeds the age-gate cookie + a fake Supabase session, so it needs no live backend (`pnpm exec playwright install chromium` to get the browser). There is no lint script — use `pnpm check` for type errors.
 
-The Vite root is `client/` (not repo root). Path aliases: `@` → `client/src`, `@shared` → `shared/`, `@assets` → `attached_assets/`.
+The Vite root is `client/` (not repo root). Path alias: `@` → `client/src`.
 
 ---
 
@@ -39,13 +39,19 @@ client/src/
                     AdminDashboard.tsx keeps Overview/Products/Inventory/Orders + loadData + order state.
   components/       Navbar, Footer, CartDrawer, OrderTimeline, AddressAutocomplete, ReconstitutionCalculator, etc.
   lib/
-    products.ts     Single source of truth — all product/variant data and cartCodes
+    products.ts     Static fallback product/variant catalog — authoritative data is the Supabase
+                    `products` table served by /api/products (via useProducts); the free gift
+                    `bac-water-free` is defined in CartContext
     supabase.ts     Browser Supabase client (anon key via VITE_SUPABASE_ANON_KEY)
     api.ts          authedFetch helper — attaches Supabase JWT as Bearer token
     promo.ts        Capture/persist a shared ?code= / ?ref= discount code (affiliate share links)
+    orders.ts       formatOrderId — renders order IDs for display
+    discounts.ts    quantityDiscountPercent/round2 — client-side mirror of the qty-tier preview math
   contexts/         CartContext (sessionStorage; free gift capped at qty 1), ThemeContext (dark mode), AuthContext (Supabase Auth)
   hooks/
     useInventory.ts Fetches /api/inventory, exposes isAvailable(cartCode)/stockLabel(cartCode)
+    useProducts.ts  Fetches /api/products (dbRowToProduct maps DB rows → Product, sale strikethrough);
+                    falls back to the static lib/products.ts catalog on failure
 
 api/                Vercel serverless functions — ALL relative imports MUST use .js extensions (ESM)
   inventory.ts                GET  /api/inventory → {cartCode: stock} map; POST → join back-in-stock waitlist (public, {cartCode, email})
@@ -75,7 +81,9 @@ api/                Vercel serverless functions — ALL relative imports MUST us
   public/[...slug].ts        Catch-all for /api/public/* (no auth): site GET → site-wide sale config (countdown banner) + quantity_tiers,
                              track GET ?order=&email= → order status/timeline (email must match the order)
   _lib/
-    supabase-admin.js  Service-role Supabase client
+    supabase-admin.ts  Service-role Supabase client
+    orderId.ts         buildOrderId — random 20-digit order IDs
+    vt-logo.ts         Base64 logo used by the packing-slip PDFs
     email.ts           ALL transactional email: one Gmail transport + branded layout + send per event
                        (order_created/confirmed/shipped/delivered/cancelled/failed/admin_new_order/admin_delivered/followup/welcome
                        + sendAffiliateCommission/sendAffiliateStatement/sendBackInStock/sendLowStockDigest),
@@ -92,10 +100,13 @@ api/                Vercel serverless functions — ALL relative imports MUST us
     requireAffiliate.ts requireUser + checks affiliates table
 
 server/
-  index.ts          Express server (local dev only — proxies /api/* to the same handlers)
+  index.ts          Legacy Express server (never runs in prod or under `pnpm dev`; kept as the only
+                    local path for testing the NowPayments webhook, via `pnpm build && pnpm start`)
   lib/
-    supabase-admin.ts  Service-role Supabase client (SUPABASE_SERVICE_ROLE_KEY)
     email.ts           Legacy local-dev copy (only used by server/index.ts — production email lives in api/_lib/email.ts)
+
+supabase/
+  migrations/       SQL migrations (RPC lockdown, store-credit clawback)
 ```
 
 **ESM import rule:** `package.json` has `"type": "module"`. All relative imports inside `api/` **must** include `.js` extension (e.g. `import { x } from "./_lib/supabase-admin.js"`). Missing extensions cause `ERR_MODULE_NOT_FOUND` at runtime on Vercel.
@@ -220,7 +231,7 @@ The Vercel-Supabase connector auto-injects `SUPABASE_URL` and `SUPABASE_SERVICE_
 
 Three login types share `AuthContext` (`client/src/contexts/AuthContext.tsx`) and the
 `authedFetch` helper (`client/src/lib/api.ts`, attaches the Supabase JWT as a Bearer token).
-Server routes validate the JWT via helpers in `server/lib/`:
+Server routes validate the JWT via helpers in `api/_lib/`:
 - `requireUser.ts` — any logged-in user (returns id + email)
 - `requireAdmin.ts` — checks `admins` table; links `user_id` on first login
 - `requireAffiliate.ts` — checks `affiliates` table; links `user_id` on first login
@@ -264,7 +275,7 @@ GMAIL_USER=hello@vitumlab.com
 GMAIL_APP_PASSWORD=<optional>
 ```
 
-Note: The old `server/index.ts` Express server handles `create-crypto-payment` and `nowpayments-webhook` for local testing, but those routes are also covered by `vitePluginLocalApi` via `api/create-crypto-payment.ts`.
+Note: `vitePluginLocalApi` routes every endpoint **except** `/api/nowpayments-webhook` and `/api/cron` — those two are not in its ROUTES table and are unreachable under `pnpm dev`. The legacy `server/index.ts` Express server (started via `pnpm build && pnpm start`, never by `pnpm dev`) is the only local path that serves the webhook.
 
 ---
 
