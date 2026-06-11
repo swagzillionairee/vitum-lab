@@ -280,7 +280,13 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
-      await reserveCredit(email, creditApplied, orderId);
+      // Atomic reservation — refuses if a concurrent order spent the credit,
+      // in which case this order is no longer actually fully covered.
+      if (!(await reserveCredit(email, creditApplied, orderId))) {
+        await supabaseAdmin.from("orders").delete().eq("id", orderId);
+        res.status(409).json({ error: "Your store credit balance changed — please review your order and try again." });
+        return;
+      }
       for (const item of paidItems) {
         await supabaseAdmin.rpc("decrement_stock", { p_cart_code: item.cartCode, p_qty: item.quantity });
       }
@@ -329,9 +335,14 @@ export default async function handler(req: any, res: any) {
       res.status(500).json({ error: "Failed to create order. Please try again." });
       return;
     }
-    // Reserve the store credit now; failing the order (below, or on auto-expiry)
-    // releases it automatically via the balance query.
-    await reserveCredit(email, creditApplied, orderId);
+    // Reserve the store credit now (atomic — refuses if a concurrent order
+    // already spent it); failing the order (below, or on auto-expiry) releases
+    // it automatically via the balance query.
+    if (!(await reserveCredit(email, creditApplied, orderId))) {
+      await supabaseAdmin.from("orders").delete().eq("id", orderId);
+      res.status(409).json({ error: "Your store credit balance changed — please review your order and try again." });
+      return;
+    }
 
     const nowRes = await fetch(`${NOWPAYMENTS_API}/invoice`, {
       method: "POST",

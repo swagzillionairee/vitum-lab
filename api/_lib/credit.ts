@@ -54,10 +54,22 @@ export async function addLedger(entry: { email: string; amount: number; reason: 
   return true;
 }
 
-/** Reserve (redeem) credit for an order at creation — a negative ledger entry. */
-export async function reserveCredit(email: string, amount: number, orderId: string): Promise<void> {
-  if (!(amount > 0)) return;
-  await addLedger({ email, amount: -round2(amount), reason: "redemption", orderId });
+/**
+ * Atomically reserve (redeem) credit for an order at creation. The
+ * reserve_store_credit RPC re-derives the balance and inserts the negative
+ * ledger entry under a per-customer lock, so two concurrent checkouts can't
+ * both spend the same credit. Returns false when the balance is insufficient.
+ */
+export async function reserveCredit(email: string, amount: number, orderId: string): Promise<boolean> {
+  const amt = round2(amount);
+  if (!(amt > 0)) return true;
+  const { data, error } = await supabaseAdmin.rpc("reserve_store_credit", {
+    p_email: email,
+    p_amount: amt,
+    p_order_id: orderId,
+  });
+  if (error) { console.error("reserve_store_credit error:", error); return false; }
+  return data === true;
 }
 
 /** Earn loyalty on confirmation. Base = cash actually paid (net − credit applied). */

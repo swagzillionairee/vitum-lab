@@ -94,7 +94,10 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                        sitewideSalePrice, isSitewideActive, promoAlreadyRedeemed [one-use-per-email],
                        quantityDiscountPercent + computeStackedDiscounts [quantity tier → code, with breakdown lines]) — unit-tested
     credit.ts          Store credit ledger + loyalty + referrals: getBalance (RPC, all entries on dead orders excluded),
-                       addLedger (idempotent per order+reason), reserveCredit, earnLoyalty, grantReferralReward, getOrCreateReferralCode, getRewardConfig
+                       addLedger (idempotent per order+reason), reserveCredit (atomic via reserve_store_credit RPC — returns false on insufficient balance),
+                       earnLoyalty, grantReferralReward, getOrCreateReferralCode, getRewardConfig
+    orderLifecycle.ts  paidIpnAction — pure classifier for paid IPNs (pending→fulfill, confirmed→resend_emails,
+                       cancelled/failed→late_payment) — unit-tested
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
     requireAffiliate.ts requireUser + checks affiliates table
@@ -116,7 +119,7 @@ supabase/
 **Key data flow:**
 1. Cart items live in `CartContext` (sessionStorage). `CartItem.cartCode` is the inventory key.
 2. Checkout: CartDrawer shows cart items + a "Proceed to Checkout" button. Checkout **requires sign-in** — if not authenticated it routes to `/login?redirect=/checkout`. The dedicated `/checkout` page (`pages/Checkout.tsx`) has a 2/3 contact+shipping form (Google Places autocomplete, email prefilled from the account) and a 1/3 order summary (items, subtotal, discount, shipping, total, promo). Submitting → `POST /api/create-crypto-payment` (validates a complete address) → NowPayments invoice URL → redirect. The invoice page offers crypto **and** card/Apple Pay (fiat on-ramp), so there is a single checkout path. Card/Apple Pay must be enabled in the NowPayments dashboard (on-ramp via Guardarian/Banxa) — no code change needed to toggle it. **⚠️ As of June 2026 the card/Apple Pay on-ramp is pending NowPayments review and not yet live; the storefront copy that mentions it is intentionally left as-is (owner decision).**
-3. Payment confirmed: NowPayments IPN → `POST /api/nowpayments-webhook` → `decrement_stock()` RPC → order status `confirmed` → customer confirmation email + admin new-order alert (idempotent via `orders.emails_sent` — NowPayments fires both `confirmed` and `finished`). `failed`/`expired`/`refunded` IPNs on pending orders → status `failed` + email.
+3. Payment confirmed: NowPayments IPN → `POST /api/nowpayments-webhook` → `decrement_stock()` RPC → order status `confirmed` → customer confirmation email + admin new-order alert (idempotent via `orders.emails_sent` — NowPayments fires both `confirmed` and `finished`). `failed`/`expired`/`refunded` IPNs on pending orders → status `failed` + email. A paid IPN on a **cancelled/failed** order (late payment after the 24h auto-expiry) does NOT confirm or email the customer — it records the payment details + an admin note and sends a one-time `admin_late_payment` alert for a manual refund/fulfill (`paidIpnAction` in `_lib/orderLifecycle.ts`).
 4. Order ID is a random **20-digit** number (`api/_lib/orderId.ts` → `buildOrderId`); the customer email lives in the `orders.email` column. `formatOrderId` renders it for display (legacy IDs were `{10-char-alphanum}--{base64url(email)}`, so it shows the part before `--`).
 5. Discounts are resolved **server-side** in `create-crypto-payment` from the code (affiliate → discount+commission; promo → discount only); client-sent amounts are ignored. Commission = `commission_percent` × net, stored on the order at creation.
 6. **Discounts stack** server-side in `create-crypto-payment` (`computeStackedDiscounts`): the site-wide sale is baked into item prices, then the quantity tier %, then a single code (promo/affiliate % or referral flat $). **Store credit** then applies as tender on top, reducing the cash `amountDue` (`applyCredit`); it's reserved in the ledger at order creation. Each discount line is recorded in `orders.discount_breakdown` and shown at checkout.
@@ -161,6 +164,7 @@ Key RPCs:
 - `increment_stock(p_cart_code TEXT, p_qty INT) → INT` — restocks (used when an admin cancels a *paid* order).
 - `increment_promo_use(p_code TEXT)` — atomic promo usage counter.
 - `store_credit_balance(p_email TEXT) → NUMERIC` — derived store-credit balance (excludes every ledger entry tied to a cancelled/failed order — refunds reserved credit and claws back earned loyalty/referral).
+- `reserve_store_credit(p_email TEXT, p_amount NUMERIC, p_order_id TEXT) → BOOLEAN` — atomic check-and-reserve under a per-customer advisory lock (false = insufficient balance, e.g. a concurrent checkout spent it); idempotent per order.
 
 **Scheduled jobs (pg_cron):** `expire-stale-orders` runs hourly — sets `status='cancelled'` (reason `auto-expired…`) on `pending` orders older than 24h (pending orders never decremented stock, so no restock needed). `email-cron` runs hourly — pg_net POST to `/api/cron` (CRON_SECRET header), which also expires stale orders AND sends the cancellation emails (idempotent; the two jobs coexist safely — the endpoint's sweep emails anything the SQL job expired).
 

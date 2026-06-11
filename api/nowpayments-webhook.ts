@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, sendAffiliateCommission, type EmailOrder } from "./_lib/email.js";
 import { getRewardConfig, earnLoyalty, grantReferralReward } from "./_lib/credit.js";
+import { paidIpnAction } from "./_lib/orderLifecycle.js";
 
 function sortKeys(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;
@@ -14,7 +15,7 @@ function sortKeys(obj: unknown): unknown {
 }
 
 const ORDER_COLS =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, credit_applied, referral_code, shipping_address, status, affiliate_id, commission_amount, emails_sent";
+  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, credit_applied, referral_code, shipping_address, status, affiliate_id, commission_amount, emails_sent, admin_notes";
 
 // Email the attributed affiliate their commission (once, via emails_sent).
 async function notifyAffiliate(order: any) {
@@ -70,10 +71,38 @@ export default async function handler(req: any, res: any) {
     }
 
     if (status === "finished" || status === "confirmed") {
+      const action = paidIpnAction(order.status);
+
+      if (action === "late_payment") {
+        // Money arrived on a cancelled/failed order — e.g. the customer paid the
+        // crypto invoice after the 24h auto-expiry. The order stays dead (no
+        // stock decrement, no customer "confirmed" email); record the payment
+        // and alert the admin once so it can be refunded or fulfilled manually.
+        try {
+          if (!order.emails_sent?.admin_late_payment) {
+            const note = `⚠️ Payment received (IPN "${status}", payment id ${payload.payment_id ?? "unknown"}) AFTER this order was ${order.status}. Not fulfilled automatically — refund the customer or fulfill manually.`;
+            await supabaseAdmin
+              .from("orders")
+              .update({
+                admin_notes: order.admin_notes ? `${order.admin_notes}\n\n${note}` : note,
+                pay_currency: payload.pay_currency ?? null,
+                pay_amount: payload.actually_paid ?? payload.pay_amount ?? null,
+                payment_id: payload.payment_id != null ? String(payload.payment_id) : null,
+              })
+              .eq("id", payload.order_id);
+            await sendOrderEvent(order as EmailOrder, "admin_late_payment");
+          }
+        } catch (err) {
+          console.error("Failed to flag late payment:", err);
+        }
+        res.status(200).send("OK");
+        return;
+      }
+
       // Confirm the order exactly once (NowPayments fires both `confirmed`
       // and `finished` for the same payment).
       try {
-        if (order.status === "pending") {
+        if (action === "fulfill") {
           const items = (order.items as { cartCode: string; quantity: number; price: number }[]) ?? [];
           for (const item of items) {
             if (item.price > 0 && item.cartCode !== "bac-water-free") {
