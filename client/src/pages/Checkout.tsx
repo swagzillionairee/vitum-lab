@@ -13,11 +13,9 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
 import { getPromoCode, clearPromoCode } from "@/lib/promo";
-import { quantityDiscountPercent, round2, type QuantityTier } from "@/lib/discounts";
+import { quantityDiscountPercent, round2, shippingFee, type QuantityTier } from "@/lib/discounts";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
-
-const FREE_SHIPPING_THRESHOLD = 150;
 
 export default function Checkout() {
   const { items, subtotal, openCart, clearCart } = useCart();
@@ -148,9 +146,12 @@ export default function Checkout() {
     : 0;
   const discountAmount = round2(qtyDiscount + codeDiscount);
   const netAfterDiscounts = round2(subtotal - discountAmount);
-  // Store credit auto-applies as tender, reducing the amount due (server is authoritative).
-  const creditApplied = round2(Math.min(creditBalance, netAfterDiscounts));
-  const total = round2(netAfterDiscounts - creditApplied);
+  // Flat $15 shipping under $150 (pre-discount basis), free above.
+  const shippingCost = shippingFee(subtotal);
+  // Store credit auto-applies as tender (covering shipping too), reducing the
+  // amount due (server is authoritative).
+  const creditApplied = round2(Math.min(creditBalance, netAfterDiscounts + shippingCost));
+  const total = round2(netAfterDiscounts + shippingCost - creditApplied);
 
   const handlePay = async () => {
     if (!email.trim() || !email.includes("@")) {
@@ -345,7 +346,11 @@ export default function Checkout() {
               )}
               <div className="flex justify-between text-[0.875rem] text-[oklch(0.40_0.01_260)]">
                 <span>Shipping</span>
-                <span className={subtotal >= FREE_SHIPPING_THRESHOLD ? "text-[oklch(0.35_0.12_155)] font-semibold" : ""}>Free</span>
+                {shippingCost > 0 ? (
+                  <span>${shippingCost.toFixed(2)}</span>
+                ) : (
+                  <span className="text-[oklch(0.35_0.12_155)] font-semibold">Free</span>
+                )}
               </div>
               <div className="flex justify-between items-center border-t border-[oklch(0.93_0.004_260)] pt-2">
                 <span className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)]">Total</span>

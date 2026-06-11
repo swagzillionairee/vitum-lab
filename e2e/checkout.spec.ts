@@ -96,9 +96,10 @@ test("customer can fill checkout, apply a promo, and submit", async ({ page }) =
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByText("Promo code applied!")).toBeVisible();
 
-  // 10% off $129 = $12.90 → total $116.10.
+  // 10% off $129 = $12.90, + $15 flat shipping (under $150) → total $131.10.
   await expect(page.getByText(/10%/)).toBeVisible();
-  await expect(page.getByText("$116.10")).toBeVisible();
+  await expect(page.getByText("$15.00")).toBeVisible();
+  await expect(page.getByText("$131.10")).toBeVisible();
 
   // Submit → lands on the in-app success page for the $0/"free" path.
   await page.getByRole("button", { name: /Continue to Payment/i }).click();

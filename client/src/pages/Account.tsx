@@ -23,6 +23,7 @@ interface Order {
   id: string;
   items: OrderItem[];
   net_amount: number;
+  shipping_amount?: number | null;
   status: string;
   fulfillment_status: string | null;
   tracking_number: string | null;
@@ -220,7 +221,7 @@ export default function Account() {
                 </ul>
                 <div className="flex items-center justify-between border-t border-[oklch(0.95_0.003_260)] pt-3">
                   <span className="text-[0.8125rem] text-[oklch(0.52_0.01_260)]">
-                    Total <span className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)] ml-1">${Number(o.net_amount).toFixed(2)}</span>
+                    Total <span className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)] ml-1">${(Number(o.net_amount) + Number(o.shipping_amount ?? 0)).toFixed(2)}</span>
                   </span>
                   <button
                     onClick={() => reorder(o)}

@@ -11,9 +11,9 @@ const FOLLOWUP_AFTER_DAYS = 7;
 const AFFILIATE_STATEMENT_HOUR_UTC = 15;
 
 const ORDER_COLS =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_address, status, cancel_reason, emails_sent";
+  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, shipping_address, status, cancel_reason, emails_sent";
 const ORDER_COLS_FULL =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_address, status, fulfillment_status, tracking_number, carrier, delivered_at, emails_sent";
+  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, shipping_address, status, fulfillment_status, tracking_number, carrier, delivered_at, emails_sent";
 
 // Affiliate monthly statements for the previous calendar month.
 async function sendAffiliateStatements(results: { statements: number; errors: number }) {

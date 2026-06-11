@@ -359,7 +359,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── /api/admin/orders ────────────────────────────────────────────────────
   if (route === "orders") {
     const orderSelect =
-      "id, email, items, gross_amount, discount_amount, net_amount, discount_code, discount_breakdown, credit_applied, referral_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
+      "id, email, items, gross_amount, discount_amount, net_amount, shipping_amount, discount_code, discount_breakdown, credit_applied, referral_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
 
     // Sends an order email and reloads emails_sent so the response reflects the
     // new stamp. Email failures never fail the admin action.
@@ -620,11 +620,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data: rows } = await supabaseAdmin
       .from("orders")
-      .select("id, email, items, net_amount, shipping_address, label_url, tracking_number, carrier, created_at")
+      .select("id, email, items, net_amount, shipping_amount, shipping_address, label_url, tracking_number, carrier, created_at")
       .in("id", ids.slice(0, 100));
     const orders = ids.map((id) => (rows ?? []).find((r) => r.id === id)).filter(Boolean) as Array<{
       id: string; items: { name: string; dose: string; quantity: number; cartCode?: string }[] | null;
-      net_amount: number | string; shipping_address: Record<string, string> | null;
+      net_amount: number | string; shipping_amount: number | string | null; shipping_address: Record<string, string> | null;
       label_url: string | null; tracking_number: string | null; carrier: string | null; created_at: string;
     }>;
     if (orders.length === 0) return res.status(404).json({ error: "Orders not found" });
@@ -730,7 +730,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Total
       need(15);
       page.drawText("TOTAL", { x: M, y, size: 13, font: bold, color: black });
-      const tot = money(o.net_amount);
+      const tot = money((Number(o.net_amount) || 0) + (Number(o.shipping_amount) || 0));
       page.drawText(tot, { x: PW - M - bold.widthOfTextAtSize(tot, 13), y, size: 13, font: bold, color: black });
       y -= 18;
     }

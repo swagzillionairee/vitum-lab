@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
-import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, sitewideSalePrice, isSitewideActive, type QuantityTier } from "./_lib/pricing.js";
+import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, sitewideSalePrice, isSitewideActive, shippingFee, type QuantityTier } from "./_lib/pricing.js";
 import { getBalance, reserveCredit, getRewardConfig, earnLoyalty, grantReferralReward, type RewardConfig } from "./_lib/credit.js";
 import { validateAddress } from "./_lib/shippo.js";
 import { buildOrderId } from "./_lib/orderId.js";
@@ -243,10 +243,15 @@ export default async function handler(req: any, res: any) {
     const commissionAmount =
       discount?.kind === "affiliate" ? calcCommission(netAmount, discount.commissionPercent) : null;
 
+    // Flat shipping fee on sub-$150 orders (free at $150+, pre-discount basis —
+    // mirrors the free-gift threshold). Commission stays on the merchandise net.
+    const shippingAmount = shippingFee(grossAmount);
+
     // Apply store credit as tender: it reduces the cash amount due (net_amount is
-    // the order's value after discounts; credit is a payment method, not a discount).
+    // the order's value after discounts; credit is a payment method, not a discount,
+    // and it covers shipping too).
     const balance = await getBalance(email);
-    const { creditApplied, amountDue } = applyCredit(netAmount, balance);
+    const { creditApplied, amountDue } = applyCredit(netAmount + shippingAmount, balance);
 
     const description = paidItems
       .map((i) => `${i.name} ${i.dose} x${i.quantity}`)
@@ -265,6 +270,7 @@ export default async function handler(req: any, res: any) {
         gross_amount: grossAmount,
         discount_amount: discountAmount,
         net_amount: netAmount,
+        shipping_amount: shippingAmount,
         discount_code: discountCodeNorm,
         discount_breakdown: discountLines,
         referral_code: referralCode,
@@ -300,7 +306,8 @@ export default async function handler(req: any, res: any) {
 
       const freeOrder: EmailOrder = {
         id: orderId, email, items: orderItems, gross_amount: grossAmount, discount_amount: discountAmount,
-        discount_code: discountCodeNorm, net_amount: netAmount, shipping_address: shipping, emails_sent: {},
+        discount_code: discountCodeNorm, net_amount: netAmount, shipping_amount: shippingAmount,
+        shipping_address: shipping, emails_sent: {},
       };
       deferEmail(
         (async () => {
@@ -322,6 +329,7 @@ export default async function handler(req: any, res: any) {
       gross_amount: grossAmount,
       discount_amount: discountAmount,
       net_amount: netAmount,
+      shipping_amount: shippingAmount,
       discount_code: discountCodeNorm,
       discount_breakdown: discountLines,
       referral_code: referralCode,
@@ -382,6 +390,7 @@ export default async function handler(req: any, res: any) {
       discount_amount: discountAmount,
       discount_code: discountCodeNorm,
       net_amount: netAmount,
+      shipping_amount: shippingAmount,
       shipping_address: shipping,
       emails_sent: {},
     };

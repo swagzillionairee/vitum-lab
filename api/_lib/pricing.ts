@@ -11,6 +11,19 @@ export function grossFromItems(items: { price: number; quantity: number }[]): nu
   return round2(items.reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0));
 }
 
+export const SHIPPING_FEE = 15;
+export const FREE_SHIPPING_THRESHOLD = 150;
+
+/**
+ * Flat shipping fee for an order: $15 under the free-shipping threshold, free
+ * at $150+. Based on the pre-discount item subtotal (same basis as the free
+ * BAC Water gift), so a promo code never pushes an order back into paying
+ * shipping.
+ */
+export function shippingFee(gross: number): number {
+  return (Number(gross) || 0) >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
+}
+
 /** Dollar value of a percentage discount on a subtotal. */
 export function discountAmount(gross: number, percent: number): number {
   return round2((gross * percent) / 100);

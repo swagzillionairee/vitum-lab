@@ -25,6 +25,7 @@ export interface OrderRow {
   email: string;
   net_amount: number;
   gross_amount?: number;
+  shipping_amount?: number | null;
   discount_amount?: number;
   discount_code?: string | null;
   discount_breakdown?: { type: string; label: string; amount: number }[] | null;

@@ -94,13 +94,13 @@ export default function AdminDashboard() {
     const res = await authedFetch(`/api/admin/orders?${orderQueryString({ page: "1", perPage: "2000" })}`);
     if (!res.ok) { alert("Export failed"); return; }
     const { orders: rows } = (await res.json()) as { orders: OrderRow[] };
-    const header = ["Order ID", "Email", "Payment", "Fulfillment", "Gross", "Discount", "Net", "Pay Currency", "Name", "Address", "City", "State", "ZIP", "Country", "Phone", "Tracking", "Created (ET)"];
+    const header = ["Order ID", "Email", "Payment", "Fulfillment", "Gross", "Discount", "Net", "Shipping", "Pay Currency", "Name", "Address", "City", "State", "ZIP", "Country", "Phone", "Tracking", "Created (ET)"];
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [header.map(esc).join(",")];
     for (const o of rows) {
       const a = o.shipping_address ?? {};
       lines.push([
-        o.id, o.email, o.status, o.fulfillment_status ?? "", o.gross_amount ?? "", o.discount_amount ?? "", o.net_amount,
+        o.id, o.email, o.status, o.fulfillment_status ?? "", o.gross_amount ?? "", o.discount_amount ?? "", o.net_amount, o.shipping_amount ?? "",
         o.pay_currency ?? "", a.name ?? "", [a.line1, a.line2].filter(Boolean).join(" "), a.city ?? "", a.state ?? "",
         a.postal_code ?? "", a.country ?? "", a.phone ?? "", o.tracking_number ?? "", formatDateEST(o.created_at),
       ].map(esc).join(","));
@@ -858,7 +858,7 @@ export default function AdminDashboard() {
                                   )}
                               </div>
                             </td>
-                            <td className="py-3 pr-4 font-semibold text-[oklch(0.13_0.01_260)]">${Number(o.net_amount).toFixed(2)}</td>
+                            <td className="py-3 pr-4 font-semibold text-[oklch(0.13_0.01_260)]">${(Number(o.net_amount) + Number(o.shipping_amount ?? 0)).toFixed(2)}</td>
                             <td className="py-3 pr-4">
                               <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_COLORS[o.status] ?? STATUS_COLORS.pending}`}>
                                 {o.status}
@@ -980,13 +980,16 @@ export default function AdminDashboard() {
                                         <span>−${Number(o.discount_amount).toFixed(2)}</span>
                                       </div>
                                     ) : null}
+                                    {Number(o.shipping_amount) > 0 && (
+                                      <div className="flex justify-between gap-6"><span>Shipping</span><span>${Number(o.shipping_amount).toFixed(2)}</span></div>
+                                    )}
                                     <div className="flex justify-between gap-6 font-semibold text-[oklch(0.13_0.01_260)] border-t border-[oklch(0.90_0.004_260)] pt-1">
-                                      <span>Total</span><span>${Number(o.net_amount).toFixed(2)}</span>
+                                      <span>Total</span><span>${(Number(o.net_amount) + Number(o.shipping_amount ?? 0)).toFixed(2)}</span>
                                     </div>
                                     {Number(o.credit_applied) > 0 && (
                                       <>
                                         <div className="flex justify-between gap-6 text-[oklch(0.35_0.14_155)]"><span>Store credit</span><span>−${Number(o.credit_applied).toFixed(2)}</span></div>
-                                        <div className="flex justify-between gap-6 text-[oklch(0.45_0.01_260)]"><span>Charged</span><span>${(Number(o.net_amount) - Number(o.credit_applied)).toFixed(2)}</span></div>
+                                        <div className="flex justify-between gap-6 text-[oklch(0.45_0.01_260)]"><span>Charged</span><span>${(Number(o.net_amount) + Number(o.shipping_amount ?? 0) - Number(o.credit_applied)).toFixed(2)}</span></div>
                                       </>
                                     )}
                                     {Number(o.commission_amount) > 0 && (

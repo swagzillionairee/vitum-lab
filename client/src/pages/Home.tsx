@@ -60,7 +60,7 @@ const faqs = [
   },
   {
     q: "Do you offer free shipping?",
-    a: "Yes — orders over $150 receive free shipping and a complimentary 10mL BAC Water vial. The free BAC Water is automatically added to your cart when you reach the threshold.",
+    a: "Yes — orders over $150 receive free shipping and a complimentary 10mL BAC Water vial. The free BAC Water is automatically added to your cart when you reach the threshold. Orders under $150 ship for a flat $15 rate.",
   },
   {
     q: "What is BAC Water and why do I need it?",

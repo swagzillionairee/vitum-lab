@@ -34,6 +34,7 @@ export interface EmailOrder {
   discount_amount?: number | string | null;
   discount_code?: string | null;
   net_amount: number | string;
+  shipping_amount?: number | string | null;
   shipping_address?: EmailAddress | null;
   tracking_number?: string | null;
   carrier?: string | null;
@@ -112,6 +113,9 @@ async function stampEmail(orderId: string, event: string) {
 
 // ─── Shared layout + fragments ───────────────────────────────────────────────
 const money = (n: number | string | null | undefined) => `$${(Number(n) || 0).toFixed(2)}`;
+
+// What the customer owes: merchandise net + shipping (0/absent on legacy orders).
+const orderTotal = (order: EmailOrder) => (Number(order.net_amount) || 0) + (Number(order.shipping_amount) || 0);
 
 // Escape any dynamic value (customer shipping address, email, product names)
 // before it goes into an email's HTML, so a crafted value can't inject markup.
@@ -194,14 +198,20 @@ function orderBox(order: EmailOrder, images?: Record<string, string>): string {
             <td style="padding:6px 0;font-size:14px;color:#1a7a4a;word-break:break-word;">Discount${order.discount_code ? ` (${esc(order.discount_code)})` : ""}</td>
             <td style="padding:6px 0;font-size:14px;color:#1a7a4a;text-align:right;white-space:nowrap;">−${money(order.discount_amount)}</td>
           </tr>` : "";
+  const shippingRow = Number(order.shipping_amount) > 0
+    ? `<tr>
+            <td></td>
+            <td style="padding:6px 0;font-size:14px;color:#333;word-break:break-word;">Shipping</td>
+            <td style="padding:6px 0;font-size:14px;color:#333;text-align:right;white-space:nowrap;">${money(order.shipping_amount)}</td>
+          </tr>` : "";
   return `<div style="background:#f7f8fa;border-radius:10px;padding:18px;margin-bottom:24px;">
         <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#999;">Order <span style="font-family:monospace;color:#555;">${formatOrderId(order.id)}</span></p>
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
-          <colgroup><col style="width:52px;"><col><col style="width:84px;"></colgroup>${rows}${discount}
+          <colgroup><col style="width:52px;"><col><col style="width:84px;"></colgroup>${rows}${discount}${shippingRow}
           <tr>
             <td></td>
             <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#0f1a2e;border-top:1px solid #e5e7eb;">Total</td>
-            <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#0f1a2e;text-align:right;border-top:1px solid #e5e7eb;white-space:nowrap;">${money(order.net_amount)}</td>
+            <td style="padding:10px 0 0;font-size:15px;font-weight:700;color:#0f1a2e;text-align:right;border-top:1px solid #e5e7eb;white-space:nowrap;">${money(orderTotal(order))}</td>
           </tr>
         </table>
       </div>`;
@@ -310,10 +320,10 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
       const shipTo = a?.line1 ? `${esc(a.name ?? "")}, ${esc(a.line1)}${a.line2 ? ` ${esc(a.line2)}` : ""}, ${esc(a.city)}, ${esc(a.state)} ${esc(a.postal_code)}` : "no address on file";
       return {
         to: ordersInbox(),
-        subject: `💰 New paid order ${money(order.net_amount)} — ${shortId}`,
+        subject: `💰 New paid order ${money(orderTotal(order))} — ${shortId}`,
         html: layout(
           pill("New Paid Order", "#edfaf3", "#1a7a4a") +
-          heading(`${money(order.net_amount)} — ready to fulfill`, `Customer: ${esc(order.email)}<br>Ship to: ${shipTo}`) +
+          heading(`${money(orderTotal(order))} — ready to fulfill`, `Customer: ${esc(order.email)}<br>Ship to: ${shipTo}`) +
           orderBox(order, images) +
           button("Open Admin → Orders", `${baseUrl()}/admin`),
         ),
