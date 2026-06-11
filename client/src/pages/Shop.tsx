@@ -18,6 +18,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import SEO from "@/components/SEO";
 import { useProducts } from "@/hooks/useProducts";
 import { useInventory } from "@/hooks/useInventory";
+import { coaLibraryHref } from "@/lib/products";
 
 // ─── Slug → categorySlug mapping ─────────────────────────────────────────────
 const CATEGORY_SLUG_MAP: Record<string, string> = {
@@ -121,7 +122,7 @@ function ProductCard({ p }: { p: FlatProduct }) {
           {/* COA + Add to Cart (own row so they never overlap the price) */}
           <div className="flex items-center justify-between gap-2">
             <a
-              href={`/coa-library#${p.cartCode}`}
+              href={coaLibraryHref(p.cartCode)}
               className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors flex-shrink-0"
             >
               <FileText className="w-3.5 h-3.5" /> COA

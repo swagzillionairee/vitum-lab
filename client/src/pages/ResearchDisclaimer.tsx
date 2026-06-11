@@ -14,7 +14,7 @@ import {
 import SEO from "@/components/SEO";
 
 const responsibilities = [
-  "I am at least 18 years of age.",
+  "I am at least 21 years of age.",
   "I am a qualified researcher, scientist, or laboratory professional purchasing for legitimate in vitro or laboratory research purposes.",
   "I will not use, administer, or distribute these products for human or veterinary consumption.",
   "I understand and accept full responsibility for compliance with all applicable federal, state, and local laws governing the purchase, possession, and use of research chemicals in my jurisdiction.",

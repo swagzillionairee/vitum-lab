@@ -58,7 +58,7 @@ export default function PrivacyPolicy() {
 
       <h2>Children's Privacy</h2>
       <p>
-        Our site is not directed to individuals under 18 years of age. We do not knowingly collect personal information from minors. If you believe a minor has provided us with personal data, please contact us immediately.
+        Our site is not directed to individuals under 21 years of age. We do not knowingly collect personal information from minors. If you believe a minor has provided us with personal data, please contact us immediately.
       </p>
 
       <h2>Changes to This Policy</h2>

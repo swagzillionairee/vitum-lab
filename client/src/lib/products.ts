@@ -218,3 +218,12 @@ export const products: Product[] = [
     coaHref: "/coa-library#bacwater",
   },
 ];
+
+// Maps a variant cartCode to its card anchor on /coa-library (card ids: glp3r, ghkcu, nad).
+// BAC Water has no COA card, so its link lands on the library overview.
+export function coaLibraryHref(cartCode: string): string {
+  if (cartCode.startsWith("retatrutide")) return "/coa-library#glp3r";
+  if (cartCode.startsWith("ghk-cu")) return "/coa-library#ghkcu";
+  if (cartCode.startsWith("nad")) return "/coa-library#nad";
+  return "/coa-library";
+}

@@ -18,6 +18,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useInventory } from "@/hooks/useInventory";
 import { useProducts } from "@/hooks/useProducts";
 import SEO from "@/components/SEO";
+import { coaLibraryHref } from "@/lib/products";
 
 // ─── Quality tabs ─────────────────────────────────────────────────────────────
 const qualityTabs = [
@@ -182,7 +183,7 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
           )}
           <div className="flex items-center gap-2">
             <a
-              href={`/coa-library#${selected.cartCode}`}
+              href={coaLibraryHref(selected.cartCode)}
               className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors"
             >
               <FileText className="w-3.5 h-3.5" /> COA
@@ -279,7 +280,7 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
           )}
           <div className="flex items-center gap-2">
             <a
-              href={`/coa-library#${p.cartCode}`}
+              href={coaLibraryHref(p.cartCode)}
               className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors"
             >
               <FileText className="w-3.5 h-3.5" /> COA
@@ -549,7 +550,7 @@ export default function Home() {
                 title: "Research library at your fingertips",
                 body: "Access research articles, compound references, and documentation on each peptide we carry. Updated regularly with new literature.",
                 cta: "Research Library",
-                href: "/research-disclaimer",
+                href: "/research",
               },
             ].map((f) => (
               <div key={f.title} className="bg-white rounded-2xl p-7 flex flex-col gap-4">
