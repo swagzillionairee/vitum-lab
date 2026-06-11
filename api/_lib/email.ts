@@ -44,7 +44,8 @@ export interface EmailOrder {
 
 export type OrderEmailEvent =
   | "order_created" | "confirmed" | "shipped" | "delivered"
-  | "cancelled" | "failed" | "admin_new_order" | "admin_delivered" | "followup";
+  | "cancelled" | "failed" | "admin_new_order" | "admin_delivered"
+  | "admin_late_payment" | "followup";
 
 // ─── Transport / env ─────────────────────────────────────────────────────────
 let _transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
@@ -332,6 +333,20 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
         ),
       };
     }
+    case "admin_late_payment":
+      return {
+        to: ordersInbox(),
+        subject: `⚠️ Late payment on ${order.status ?? "cancelled"} order — ${shortId}`,
+        html: layout(
+          pill("Late Payment — Action Needed", "#fdf3e7", "#b9770e") +
+          heading(
+            "Payment received on a dead order",
+            `The customer paid AFTER order ${shortId} was ${esc(order.status ?? "cancelled")}, so it was <strong>not fulfilled</strong>: stock was not decremented and no confirmation email was sent. Refund ${esc(order.email)} or fulfill the order manually.`,
+          ) +
+          orderBox(order, images) +
+          button("Open Admin → Orders", `${baseUrl()}/admin`),
+        ),
+      };
     case "followup":
       return {
         to: order.email,
