@@ -1,19 +1,14 @@
-import { customAlphabet } from "nanoid";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
 import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, sitewideSalePrice, isSitewideActive, type QuantityTier } from "./_lib/pricing.js";
 import { getBalance, reserveCredit, getRewardConfig, earnLoyalty, grantReferralReward, type RewardConfig } from "./_lib/credit.js";
 import { validateAddress } from "./_lib/shippo.js";
+import { buildOrderId } from "./_lib/orderId.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
-const genId = customAlphabet("0123456789abcdefghijklmnopqrstuvwxyz", 10);
 
 const FREE_GIFT_CODE = "bac-water-free";
 const FREE_GIFT_THRESHOLD = 150; // paid subtotal that unlocks the free BAC Water
-
-function buildOrderId(email: string) {
-  return `${genId()}--${Buffer.from(email).toString("base64url")}`;
-}
 
 /**
  * Authoritative per-variant prices, keyed by cartCode, read from the products
@@ -175,7 +170,7 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const orderId = buildOrderId(email);
+    const orderId = buildOrderId();
     const grossAmount = grossFromItems(paidItems);
 
     // Re-add the free BAC Water ($0, qty 1) only when the paid subtotal clears

@@ -5,6 +5,7 @@ import { sendOrderEvent, sendBackInStock, sendAffiliateCommission, deferEmail, t
 import { buyLabel, getTrackingStatus, shippoConfigured, shipFromConfigured, shipFromPhoneConfigured } from "../_lib/shippo.js";
 import { getRewardConfig, earnLoyalty, grantReferralReward } from "../_lib/credit.js";
 import { VT_LOGO_PNG_B64 } from "../_lib/vt-logo.js";
+import { formatOrderId } from "../_lib/orderId.js";
 
 // Notify (once) everyone on the back-in-stock waitlist for a cart_code that
 // just went from 0 → in stock, then mark those rows notified.
@@ -695,7 +696,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const hr = () => { need(7); page.drawLine({ start: { x: M, y: y + 4 }, end: { x: PW - M, y: y + 4 }, thickness: 0.8, color: black }); y -= 8; };
 
       // Order meta
-      text(`Order ${String(o.id).slice(0, 10)}`, 11);
+      text(`Order ${formatOrderId(o.id)}`, 11);
       text(`Date: ${new Date(o.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}`, 9);
       if (o.tracking_number) for (const w of wrap(`Tracking: ${o.carrier || "USPS"} ${o.tracking_number}`, 9, PW - 2 * M)) text(w, 9);
       hr();

@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Truck, Loader2, Check, Upload } from "lucide-react";
 import { authedFetch } from "@/lib/api";
+import { formatOrderId } from "@/lib/orders";
 import type { ShipmentRow } from "./types";
 
 export default function ShippingTab() {
@@ -70,7 +71,7 @@ export default function ShippingTab() {
               {/* Left label — not part of the bulk copy (select-none) */}
               <span className="select-none flex items-center gap-2 text-[0.75rem] text-[oklch(0.52_0.01_260)] min-w-0">
                 <span className="truncate max-w-[220px]">{s.email}</span>
-                <span className="font-mono text-[oklch(0.60_0.01_260)]">#{s.id.slice(0, 10)}</span>
+                <span className="font-mono text-[oklch(0.60_0.01_260)]">#{formatOrderId(s.id)}</span>
                 {s.fulfillment_status === "delivered" && (
                   <span className="select-none px-2 py-0.5 rounded-full text-[0.625rem] font-semibold bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]">delivered</span>
                 )}

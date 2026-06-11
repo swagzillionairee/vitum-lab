@@ -10,6 +10,7 @@ import { useLocation, Link } from "wouter";
 import { Package, LogOut, Loader2, HelpCircle, RotateCcw, Wallet, Gift, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatOrderId } from "@/lib/orders";
 import { useCart } from "@/contexts/CartContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useInventory } from "@/hooks/useInventory";
@@ -191,7 +192,7 @@ export default function Account() {
               <div key={o.id} className="bg-white rounded-2xl p-5 shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)]">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <p className="font-mono text-[0.75rem] text-[oklch(0.52_0.01_260)]">#{o.id.slice(0, 10)}</p>
+                    <p className="font-mono text-[0.75rem] text-[oklch(0.52_0.01_260)]">#{formatOrderId(o.id)}</p>
                     <p className="text-[0.75rem] text-[oklch(0.60_0.01_260)]">{new Date(o.created_at).toLocaleDateString()}</p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-[0.6875rem] font-semibold ${
