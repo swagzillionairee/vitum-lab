@@ -18,55 +18,6 @@ import { useCart } from "@/contexts/CartContext";
 import { useInventory } from "@/hooks/useInventory";
 import { useProducts } from "@/hooks/useProducts";
 import SEO from "@/components/SEO";
-import { products } from "@/lib/products";
-
-// ─── Product data derived from shared catalog ──────────────────────────────────
-const retatrutideProduct = products.find((p) => p.slug === "retatrutide")!;
-const retatrutideVariants = retatrutideProduct.variants.map((v) => ({
-  dose: v.dose,
-  lot: v.lot,
-  price: v.price,
-  img: v.img,
-  cartCode: v.cartCode,
-  id: v.id,
-}));
-
-const ghkcuProduct = products.find((p) => p.slug === "ghkcu")!;
-const ghkcuVariants = ghkcuProduct.variants.map((v) => ({
-  dose: v.dose,
-  lot: v.lot,
-  price: v.price,
-  img: v.img,
-  cartCode: v.cartCode,
-  id: v.id,
-}));
-
-// Static products (no variant selector needed) — NAD+ and BAC Water
-const STATIC_EXTRA: Record<string, { accentColor: string; bgTint: string }> = {
-  nad: { accentColor: "oklch(0.50 0.14 50)", bgTint: "bg-tint-orange" },
-  bacwater: { accentColor: "oklch(0.35 0.10 220)", bgTint: "bg-tint-blue" },
-};
-
-const staticProducts = ["nad", "bacwater"].map((slug) => {
-  const p = products.find((x) => x.slug === slug)!;
-  const v = p.variants[0];
-  return {
-    id: slug,
-    name: p.name,
-    dose: v.dose,
-    lot: v.lot,
-    price: v.price,
-    category: p.category,
-    tagline: p.tagline,
-    description: p.description,
-    img: v.img,
-    accentColor: STATIC_EXTRA[slug].accentColor,
-    bgTint: STATIC_EXTRA[slug].bgTint,
-    cardBg: p.cardBg,
-    cartCode: v.cartCode,
-    badge: p.badge as string | null ?? null,
-  };
-});
 
 // ─── Quality tabs ─────────────────────────────────────────────────────────────
 const qualityTabs = [

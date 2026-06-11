@@ -11,15 +11,13 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
-      "@shared": path.resolve(import.meta.dirname, "shared"),
-      "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
   },
   test: {
     environment: "node",
     environmentMatchGlobs: [["client/src/**/*.test.tsx", "jsdom"]],
     setupFiles: ["./vitest.setup.ts"],
-    include: ["api/**/*.test.ts", "shared/**/*.test.ts", "client/src/**/*.test.{ts,tsx}"],
+    include: ["api/**/*.test.ts", "client/src/**/*.test.{ts,tsx}"],
     // Dummy env so modules that build a Supabase client at import time don't
     // throw during tests (real network calls should be mocked per-test).
     env: {

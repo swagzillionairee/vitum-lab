@@ -58,21 +58,6 @@ function isAgeVerified(): boolean {
   return document.cookie.split(";").some((c) => c.trim().startsWith("vitum_age_verified=true"));
 }
 
-// ─── Placeholder page for unbuilt routes ─────────────────────────────────────
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="min-h-[60vh] flex items-center justify-center">
-      <div className="text-center">
-        <p className="section-label mb-3">Coming Soon</p>
-        <h1 className="text-2xl font-bold text-[oklch(0.18_0.04_255)] mb-2">{title}</h1>
-        <p className="text-sm text-[oklch(0.55_0.02_255)]">
-          This page is under construction. Check back soon.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function Router() {
   return (
     <>
