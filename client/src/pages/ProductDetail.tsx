@@ -77,7 +77,7 @@ export default function ProductDetail() {
   const product = products.find((p) => p.slug === slug);
 
   const { addItem } = useCart();
-  const { isAvailable, stockLabel } = useInventory();
+  const { isAvailable, stockDisplay } = useInventory();
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [tiers, setTiers] = useState<{ min_qty: number; percent: number }[]>([]);
@@ -108,7 +108,7 @@ export default function ProductDetail() {
 
   const selected = product.variants[selectedIdx];
   const available = isAvailable(selected.cartCode);
-  const stockMsg = stockLabel(selected.cartCode);
+  const stockCount = stockDisplay(selected.cartCode);
   const effectivePrice = selected.salePrice ?? selected.price;
 
   const tierPercent = quantityDiscountPercent(tiers, quantity);
@@ -329,9 +329,12 @@ export default function ProductDetail() {
                 </button>
               )}
             </div>
-            {/* Stock label */}
-            {available && stockMsg && (
-              <p className="text-[0.8125rem] font-semibold text-amber-600 mb-6">{stockMsg}</p>
+            {/* Stock count — actual number, capped at "50+" for healthy stock */}
+            {available && stockCount && (
+              <p className="flex items-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.42_0.14_155)] mb-6">
+                <span className="w-2 h-2 rounded-full bg-[oklch(0.55_0.15_155)]" />
+                {stockCount} in stock
+              </p>
             )}
             {!available && (
               <div className="mb-6">
@@ -341,7 +344,7 @@ export default function ProductDetail() {
                 <BackInStockForm key={selected.cartCode} cartCode={selected.cartCode} />
               </div>
             )}
-            {available && !stockMsg && <div className="mb-6" />}
+            {available && !stockCount && <div className="mb-6" />}
 
             {/* COA link */}
             {product.coaHref !== "/coa-library#bacwater" && (

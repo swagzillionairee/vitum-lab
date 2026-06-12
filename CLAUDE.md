@@ -49,7 +49,7 @@ client/src/
     discounts.ts    quantityDiscountPercent/round2 — client-side mirror of the qty-tier preview math
   contexts/         CartContext (sessionStorage; free gift capped at qty 1), ThemeContext (dark mode), AuthContext (Supabase Auth)
   hooks/
-    useInventory.ts Fetches /api/inventory, exposes isAvailable(cartCode)/stockLabel(cartCode)
+    useInventory.ts Fetches /api/inventory, exposes isAvailable(cartCode)/stockLabel(cartCode)/stockDisplay(cartCode) (product-page count, capped at "50+")
     useProducts.ts  Fetches /api/products (dbRowToProduct maps DB rows → Product, sale strikethrough);
                     falls back to the static lib/products.ts catalog on failure
 

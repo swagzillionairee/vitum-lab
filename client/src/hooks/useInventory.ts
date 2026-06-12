@@ -42,5 +42,12 @@ export function useInventory() {
       if (s <= 5) return `Only ${s} left`;
       return null;
     },
+    // Customer-facing stock count for the product page: the real number, but
+    // capped at "50+" once stock reaches 50 (so we don't reveal large quantities).
+    stockDisplay: (cartCode: string) => {
+      const s = stock[cartCode];
+      if (s === undefined || s <= 0) return null;
+      return s >= 50 ? "50+" : String(s);
+    },
   };
 }
