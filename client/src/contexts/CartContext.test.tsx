@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, cleanup } from "@testing-library/react";
 import { type ReactNode } from "react";
-import { CartProvider, useCart } from "./CartContext";
+import { CartProvider, useCart, reconcileCartPrices } from "./CartContext";
 
 // The free-gift auto-add fires a toast — stub it so tests don't need a Toaster.
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The provider re-syncs prices from the catalog — stub it (empty catalog ⇒ no-op).
+vi.mock("@/hooks/useProducts", () => ({ useProducts: () => ({ products: [], loading: false }) }));
 
 const wrapper = ({ children }: { children: ReactNode }) => <CartProvider>{children}</CartProvider>;
 const item = (over: Partial<Parameters<ReturnType<typeof useCart>["addItem"]>[0]> = {}) => ({
@@ -48,5 +50,38 @@ describe("CartContext", () => {
     expect(result.current.items.some((i) => i.cartCode === "bac-water-free")).toBe(true);
     act(() => result.current.removeItem("big"));
     expect(result.current.items.some((i) => i.cartCode === "bac-water-free")).toBe(false);
+  });
+});
+
+describe("reconcileCartPrices", () => {
+  const ci = (over: Partial<Parameters<ReturnType<typeof useCart>["addItem"]>[0]> & { quantity?: number } = {}) => ({
+    id: "retatrutide-10mg", name: "GLP-3 (R)", dose: "10 MG", price: 129, img: "", cartCode: "retatrutide-10mg", quantity: 1, ...over,
+  });
+
+  it("updates a changed catalog price", () => {
+    const items = [ci({ quantity: 2 })];
+    const out = reconcileCartPrices(items, { "retatrutide-10mg": 99 });
+    expect(out).not.toBe(items);
+    expect(out[0].price).toBe(99);
+    expect(out[0].quantity).toBe(2); // quantity preserved
+  });
+
+  it("leaves the free gift and unknown cartCodes untouched", () => {
+    const items = [
+      ci(),
+      { id: "free-bac-water", name: "BAC", dose: "10 ML", price: 0, img: "", cartCode: "bac-water-free", quantity: 1, isFreeGift: true },
+      ci({ id: "b", price: 69, cartCode: "ghk-cu-50mg" }),
+    ];
+    // bac-water-free is in the map but must stay $0; ghk-cu-50mg isn't in the map.
+    const out = reconcileCartPrices(items, { "retatrutide-10mg": 110, "bac-water-free": 5 });
+    expect(out[0].price).toBe(110);
+    expect(out[1].price).toBe(0);
+    expect(out[2].price).toBe(69);
+  });
+
+  it("returns the same reference when no price changed", () => {
+    const items = [ci()];
+    const out = reconcileCartPrices(items, { "retatrutide-10mg": 129 });
+    expect(out).toBe(items);
   });
 });
