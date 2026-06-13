@@ -146,6 +146,8 @@ export interface ShipmentRow {
 export interface Summary {
   revenue30: number;
   revenueAll: number;
+  netProfitAll: number;
+  netProfit30: number;
   paidOrders: number;
   aov: number;
   ordersToFulfill: number;

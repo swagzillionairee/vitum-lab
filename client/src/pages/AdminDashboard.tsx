@@ -13,7 +13,7 @@ import {
   Pencil, Trash2, Upload, ShoppingBag, ImageOff,
   Truck, RefreshCw, Ban, CheckCircle2, ChevronDown,
   LayoutDashboard, DollarSign, Clock, AlertTriangle, TrendingUp,
-  Wallet, Repeat, XCircle, Users, Mail, Tag, UserRound, FileDown,
+  Wallet, Repeat, XCircle, Users, Mail, Tag, UserRound, FileDown, Banknote,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
@@ -452,7 +452,11 @@ export default function AdminDashboard() {
               <RevenueChart data={summary.dailyRevenue} />
 
               {/* Business-health KPIs */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                <Kpi icon={Banknote} label="Net Profit" value={money(summary.netProfitAll ?? 0)}
+                  tone={(summary.netProfitAll ?? 0) > 0 ? "good" : "neutral"}>
+                  {money(summary.netProfit30 ?? 0)} in the last 30 days · after discounts &amp; commissions
+                </Kpi>
                 <Kpi icon={Wallet} label="Commissions Owed" value={money(summary.commissionsOwed ?? 0)}
                   tone={(summary.commissionsOwed ?? 0) > 0 ? "warn" : "neutral"}>
                   {(summary.commissionsByAffiliate ?? []).length} affiliate{(summary.commissionsByAffiliate ?? []).length !== 1 ? "s" : ""} with earnings
@@ -993,8 +997,12 @@ export default function AdminDashboard() {
                                       </>
                                     )}
                                     {Number(o.commission_amount) > 0 && (
-                                      <div className="flex justify-between gap-6 text-[oklch(0.52_0.01_260)]"><span>Commission</span><span>${Number(o.commission_amount).toFixed(2)}</span></div>
+                                      <div className="flex justify-between gap-6 text-[oklch(0.52_0.01_260)]"><span>Commission</span><span>−${Number(o.commission_amount).toFixed(2)}</span></div>
                                     )}
+                                    <div className="flex justify-between gap-6 font-semibold text-[oklch(0.32_0.12_155)] border-t border-[oklch(0.90_0.004_260)] pt-1">
+                                      <span>Net profit</span><span>${(Number(o.net_amount) - Number(o.commission_amount ?? 0)).toFixed(2)}</span>
+                                    </div>
+                                    <p className="text-[0.65rem] text-[oklch(0.60_0.01_260)] leading-snug pt-0.5">After discounts &amp; commission. Excludes shipping &amp; product cost.</p>
                                   </div>
 
                                   {/* Shipping address */}

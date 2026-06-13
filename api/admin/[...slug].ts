@@ -289,8 +289,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       (o.cancel_reason ?? "").toLowerCase().startsWith("auto-expired"),
     ).length;
 
+    // ── Net profit = merchandise net (already discount-adjusted) − affiliate
+    // commission. Excludes shipping and product cost (COGS), neither of which
+    // is tracked in the system. ──
+    const commissionAll = paid.reduce((s, o) => s + num(o.commission_amount), 0);
+    const commission30 = paid.filter((o) => o.created_at >= since30).reduce((s, o) => s + num(o.commission_amount), 0);
+    const netProfitAll = round2(revenueAll - commissionAll);
+    const netProfit30 = round2(revenue30 - commission30);
+
     return res.json({
       revenue30, revenueAll, paidOrders: paid.length, aov,
+      netProfitAll, netProfit30,
       ordersToFulfill, pendingPayment, ordersThisWeek,
       lowStock, outOfStockCount, lowStockThreshold: LOW_STOCK_THRESHOLD,
       topProducts, recentOrders,
