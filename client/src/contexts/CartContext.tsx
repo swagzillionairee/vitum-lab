@@ -5,8 +5,9 @@
  * Auto-adds free BAC Water when subtotal crosses $150
  */
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { toast } from "sonner";
+import { useProducts } from "@/hooks/useProducts";
 
 export interface CartItem {
   id: string;
@@ -68,14 +69,55 @@ function calcSubtotal(items: CartItem[]): number {
   return items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 }
 
+/**
+ * Re-sync cart item prices to the authoritative catalog (cartCode → effective
+ * price, i.e. salePrice ?? price). A cart is stored in sessionStorage with the
+ * price captured at add-to-cart time, so an admin price change (or a sale
+ * starting/ending) would otherwise leave a stale price in the cart. Returns the
+ * SAME array reference when nothing changed (so it won't trigger a render). The
+ * free gift and any cartCode not in the catalog are left untouched.
+ */
+export function reconcileCartPrices(items: CartItem[], priceMap: Record<string, number>): CartItem[] {
+  let changed = false;
+  const next = items.map((i) => {
+    if (i.isFreeGift) return i;
+    const p = priceMap[i.cartCode];
+    if (typeof p === "number" && p !== i.price) {
+      changed = true;
+      return { ...i, price: p };
+    }
+    return i;
+  });
+  return changed ? next : items;
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(loadCart);
   const [isOpen, setIsOpen] = useState(false);
+  const { products, loading: productsLoading } = useProducts();
+
+  // Authoritative cartCode → effective price (mirrors the server: salePrice ?? price).
+  const priceMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const p of products) {
+      for (const v of p.variants) m[v.cartCode] = v.salePrice ?? v.price;
+    }
+    return m;
+  }, [products]);
 
   // Persist on every change
   useEffect(() => {
     saveCart(items);
   }, [items]);
+
+  // Re-price the cart from the live catalog once products have loaded, so an
+  // admin price change (or a sale starting/ending) is reflected on items that
+  // were added earlier. The server re-prices authoritatively at checkout; this
+  // keeps the displayed cart/total honest in the meantime.
+  useEffect(() => {
+    if (productsLoading) return;
+    setItems((prev) => reconcileCartPrices(prev, priceMap));
+  }, [priceMap, productsLoading]);
 
   // Auto-add / auto-remove free BAC Water based on subtotal.
   // The free gift is always capped at quantity 1 — one per qualifying order.

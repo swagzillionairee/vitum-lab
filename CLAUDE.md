@@ -47,7 +47,9 @@ client/src/
     promo.ts        Capture/persist a shared ?code= / ?ref= discount code (affiliate share links)
     orders.ts       formatOrderId — renders order IDs for display
     discounts.ts    quantityDiscountPercent/round2 — client-side mirror of the qty-tier preview math
-  contexts/         CartContext (sessionStorage; free gift capped at qty 1), ThemeContext (dark mode), AuthContext (Supabase Auth)
+  contexts/         CartContext (sessionStorage; free gift capped at qty 1; re-syncs item prices to the live
+                    catalog via reconcileCartPrices so an admin price change / sale isn't left stale in the cart),
+                    ThemeContext (dark mode), AuthContext (Supabase Auth)
   hooks/
     useInventory.ts Fetches /api/inventory, exposes isAvailable(cartCode)/stockLabel(cartCode)/stockDisplay(cartCode) (product-page count, capped at "50+")
     useProducts.ts  Fetches /api/products (dbRowToProduct maps DB rows → Product, sale strikethrough);
