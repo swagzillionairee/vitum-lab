@@ -47,7 +47,7 @@ export default async function handler(req: any, res: any) {
     const { data: promo } = await supabaseAdmin
       .from("promo_codes")
       .select("percent_off, min_subtotal, max_uses, used_count, starts_at, expires_at, is_active")
-      .ilike("code", normalized)
+      .eq("code", normalized)
       .maybeSingle();
 
     if (
@@ -87,7 +87,7 @@ export default async function handler(req: any, res: any) {
         return;
       }
       const { data: prior } = await supabaseAdmin
-        .from("orders").select("id").ilike("email", email).in("status", ["confirmed", "finished"]).limit(1);
+        .from("orders").select("id").eq("email", email).in("status", ["confirmed", "finished"]).limit(1);
       if (prior && prior.length > 0) {
         res.status(400).json({ valid: false, error: "Referral discounts are for first orders only." });
         return;

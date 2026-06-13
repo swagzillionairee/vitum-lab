@@ -74,7 +74,7 @@ async function resolveDiscount(code: string, gross: number, email: string, cfg: 
   const { data: promo } = await supabaseAdmin
     .from("promo_codes")
     .select("code, percent_off, min_subtotal, max_uses, used_count, starts_at, expires_at, is_active")
-    .ilike("code", normalized)
+    .eq("code", normalized)
     .maybeSingle();
   if (promo) return isPromoUsable(promo, gross) ? { kind: "promo", percent: promo.percent_off } : null;
 
@@ -84,7 +84,7 @@ async function resolveDiscount(code: string, gross: number, email: string, cfg: 
     if ((ref.email || "").toLowerCase() === email.toLowerCase()) return null; // no self-referral
     if (gross < cfg.referralMinSubtotal) return null;
     const { data: prior } = await supabaseAdmin
-      .from("orders").select("id").ilike("email", email).in("status", ["confirmed", "finished"]).limit(1);
+      .from("orders").select("id").eq("email", email).in("status", ["confirmed", "finished"]).limit(1);
     if (prior && prior.length > 0) return null; // referral discount is first-order only
     return { kind: "referral", amountOff: cfg.refereeAmount, referrerEmail: ref.email };
   }
