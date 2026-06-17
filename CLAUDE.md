@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. Checkout is via NowPayments — customers pay with crypto, or with card/Apple Pay through the NowPayments fiat on-ramp (auto-converted to crypto). Deployed on Vercel.
+Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. Checkout is dual-processor: **PayRam** (primary — card/Apple Pay/crypto, self-hosted on a dedicated Hetzner VPS, non-custodial, settles USDC/USDT) + **NowPayments** (crypto-only fallback). Deployed on Vercel.
+
+**Payment architecture decision (June 2026):** PayRam is the chosen primary card processor, self-hosted on a dedicated **Hetzner** VPS (CX22 — 2 vCPU / 4 GB RAM, ~$4.50/mo, US-East/Ashburn region). It is self-hosted (Docker on Ubuntu 22.04+ — cannot run on Vercel or serverless), non-custodial, requires no KYB, and accepts cards + Apple Pay + crypto (settles in USDC/USDT). NowPayments remains as the crypto-only fallback path. **Status: PayRam integration not yet implemented** — awaiting Hetzner VPS provisioning and the PayRam API URL + key from the operator. Planned setup: Ubuntu 22.04 + Docker + Nginx reverse proxy, PayRam node behind a subdomain like `pay.vitumlab.com` (SSL via Let's Encrypt), then the Vercel checkout calls its API. When ready, fold the PayRam checkout path into `api/admin/[...slug].ts` or an existing catch-all (do NOT add a 13th Vercel function — already at the 12-function limit).
 
 **Stack:** React 19 + TypeScript + Tailwind CSS v4 (oklch color space) + wouter routing + Vite. Local dev serves `/api/*` via `vitePluginLocalApi` in `vite.config.ts`. Vercel serverless functions (`/api/*.ts`) in production. Supabase for inventory, orders, and affiliates.
 
