@@ -5,9 +5,9 @@
  *
  * Two integration details are intentionally env-configurable until confirmed
  * from the PayRam dashboard/docs, so going live needs no code change:
- *   - the API-key header  → PAYRAM_API_KEY_HEADER (default "Authorization" +
- *     PAYRAM_API_KEY_SCHEME "Bearer"); set to "x-api-key" etc. if that's what
- *     the dashboard shows.
+ *   - the API-key header  → PAYRAM_API_KEY_HEADER (default "API-Key", per PayRam
+ *     docs; for an Authorization: Bearer-style API set it to "Authorization" +
+ *     PAYRAM_API_KEY_SCHEME).
  *   - whether webhooks are signed → PAYRAM_WEBHOOK_SECRET + PAYRAM_WEBHOOK_SIG_HEADER.
  *
  * API shape (per PayRam merchant docs):
@@ -36,13 +36,14 @@ function apiUrl(): string {
 }
 
 /**
- * Auth header(s) for PayRam API calls. Defaults to `Authorization: Bearer <key>`;
- * override with PAYRAM_API_KEY_HEADER (e.g. "x-api-key") once confirmed.
+ * Auth header(s) for PayRam API calls. PayRam uses an `API-Key: <key>` header
+ * (per docs); override with PAYRAM_API_KEY_HEADER (+ PAYRAM_API_KEY_SCHEME when
+ * using an "Authorization" header) if your build differs.
  */
 function authHeaders(): Record<string, string> {
   const key = process.env.PAYRAM_API_KEY;
   if (!key) throw new Error("PAYRAM_API_KEY is not set");
-  const header = process.env.PAYRAM_API_KEY_HEADER || "Authorization";
+  const header = process.env.PAYRAM_API_KEY_HEADER || "API-Key";
   if (header.toLowerCase() === "authorization") {
     const scheme = process.env.PAYRAM_API_KEY_SCHEME ?? "Bearer";
     return { Authorization: scheme ? `${scheme} ${key}` : key };
@@ -62,7 +63,9 @@ export async function createPaymentSession(params: {
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
       amount: String(params.amount),
-      currency: params.currency || process.env.PAYRAM_CURRENCY || "USD",
+      // The session endpoint expects a crypto/stablecoin currency (ETH, USDC,
+      // USDT…), not fiat — USDC maps ~1:1 to our USD prices.
+      currency: params.currency || process.env.PAYRAM_CURRENCY || "USDC",
       invoiceId: params.invoiceId,
       merchantUserId: params.merchantUserId,
     }),
