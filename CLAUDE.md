@@ -8,9 +8,9 @@ Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (
 
 **Payment architecture decision (June 2026):** PayRam is the chosen primary card processor, self-hosted on a dedicated **Contabo Cloud VPS** (~$5–7/mo, New York / US-East region — the earlier Hetzner CX22 plan was dropped in favor of Contabo). It is self-hosted (Docker on Ubuntu 22.04+ — cannot run on Vercel or serverless), non-custodial, requires no KYB, and accepts cards + Apple Pay + crypto (settles in USDC/USDT). NowPayments remains as the crypto-only fallback path.
 
-**Status (June 2026): PayRam node is provisioned and running — integration code NOT yet started.** The Contabo VPS is up with the PayRam container (`payramapp/payram:3.1.4`) running on **testnet** + **containerized PostgreSQL**, served at `pay.vitumlab.com` (Let's Encrypt SSL; `ufw` allows 80/443/8080/8443; the container publishes 80/443). The admin dashboard is live (Root = `hello@vitumlab.com`). **Current blocker: waiting on a cold-storage wallet** before finishing the PayRam **Deposit Wallet** setup — the cold wallet address is hardcoded into the auto-sweep smart contracts (EVM/Tron), so it must be the final destination wallet (hardware wallet preferred). Remaining setup once the cold wallet is in hand: complete the deposit wallet (start with **Base/USDC**; later Tron/USDT), generate the API key (dashboard → Developers), run a testnet test payment (status OPEN → VERIFYING → FILLED), then switch the node to mainnet and build the Vercel integration.
+**Status (June 2026): PayRam node running on testnet + Vercel integration code BUILT (dormant behind a flag).** The Contabo VPS is up with the PayRam container (`payramapp/payram:3.1.4`) on **testnet** + **containerized PostgreSQL**, served at `pay.vitumlab.com` (Let's Encrypt SSL; `ufw` allows 80/443/8080/8443). Dashboard live (Root = `hello@vitumlab.com`); project **Vitum Lab** created with Success/Cancel URLs set; a **testnet deposit wallet** (Ethereum/Sepolia EVM auto-sweep contract) is deployed. **Mainnet is still blocked on a cold-storage wallet** — its address is hardcoded into the auto-sweep contracts, so it must be the final hardware wallet. **Go-live sequence:** (1) in the dashboard, confirm the **API-key header** + whether **webhooks are signed**, and set the project **Webhook URL** to `https://vitumlab.com/api/public/payram-webhook`; (2) set the PayRam env vars in Vercel + run a testnet test payment (OPEN → VERIFYING → FILLED); (3) when the cold wallet arrives, reset the node to **mainnet** (`--reset`, then reinstall without `--testnet`), redo the deposit wallet against the real cold wallet, regenerate the API key; (4) flip `PAYMENT_PROCESSOR=payram` in Vercel + do a small real-money smoke test (NowPayments stays as the fallback).
 
-**Integration plan (not yet built):** add `PAYRAM_API_URL=https://pay.vitumlab.com` + `PAYRAM_API_KEY` to Vercel; create payments via `POST {PAYRAM_API_URL}/api/v1/payram-payment-session` (`{amount, currency, invoiceId=orderId, merchantUserId=email}`) → redirect to the returned `url`; receive PayRam webhooks (status `FILLED` → confirm order, decrement stock, send emails — mirroring `nowpayments-webhook.ts`). Fold the create-payment call into `create-crypto-payment.ts` and the webhook receiver into the public catch-all as `/api/public/payram-webhook` (`api/public/[...slug].ts`) — **do NOT add a 13th Vercel function** (already at the 12-function limit). Still to confirm from the PayRam dashboard/docs before coding: the exact API-key header name and whether webhooks are signed (for HMAC-verification parity with NowPayments).
+**Integration (BUILT — `PAYMENT_PROCESSOR` gated, default `nowpayments`):** `api/_lib/payram.ts` = API client (`createPaymentSession` → `POST {PAYRAM_API_URL}/api/v1/payram-payment-session` `{amount, currency, invoiceId=orderId, merchantUserId=email}` → redirect to `url`) + `verifyPayramWebhook` (HMAC-SHA256; accepts unsigned until a secret is set) + `isPayramPaidStatus`. `create-crypto-payment.ts` calls PayRam instead of NowPayments when `PAYMENT_PROCESSOR=payram`, storing the returned `reference_id` on the order. The receiver is `/api/public/payram-webhook` in `api/public/[...slug].ts` (raw-body, **no 13th function**): on `FILLED`/`OVER_FILLED` it confirms via the shared `api/_lib/fulfillment.ts` (stock decrement + confirmed/admin/affiliate emails + loyalty/referral, all idempotent), reusing `paidIpnAction` for the order-status classification (fulfill / resend / late-payment); responds `{received:true}`. The two unknowns are env-configurable: **API-key header** (`PAYRAM_API_KEY_HEADER`/`_SCHEME`, default `Authorization: Bearer`) and **webhook signing** (`PAYRAM_WEBHOOK_SECRET`/`_SIG_HEADER`) — confirm both from the dashboard. `nowpayments-webhook.ts` is intentionally left untouched (keeps its own inline confirm copy; can converge onto `fulfillment.ts` once PayRam is validated).
 
 **Stack:** React 19 + TypeScript + Tailwind CSS v4 (oklch color space) + wouter routing + Vite. Local dev serves `/api/*` via `vitePluginLocalApi` in `vite.config.ts`. Vercel serverless functions (`/api/*.ts`) in production. Supabase for inventory, orders, and affiliates.
 
@@ -63,7 +63,7 @@ client/src/
 
 api/                Vercel serverless functions — ALL relative imports MUST use .js extensions (ESM)
   inventory.ts                GET  /api/inventory → {cartCode: stock} map; POST → join back-in-stock waitlist (public, {cartCode, email})
-  create-crypto-payment.ts   POST /api/create-crypto-payment (REQUIRES auth — the order email is the JWT email, never the body, so nobody can order as another customer or spend their store credit; server-side discount/commission calc + "order received" email; enforces promo one-use-per-email)
+  create-crypto-payment.ts   POST /api/create-crypto-payment (REQUIRES auth — the order email is the JWT email, never the body, so nobody can order as another customer or spend their store credit; server-side discount/commission calc + "order received" email; enforces promo one-use-per-email; creates the hosted payment session via NowPayments or PayRam per PAYMENT_PROCESSOR)
   nowpayments-webhook.ts     POST /api/nowpayments-webhook (raw body, HMAC-verified; confirmed/failed emails, promo use count)
   validate-discount.ts       POST /api/validate-discount (REQUIRES auth — the one-use / first-order checks use the JWT email, not the body; affiliate codes + promo_codes; pass subtotal — rejects an already-used promo)
   contact.ts                 POST /api/contact
@@ -87,7 +87,9 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                              profile GET/PUT (saved shipping address in auth user metadata, falls back to last order),
                              credit GET (store-credit balance + ledger), referral GET (the customer's referral code + share link)
   public/[...slug].ts        Catch-all for /api/public/* (no auth): site GET → site-wide sale config (countdown banner) + quantity_tiers,
-                             track GET ?order=&email= → order status/timeline (email must match the order)
+                             track GET ?order=&email= → order status/timeline (email must match the order),
+                             payram-webhook POST → PayRam payment callbacks (raw-body, signature-verified; FILLED → confirm order
+                             via _lib/fulfillment.ts; responds {received:true}) — bodyParser is off for this function
   _lib/
     supabase-admin.ts  Service-role Supabase client
     orderId.ts         buildOrderId — random 20-digit order IDs
@@ -105,7 +107,11 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                        addLedger (idempotent per order+reason), reserveCredit (atomic via reserve_store_credit RPC — returns false on insufficient balance),
                        earnLoyalty, grantReferralReward, getOrCreateReferralCode, getRewardConfig
     orderLifecycle.ts  paidIpnAction — pure classifier for paid IPNs (pending→fulfill, confirmed→resend_emails,
-                       cancelled/failed→late_payment) — unit-tested
+                       cancelled/failed→late_payment) — unit-tested (reused by both webhooks)
+    payram.ts          PayRam client (createPaymentSession) + verifyPayramWebhook (HMAC-SHA256) +
+                       isPayramPaidStatus — unit-tested; API-key header + webhook signing are env-configurable
+    fulfillment.ts     Shared confirm-paid-order steps (decrement stock, confirmed/admin/affiliate emails,
+                       loyalty/referral, late-payment) used by the PayRam webhook — all idempotent
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
     requireAffiliate.ts requireUser + checks affiliates table
@@ -189,6 +195,16 @@ SUPABASE_URL=https://mddgtvwcwsmlbwiafdvq.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=
 NOWPAYMENTS_API_KEY=
 NOWPAYMENTS_IPN_SECRET=
+# PayRam (primary card/crypto processor). Integration code is built but DORMANT
+# until PAYMENT_PROCESSOR=payram. Not yet set in Vercel as of June 2026.
+PAYMENT_PROCESSOR=nowpayments          # set to "payram" to route checkout through PayRam
+PAYRAM_API_URL=https://pay.vitumlab.com
+PAYRAM_API_KEY=                        # dashboard → Developers (per-project key)
+PAYRAM_CURRENCY=USD                    # price currency sent to PayRam
+PAYRAM_API_KEY_HEADER=Authorization    # CONFIRM in dashboard; e.g. "x-api-key"
+PAYRAM_API_KEY_SCHEME=Bearer           # only used when header is Authorization
+PAYRAM_WEBHOOK_SECRET=                 # if PayRam signs webhooks (HMAC-SHA256); empty = accept unsigned
+PAYRAM_WEBHOOK_SIG_HEADER=x-payram-signature  # CONFIRM in dashboard
 GMAIL_USER=hello@vitumlab.com
 GMAIL_APP_PASSWORD=
 BASE_URL=https://vitumlab.com         # canonical site URL (emails, order links, NowPayments callbacks) — set this in Vercel; code default is also vitumlab.com
@@ -301,7 +317,7 @@ Note: `vitePluginLocalApi` routes every endpoint **except** `/api/nowpayments-we
 
 ## Open Work
 
-**PayRam (primary card/crypto processor) — IN PROGRESS (infra up, code not started).** Self-hosted PayRam node is provisioned and running on a **Contabo** VPS at `pay.vitumlab.com` (testnet, containerized Postgres, Let's Encrypt SSL); admin dashboard is live. **Blocked on obtaining a cold-storage wallet** to finish the Deposit Wallet setup (the cold wallet is hardcoded into the auto-sweep smart contracts). Then: generate API key → testnet test payment → switch to mainnet → build the Vercel integration (create-payment in `create-crypto-payment.ts` + a `/api/public/payram-webhook` receiver folded into existing catch-alls; no 13th function). Full status + integration plan in the **Payment architecture decision** section at the top of this file.
+**PayRam (primary card/crypto processor) — IN PROGRESS (node on testnet; integration code BUILT, dormant behind `PAYMENT_PROCESSOR`).** Self-hosted node runs on a **Contabo** VPS at `pay.vitumlab.com` (testnet, containerized Postgres, Let's Encrypt); dashboard live, project + a testnet deposit wallet (Sepolia) set up. The Vercel integration is built — `api/_lib/payram.ts` + `api/_lib/fulfillment.ts`, the PayRam branch in `create-crypto-payment.ts`, and the `/api/public/payram-webhook` receiver (no 13th function) — all default-off (`PAYMENT_PROCESSOR=nowpayments`). **Remaining:** confirm the API-key header + webhook signing in the dashboard and set the project webhook URL; add the PayRam env vars in Vercel + run a testnet test payment; then (blocked on a **cold-storage wallet**) reset the node to mainnet, redo the deposit wallet, regenerate the key, and flip `PAYMENT_PROCESSOR=payram`. Full sequence in the **Payment architecture decision** section at the top of this file.
 
 **Product management** — built and live. Products are stored in the Supabase `products` table and managed via the Admin → Products tab. Images are stored in the `product-images` Supabase Storage bucket.
 
