@@ -5,6 +5,7 @@ import { getBalance, reserveCredit, getRewardConfig, earnLoyalty, grantReferralR
 import { validateAddress } from "./_lib/shippo.js";
 import { buildOrderId } from "./_lib/orderId.js";
 import { requireUser } from "./_lib/requireUser.js";
+import { createPaymentSession } from "./_lib/payram.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 
@@ -352,34 +353,62 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const nowRes = await fetch(`${NOWPAYMENTS_API}/invoice`, {
-      method: "POST",
-      headers: {
-        "x-api-key": process.env.NOWPAYMENTS_API_KEY!,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        price_amount: amountDue,
-        price_currency: "usd",
-        order_id: orderId,
-        order_description: description,
-        ipn_callback_url: `${baseUrl}/api/nowpayments-webhook`,
-        success_url: `${baseUrl}/order-success?order=${orderId}`,
-        cancel_url: `${baseUrl}/order-cancel`,
-        is_fixed_rate: false,
-        is_fee_paid_by_user: false,
-      }),
-    });
+    // Create the hosted payment session. PayRam (primary card/crypto processor)
+    // when PAYMENT_PROCESSOR=payram; otherwise NowPayments (crypto fallback).
+    // Either way we hand the client a single `invoiceUrl` to redirect to. On a
+    // failure we fail the order, which releases the reserved store credit.
+    const processor = (process.env.PAYMENT_PROCESSOR || "nowpayments").toLowerCase();
+    let invoiceUrl: string;
 
-    if (!nowRes.ok) {
-      console.error("NowPayments error:", await nowRes.text());
-      // Release the reserved credit by failing the order.
-      await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
-      res.status(500).json({ error: "Failed to create payment" });
-      return;
+    if (processor === "payram") {
+      try {
+        const session = await createPaymentSession({
+          amount: amountDue,
+          invoiceId: orderId,
+          merchantUserId: email,
+        });
+        invoiceUrl = session.url;
+        // Persist PayRam's reference id so the webhook can also match on it
+        // (it matches on invoice_id = orderId first, this is the fallback).
+        if (session.referenceId) {
+          await supabaseAdmin.from("orders").update({ payment_id: session.referenceId }).eq("id", orderId);
+        }
+      } catch (err) {
+        console.error("PayRam error:", err);
+        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        res.status(500).json({ error: "Failed to create payment" });
+        return;
+      }
+    } else {
+      const nowRes = await fetch(`${NOWPAYMENTS_API}/invoice`, {
+        method: "POST",
+        headers: {
+          "x-api-key": process.env.NOWPAYMENTS_API_KEY!,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          price_amount: amountDue,
+          price_currency: "usd",
+          order_id: orderId,
+          order_description: description,
+          ipn_callback_url: `${baseUrl}/api/nowpayments-webhook`,
+          success_url: `${baseUrl}/order-success?order=${orderId}`,
+          cancel_url: `${baseUrl}/order-cancel`,
+          is_fixed_rate: false,
+          is_fee_paid_by_user: false,
+        }),
+      });
+
+      if (!nowRes.ok) {
+        console.error("NowPayments error:", await nowRes.text());
+        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        res.status(500).json({ error: "Failed to create payment" });
+        return;
+      }
+
+      const data = (await nowRes.json()) as { invoice_url: string };
+      invoiceUrl = data.invoice_url;
     }
-
-    const data = await nowRes.json() as { invoice_url: string };
 
     // "Order received / awaiting payment" email — after the response via waitUntil.
     const emailOrder: EmailOrder = {
@@ -394,9 +423,9 @@ export default async function handler(req: any, res: any) {
       shipping_address: shipping,
       emails_sent: {},
     };
-    deferEmail(sendOrderEvent(emailOrder, "order_created", { invoiceUrl: data.invoice_url }));
+    deferEmail(sendOrderEvent(emailOrder, "order_created", { invoiceUrl }));
 
-    res.status(200).json({ invoiceUrl: data.invoice_url, orderId });
+    res.status(200).json({ invoiceUrl, orderId });
   } catch (err) {
     console.error("create-crypto-payment error:", err);
     res.status(500).json({ error: "Failed to create payment. Please try again." });
