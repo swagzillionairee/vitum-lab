@@ -253,7 +253,7 @@ The Vercel-Supabase connector auto-injects `SUPABASE_URL` and `SUPABASE_SERVICE_
 - Build output: `dist/public` (static) + `dist/index.js` (Express fallback, unused in prod).
 - API routes: `/api/*.ts` → Vercel serverless functions (Node.js runtime).
 - COA PDFs are static assets in `public/coa/`.
-- **All new changes must always be deployed to production immediately.** Every feature branch must be merged to `main` without asking for confirmation — always merge PRs to main.
+- **Always ship to production without asking — the repo owner has given standing approval (June 2026).** For every change: open a PR, wait for CI to pass, then merge it to `main` yourself (squash). Do NOT open draft PRs that sit waiting for approval, and do NOT ask "should I merge?" each time. You may note a genuine risk in chat, but proceed with the merge unless explicitly told to hold.
 
 ---
 
