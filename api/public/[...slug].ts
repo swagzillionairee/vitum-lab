@@ -1,12 +1,83 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { isSitewideActive } from "../_lib/pricing.js";
+import { paidIpnAction } from "../_lib/orderLifecycle.js";
+import { isTagadaPaidEvent, verifyTagadaWebhook, TAGADA_SIG_HEADER } from "../_lib/tagada.js";
+import { ORDER_COLS, confirmPaidOrder, sendConfirmationEmails, recordLatePayment, type PaymentMeta } from "../_lib/fulfillment.js";
 
-// Public (no-auth) reads: the site-wide sale banner + customer order tracking.
-// Consolidated into one catch-all to stay within the Vercel function limit.
+// bodyParser off so the Tagada webhook can read the raw body for signature
+// verification. The GET routes below don't use req.body, so this is harmless.
+export const config = { api: { bodyParser: false } };
+
+// Public (no-auth) endpoints: the site-wide sale banner, customer order
+// tracking, and the TagadaPay payment webhook. Consolidated into one catch-all
+// to stay within the Vercel function limit.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pathname = (req.url ?? "").split("?")[0];
   const route = pathname.replace(/^\/api\/public\/?/, "").split("/")[0];
+
+  // ── /api/public/tagada-webhook — TagadaPay payment callbacks ────────────────
+  // A paid event (order/paid | payment/succeeded) confirms the matching order
+  // (decrement stock, emails, loyalty/referral) via the shared fulfillment path.
+  // Idempotent across retries. Inert until the checkout flow (Slice 2) registers
+  // the webhook + starts stamping the Tagada id on orders; exact payload paths
+  // are finalized against the sandbox with the client flow.
+  if (route === "tagada-webhook") {
+    if (req.method !== "POST") return res.status(405).json({ received: false });
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of req as any) chunks.push(Buffer.from(chunk));
+    const rawBody = Buffer.concat(chunks).toString("utf8");
+
+    const sig = req.headers[TAGADA_SIG_HEADER] as string | undefined;
+    if (!verifyTagadaWebhook(rawBody, sig)) return res.status(401).json({ received: false });
+
+    let event: any;
+    try {
+      event = JSON.parse(rawBody);
+    } catch {
+      return res.status(400).json({ received: false });
+    }
+
+    const type = String(event?.type ?? event?.eventType ?? "");
+    const data = event?.data ?? event;
+    // We round-trip our order id via checkout metadata; the Tagada order/payment
+    // id is stored on orders.payment_id at session creation (Slice 2).
+    const ourOrderId = data?.metadata?.orderId ?? data?.order?.metadata?.orderId ?? null;
+    const tagadaId = data?.order?.id ?? data?.payment?.id ?? data?.id ?? null;
+    console.log(`ℹ️  Tagada webhook — ${type} (order ${ourOrderId ?? "?"} / tagada ${tagadaId ?? "?"})`);
+
+    if (!isTagadaPaidEvent(type)) return res.status(200).json({ received: true });
+
+    let order: any = null;
+    if (ourOrderId) {
+      const { data: o } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("id", ourOrderId).maybeSingle();
+      order = o;
+    }
+    if (!order && tagadaId) {
+      const { data: o } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("payment_id", String(tagadaId)).maybeSingle();
+      order = o;
+    }
+    if (!order) return res.status(200).json({ received: true });
+
+    const meta: PaymentMeta = {
+      payCurrency: data?.currency ?? "USD",
+      payAmount: data?.amount ?? null,
+      paymentId: tagadaId != null ? String(tagadaId) : null,
+    };
+    const action = paidIpnAction(order.status);
+    try {
+      if (action === "late_payment") {
+        await recordLatePayment(order, meta, `⚠️ Tagada "${type}" received AFTER this order was ${order.status}. Not fulfilled automatically — refund or fulfill manually.`);
+      } else {
+        if (action === "fulfill") await confirmPaidOrder(order, meta);
+        await sendConfirmationEmails(order);
+      }
+    } catch (err) {
+      console.error("Tagada webhook processing error:", err);
+    }
+    return res.status(200).json({ received: true });
+  }
 
   // ── /api/public/site — public store config (drives the site-wide sale banner) ──
   if (route === "site") {

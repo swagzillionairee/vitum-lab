@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. Checkout is moving to **TagadaPay** (primary — cards/Apple Pay, high-risk peptide-approved, Finix-backed, "own your vault"; **headless integration, in progress — not yet in code**) with **NowPayments** (crypto) kept as the live fallback. Deployed on Vercel.
+Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. Checkout is moving to **TagadaPay** (primary — cards/Apple Pay, high-risk peptide-approved, Finix-backed, "own your vault"; **headless integration — in progress; webhook backbone in code, checkout flow next**) with **NowPayments** (crypto) kept as the live fallback. Deployed on Vercel.
 
 **Payment architecture (June 2026 — current direction): TagadaPay primary (headless — IN PROGRESS) + NowPayments crypto fallback (live).** After crypto checkout proved too intimidating for non-crypto buyers, the store is moving to **TagadaPay** — an ecommerce/payments platform whose card processing runs on **Finix**. It explicitly underwrites peptides (merchant is approved), accepts **cards + Apple Pay**, and settles to the merchant's own bank ("own your vault"). The Tagada dashboard account is set up (store **Vitum Lab**, base products, gateway, checkout funnel); one required onboarding step remains (add a shipping rate) to unlock Go-live. **PayRam was dropped** — it was self-hosted crypto and still too crypto-first; all PayRam code has been removed. NowPayments stays as the live crypto fallback.
 
-**Integration plan (headless — NOT yet in code):** keep the existing Vercel + Supabase storefront and swap only the payment layer, so Vitum Lab's **server-authoritative pricing stays intact** (stacked quantity tiers, promo/affiliate codes, **store credit as tender**, referrals, loyalty). Packages: `@tagadapay/node-sdk` (server), `@tagadapay/headless-sdk` + `@tagadapay/core-js` (client card tokenization / 3DS / Apple Pay). **Key design point:** Tagada checkout *sessions* are variant-based (`items:[{variantId,quantity}]` → total from Tagada's catalog), but Vitum Lab must charge an exact server-computed total — so the plan is to charge the computed `amountDue` via the arbitrary-amount **`tagada.payments.process({ amount, currency, storeId, paymentInstrumentId })`** path (client tokenizes the card + runs 3DS via core-js), then confirm the order in a `/api/public/tagada-webhook` receiver (events `order/paid` / `payment/succeeded`; signatures verified via the node SDK). Env names finalized at build time (`TAGADA_API_KEY` server, `VITE_TAGADA_STORE_ID` client, `TAGADA_WEBHOOK_SECRET`). **Blocked on:** a sandbox API key (`sk_crm_test_…`) + the `storeId` to build/test against test mode.
+**Integration plan (headless — IN PROGRESS):** keep the existing Vercel + Supabase storefront and swap only the payment layer, so Vitum Lab's **server-authoritative pricing stays intact** (stacked quantity tiers, promo/affiliate codes, **store credit as tender**, referrals, loyalty). Packages: `@tagadapay/node-sdk` (server), `@tagadapay/headless-sdk` + `@tagadapay/core-js` (client card tokenization / 3DS / Apple Pay). **Key design point:** Tagada's robust auto-3DS checkout is a **session priced from Tagada's catalog** (`items:[{variantId,quantity}]`) — but Vitum Lab must charge its exact server-computed total. The `useCheckout`/`usePayment` client hooks are session-based (with automatic 3DS), so the plan is: create the session, then **reconcile its total down to the computed `amountDue`** (a single server-applied discount absorbs all of Vitum Lab's discounts + store credit), pay via the headless auto-3DS flow, and confirm in the `/api/public/tagada-webhook` receiver (`order/paid` / `payment/succeeded`; HMAC-verified with the endpoint secret). **Slice 1 (done, in code):** `api/_lib/tagada.ts` (webhook verify + paid-event helper), `api/_lib/fulfillment.ts`, and the webhook receiver (inert until Slice 2 registers the webhook + stamps the Tagada id on orders). **Slice 2 (next):** server session-create + reconciling discount + the client card flow in `Checkout.tsx`, validated on the Vercel preview against Tagada test mode (keys already set: `TAGADA_API_KEY`, `VITE_TAGADA_STORE_ID`).
 
 **Stack:** React 19 + TypeScript + Tailwind CSS v4 (oklch color space) + wouter routing + Vite. Local dev serves `/api/*` via `vitePluginLocalApi` in `vite.config.ts`. Vercel serverless functions (`/api/*.ts`) in production. Supabase for inventory, orders, and affiliates.
 
@@ -85,7 +85,9 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                              profile GET/PUT (saved shipping address in auth user metadata, falls back to last order),
                              credit GET (store-credit balance + ledger), referral GET (the customer's referral code + share link)
   public/[...slug].ts        Catch-all for /api/public/* (no auth): site GET → site-wide sale config (countdown banner) + quantity_tiers,
-                             track GET ?order=&email= → order status/timeline (email must match the order)
+                             track GET ?order=&email= → order status/timeline (email must match the order),
+                             tagada-webhook POST → TagadaPay payment callbacks (raw-body, signature-verified;
+                             order/paid|payment/succeeded → confirm via _lib/fulfillment.ts) — bodyParser off
   _lib/
     supabase-admin.ts  Service-role Supabase client
     orderId.ts         buildOrderId — random 20-digit order IDs
@@ -104,6 +106,11 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                        earnLoyalty, grantReferralReward, getOrCreateReferralCode, getRewardConfig
     orderLifecycle.ts  paidIpnAction — pure classifier for paid IPNs (pending→fulfill, confirmed→resend_emails,
                        cancelled/failed→late_payment) — unit-tested
+    tagada.ts          TagadaPay webhook helpers: verifyTagadaWebhook (HMAC-SHA256, env-configurable) +
+                       isTagadaPaidEvent (order/paid | payment/succeeded) — unit-tested; the checkout-session
+                       + charge helpers (@tagadapay/node-sdk) land with the client flow (Slice 2)
+    fulfillment.ts     Shared confirm-paid-order steps (decrement stock, confirmed/admin/affiliate emails,
+                       loyalty/referral, late-payment) used by the Tagada webhook — all idempotent
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
     requireAffiliate.ts requireUser + checks affiliates table
@@ -187,11 +194,12 @@ SUPABASE_URL=https://mddgtvwcwsmlbwiafdvq.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=
 NOWPAYMENTS_API_KEY=
 NOWPAYMENTS_IPN_SECRET=
-# TagadaPay (primary card processor — headless, IN PROGRESS, not yet in code).
-# Keys come from the Tagada dashboard when the integration is built:
-# TAGADA_API_KEY=            # server (node-sdk) key — sk_crm_… / tp_sk_…
-# VITE_TAGADA_STORE_ID=      # client (headless-sdk) store id (store_…)
-# TAGADA_WEBHOOK_SECRET=     # from tagada.webhooks.create(...).secret
+# TagadaPay (primary card processor — headless). Webhook backbone in code (Slice 1);
+# checkout session-create + client card flow is Slice 2.
+TAGADA_API_KEY=                            # server key (node-sdk) — SET in Vercel (test)
+VITE_TAGADA_STORE_ID=store_7c0679de63c3    # client store id (headless-sdk) — SET in Vercel
+TAGADA_WEBHOOK_SECRET=                     # from tagada.webhooks.create(...).secret — set with Slice 2
+TAGADA_WEBHOOK_SIG_HEADER=tagada-signature # header Tagada signs webhooks with (confirm in sandbox)
 GMAIL_USER=hello@vitumlab.com
 GMAIL_APP_PASSWORD=
 BASE_URL=https://vitumlab.com         # canonical site URL (emails, order links, NowPayments callbacks) — set this in Vercel; code default is also vitumlab.com
@@ -304,7 +312,7 @@ Note: `vitePluginLocalApi` routes every endpoint **except** `/api/nowpayments-we
 
 ## Open Work
 
-**TagadaPay (primary card processor) — IN PROGRESS (account set up; headless integration not yet in code).** Merchant is approved for peptides on TagadaPay (Finix-backed cards + Apple Pay, settles to own bank). Dashboard store/products/gateway/checkout are configured; one onboarding step left (add a shipping rate) to unlock Go-live. Plan: **headless** — keep the Vercel/Supabase storefront and swap only the payment layer, preserving server-authoritative pricing (tiers, codes, store credit, loyalty). Charge the computed `amountDue` via `@tagadapay/node-sdk` `payments.process` (client tokenization + 3DS via `@tagadapay/headless-sdk`/`core-js`), confirm via a `/api/public/tagada-webhook` receiver (events `order/paid` / `payment/succeeded`). See the **Payment architecture** section up top. **Needs a sandbox API key + storeId to build/test.** (PayRam was dropped — all its code removed.)
+**TagadaPay (primary card processor) — IN PROGRESS (keys set; webhook backbone in code, checkout flow next).** Merchant approved for peptides (Finix-backed cards + Apple Pay, settles to own bank); dashboard store/products/gateway/checkout configured; keys set in Vercel (`TAGADA_API_KEY`, `VITE_TAGADA_STORE_ID=store_7c0679de63c3`). **Decision: preserve all pricing** — charge the exact server-computed `amountDue` (store credit + stacked discounts stay spendable) via Tagada's headless session + auto-3DS, reconciling the session total to `amountDue`. **Slice 1 (done):** `api/_lib/tagada.ts` + `api/_lib/fulfillment.ts` + `/api/public/tagada-webhook` (inert until Slice 2). **Slice 2 (next):** server session-create + reconciling discount + client card flow in `Checkout.tsx`, validated on the Vercel preview/sandbox. Full plan in **Payment architecture** up top. (PayRam was dropped — all its code removed.)
 
 **Product management** — built and live. Products are stored in the Supabase `products` table and managed via the Admin → Products tab. Images are stored in the `product-images` Supabase Storage bucket.
 
