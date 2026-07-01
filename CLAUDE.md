@@ -4,15 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. Checkout is moving to **manual peer-to-peer / bank payment** options — **Venmo, Cash App, Zelle, and ACH/bank transfer** (admin-verified; the customer-friendly default for non-crypto buyers) — with crypto still available via **PayRam** (self-hosted, settles USDC/USDT; built, dormant) and **NowPayments** (crypto, live fallback). Deployed on Vercel.
+Vitum Lab (`vitumlab.com`) is a research peptide e-commerce site selling GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. Checkout is moving to **TagadaPay** (primary — cards/Apple Pay, high-risk peptide-approved, Finix-backed, "own your vault"; **headless integration, in progress — not yet in code**) with **NowPayments** (crypto) kept as the live fallback. Deployed on Vercel.
 
-**Manual payment methods (June 2026 — current customer-facing direction):** To cut crypto friction (a wallet-based checkout was deterring non-crypto customers), the store is adding **manual peer-to-peer / bank payment** options as the easy default: **Venmo, Cash App, Zelle, and ACH/bank transfer**. Flow: at checkout the customer picks a method → sees static payment instructions (the account handle + the order ID to use as the payment memo) → the order is created `pending` → the customer pays out-of-band → an **admin verifies receipt and marks the order paid**, which runs the existing shared fulfillment path (stock decrement, confirmed/admin emails, loyalty/referral). These are **manual**: there is no automated payment verification and **no chargeback protection**, so an admin confirms each payment before fulfillment. Account handles are operator-configured (likely `store_settings` or env). Crypto stays available as a secondary option. **Status: planned — not yet built.**
+**Payment architecture (June 2026 — current direction): TagadaPay primary (headless — IN PROGRESS) + NowPayments crypto fallback (live).** After crypto checkout proved too intimidating for non-crypto buyers, the store is moving to **TagadaPay** — an ecommerce/payments platform whose card processing runs on **Finix**. It explicitly underwrites peptides (merchant is approved), accepts **cards + Apple Pay**, and settles to the merchant's own bank ("own your vault"). The Tagada dashboard account is set up (store **Vitum Lab**, base products, gateway, checkout funnel); one required onboarding step remains (add a shipping rate) to unlock Go-live. **PayRam was dropped** — it was self-hosted crypto and still too crypto-first; all PayRam code has been removed. NowPayments stays as the live crypto fallback.
 
-**Payment architecture decision (June 2026):** PayRam is the self-hosted crypto processor (kept as a secondary option behind the manual methods above), on a dedicated **Contabo Cloud VPS** (~$5–7/mo, New York / US-East region — the earlier Hetzner CX22 plan was dropped in favor of Contabo). It is self-hosted (Docker on Ubuntu 22.04+ — cannot run on Vercel or serverless), non-custodial, requires no KYB, and accepts cards + Apple Pay + crypto (settles in USDC/USDT). NowPayments remains as the crypto-only fallback path.
-
-**Status (June 2026): PayRam node running on testnet + Vercel integration code BUILT (dormant behind a flag).** The Contabo VPS is up with the PayRam container (`payramapp/payram:3.1.4`) on **testnet** + **containerized PostgreSQL**, served at `pay.vitumlab.com` (Let's Encrypt SSL; `ufw` allows 80/443/8080/8443). Dashboard live (Root = `hello@vitumlab.com`); project **Vitum Lab** created with Success/Cancel URLs set; a **testnet deposit wallet** (Ethereum/Sepolia EVM auto-sweep contract) is deployed. **Mainnet is still blocked on a cold-storage wallet** — its address is hardcoded into the auto-sweep contracts, so it must be the final hardware wallet. **Go-live sequence:** (1) in the dashboard, confirm the **API-key header** + whether **webhooks are signed**, and set the project **Webhook URL** to `https://vitumlab.com/api/public/payram-webhook`; (2) set the PayRam env vars in Vercel + run a testnet test payment (OPEN → VERIFYING → FILLED); (3) when the cold wallet arrives, reset the node to **mainnet** (`--reset`, then reinstall without `--testnet`), redo the deposit wallet against the real cold wallet, regenerate the API key; (4) flip `PAYMENT_PROCESSOR=payram` in Vercel + do a small real-money smoke test (NowPayments stays as the fallback).
-
-**Integration (BUILT — `PAYMENT_PROCESSOR` gated, default `nowpayments`):** `api/_lib/payram.ts` = API client (`createPaymentSession` → `POST {PAYRAM_API_URL}/api/v1/payram-payment-session` `{amount, currency, invoiceId=orderId, merchantUserId=email}` → redirect to `url`) + `verifyPayramWebhook` (HMAC-SHA256; accepts unsigned until a secret is set) + `isPayramPaidStatus`. `create-crypto-payment.ts` calls PayRam instead of NowPayments when `PAYMENT_PROCESSOR=payram`, storing the returned `reference_id` on the order. The receiver is `/api/public/payram-webhook` in `api/public/[...slug].ts` (raw-body, **no 13th function**): on `FILLED`/`OVER_FILLED` it confirms via the shared `api/_lib/fulfillment.ts` (stock decrement + confirmed/admin/affiliate emails + loyalty/referral, all idempotent), reusing `paidIpnAction` for the order-status classification (fulfill / resend / late-payment); responds `{received:true}`. The API-key header is `API-Key` (confirmed from docs; `PAYRAM_API_KEY_HEADER`-overridable) and the session currency is `USDC` (the endpoint wants a crypto/stablecoin, not fiat "USD"); **webhook signing** (`PAYRAM_WEBHOOK_SECRET`/`_SIG_HEADER`) is still to confirm from the dashboard's Webhook tab. `nowpayments-webhook.ts` is intentionally left untouched (keeps its own inline confirm copy; can converge onto `fulfillment.ts` once PayRam is validated).
+**Integration plan (headless — NOT yet in code):** keep the existing Vercel + Supabase storefront and swap only the payment layer, so Vitum Lab's **server-authoritative pricing stays intact** (stacked quantity tiers, promo/affiliate codes, **store credit as tender**, referrals, loyalty). Packages: `@tagadapay/node-sdk` (server), `@tagadapay/headless-sdk` + `@tagadapay/core-js` (client card tokenization / 3DS / Apple Pay). **Key design point:** Tagada checkout *sessions* are variant-based (`items:[{variantId,quantity}]` → total from Tagada's catalog), but Vitum Lab must charge an exact server-computed total — so the plan is to charge the computed `amountDue` via the arbitrary-amount **`tagada.payments.process({ amount, currency, storeId, paymentInstrumentId })`** path (client tokenizes the card + runs 3DS via core-js), then confirm the order in a `/api/public/tagada-webhook` receiver (events `order/paid` / `payment/succeeded`; signatures verified via the node SDK). Env names finalized at build time (`TAGADA_API_KEY` server, `VITE_TAGADA_STORE_ID` client, `TAGADA_WEBHOOK_SECRET`). **Blocked on:** a sandbox API key (`sk_crm_test_…`) + the `storeId` to build/test against test mode.
 
 **Stack:** React 19 + TypeScript + Tailwind CSS v4 (oklch color space) + wouter routing + Vite. Local dev serves `/api/*` via `vitePluginLocalApi` in `vite.config.ts`. Vercel serverless functions (`/api/*.ts`) in production. Supabase for inventory, orders, and affiliates.
 
@@ -65,7 +61,7 @@ client/src/
 
 api/                Vercel serverless functions — ALL relative imports MUST use .js extensions (ESM)
   inventory.ts                GET  /api/inventory → {cartCode: stock} map; POST → join back-in-stock waitlist (public, {cartCode, email})
-  create-crypto-payment.ts   POST /api/create-crypto-payment (REQUIRES auth — the order email is the JWT email, never the body, so nobody can order as another customer or spend their store credit; server-side discount/commission calc + "order received" email; enforces promo one-use-per-email; creates the hosted payment session via NowPayments or PayRam per PAYMENT_PROCESSOR)
+  create-crypto-payment.ts   POST /api/create-crypto-payment (REQUIRES auth — the order email is the JWT email, never the body, so nobody can order as another customer or spend their store credit; server-side discount/commission calc + "order received" email; enforces promo one-use-per-email; creates the NowPayments hosted invoice)
   nowpayments-webhook.ts     POST /api/nowpayments-webhook (raw body, HMAC-verified; confirmed/failed emails, promo use count)
   validate-discount.ts       POST /api/validate-discount (REQUIRES auth — the one-use / first-order checks use the JWT email, not the body; affiliate codes + promo_codes; pass subtotal — rejects an already-used promo)
   contact.ts                 POST /api/contact
@@ -89,9 +85,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                              profile GET/PUT (saved shipping address in auth user metadata, falls back to last order),
                              credit GET (store-credit balance + ledger), referral GET (the customer's referral code + share link)
   public/[...slug].ts        Catch-all for /api/public/* (no auth): site GET → site-wide sale config (countdown banner) + quantity_tiers,
-                             track GET ?order=&email= → order status/timeline (email must match the order),
-                             payram-webhook POST → PayRam payment callbacks (raw-body, signature-verified; FILLED → confirm order
-                             via _lib/fulfillment.ts; responds {received:true}) — bodyParser is off for this function
+                             track GET ?order=&email= → order status/timeline (email must match the order)
   _lib/
     supabase-admin.ts  Service-role Supabase client
     orderId.ts         buildOrderId — random 20-digit order IDs
@@ -109,11 +103,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                        addLedger (idempotent per order+reason), reserveCredit (atomic via reserve_store_credit RPC — returns false on insufficient balance),
                        earnLoyalty, grantReferralReward, getOrCreateReferralCode, getRewardConfig
     orderLifecycle.ts  paidIpnAction — pure classifier for paid IPNs (pending→fulfill, confirmed→resend_emails,
-                       cancelled/failed→late_payment) — unit-tested (reused by both webhooks)
-    payram.ts          PayRam client (createPaymentSession) + verifyPayramWebhook (HMAC-SHA256) +
-                       isPayramPaidStatus — unit-tested; API-key header + webhook signing are env-configurable
-    fulfillment.ts     Shared confirm-paid-order steps (decrement stock, confirmed/admin/affiliate emails,
-                       loyalty/referral, late-payment) used by the PayRam webhook — all idempotent
+                       cancelled/failed→late_payment) — unit-tested
     requireUser.ts     Validates Bearer JWT, returns {id, email}
     requireAdmin.ts    requireUser + checks admins table
     requireAffiliate.ts requireUser + checks affiliates table
@@ -197,16 +187,11 @@ SUPABASE_URL=https://mddgtvwcwsmlbwiafdvq.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=
 NOWPAYMENTS_API_KEY=
 NOWPAYMENTS_IPN_SECRET=
-# PayRam (primary card/crypto processor). Integration code is built but DORMANT
-# until PAYMENT_PROCESSOR=payram. Not yet set in Vercel as of June 2026.
-PAYMENT_PROCESSOR=nowpayments          # set to "payram" to route checkout through PayRam
-PAYRAM_API_URL=https://pay.vitumlab.com
-PAYRAM_API_KEY=                        # dashboard → Developers (per-project key)
-PAYRAM_CURRENCY=USDC                   # session currency (stablecoin ≈ USD 1:1; the endpoint wants crypto, not "USD")
-PAYRAM_API_KEY_HEADER=API-Key          # PayRam auth header (per docs) — also the code default
-PAYRAM_API_KEY_SCHEME=                 # only used when header is Authorization (e.g. Bearer)
-PAYRAM_WEBHOOK_SECRET=                 # if PayRam signs webhooks (HMAC-SHA256); empty = accept unsigned
-PAYRAM_WEBHOOK_SIG_HEADER=x-payram-signature  # CONFIRM in dashboard (Webhook tab)
+# TagadaPay (primary card processor — headless, IN PROGRESS, not yet in code).
+# Keys come from the Tagada dashboard when the integration is built:
+# TAGADA_API_KEY=            # server (node-sdk) key — sk_crm_… / tp_sk_…
+# VITE_TAGADA_STORE_ID=      # client (headless-sdk) store id (store_…)
+# TAGADA_WEBHOOK_SECRET=     # from tagada.webhooks.create(...).secret
 GMAIL_USER=hello@vitumlab.com
 GMAIL_APP_PASSWORD=
 BASE_URL=https://vitumlab.com         # canonical site URL (emails, order links, NowPayments callbacks) — set this in Vercel; code default is also vitumlab.com
@@ -319,9 +304,7 @@ Note: `vitePluginLocalApi` routes every endpoint **except** `/api/nowpayments-we
 
 ## Open Work
 
-**Manual payment methods (Venmo / Cash App / Zelle / ACH bank transfer) — PLANNED (not built).** The chosen customer-facing default to avoid crypto friction. Planned flow: at checkout the customer selects a method and gets payment instructions (account handle + the order ID as the payment memo); the order is created `pending`; an admin **marks it paid** after verifying receipt, which triggers the existing shared fulfillment path (stock decrement, confirmed/admin emails, loyalty/referral — reuse `api/_lib/fulfillment.ts`). Manual verification only — **no automated confirmation and no chargeback protection**. Account handles to be operator-configured (likely `store_settings` + an admin tab, mirrored into a public read for checkout). Stays within the 12-function Vercel limit (fold any endpoint into an existing catch-all). Crypto (PayRam built/dormant, NowPayments live) remains a secondary option. See the **Manual payment methods** note in the Payment architecture decision section.
-
-**PayRam (primary card/crypto processor) — IN PROGRESS (node on testnet; integration code BUILT, dormant behind `PAYMENT_PROCESSOR`).** Self-hosted node runs on a **Contabo** VPS at `pay.vitumlab.com` (testnet, containerized Postgres, Let's Encrypt); dashboard live, project + a testnet deposit wallet (Sepolia) set up. The Vercel integration is built — `api/_lib/payram.ts` + `api/_lib/fulfillment.ts`, the PayRam branch in `create-crypto-payment.ts`, and the `/api/public/payram-webhook` receiver (no 13th function) — all default-off (`PAYMENT_PROCESSOR=nowpayments`). **Remaining:** confirm the API-key header + webhook signing in the dashboard and set the project webhook URL; add the PayRam env vars in Vercel + run a testnet test payment; then (blocked on a **cold-storage wallet**) reset the node to mainnet, redo the deposit wallet, regenerate the key, and flip `PAYMENT_PROCESSOR=payram`. Full sequence in the **Payment architecture decision** section at the top of this file.
+**TagadaPay (primary card processor) — IN PROGRESS (account set up; headless integration not yet in code).** Merchant is approved for peptides on TagadaPay (Finix-backed cards + Apple Pay, settles to own bank). Dashboard store/products/gateway/checkout are configured; one onboarding step left (add a shipping rate) to unlock Go-live. Plan: **headless** — keep the Vercel/Supabase storefront and swap only the payment layer, preserving server-authoritative pricing (tiers, codes, store credit, loyalty). Charge the computed `amountDue` via `@tagadapay/node-sdk` `payments.process` (client tokenization + 3DS via `@tagadapay/headless-sdk`/`core-js`), confirm via a `/api/public/tagada-webhook` receiver (events `order/paid` / `payment/succeeded`). See the **Payment architecture** section up top. **Needs a sandbox API key + storeId to build/test.** (PayRam was dropped — all its code removed.)
 
 **Product management** — built and live. Products are stored in the Supabase `products` table and managed via the Admin → Products tab. Images are stored in the `product-images` Supabase Storage bucket.
 
