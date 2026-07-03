@@ -467,6 +467,23 @@ export default async function handler(req: any, res: any) {
           res.status(200).json({ tagada: "redirect", url: result.url, orderId });
           return;
         }
+        if (result.status === "processing") {
+          // Async settlement (Tagada returned "pending"): the charge is accepted
+          // but not final. Leave the order PENDING — do NOT confirm and do NOT
+          // fail it. payment_id is already stored above, so the webhook
+          // (order/paid | payment/succeeded) confirms it on settlement, and the
+          // Tagada-aware admin Re-check can reconcile it manually. Send the
+          // "order received" email meanwhile.
+          const emailOrder: EmailOrder = {
+            id: orderId, email, items: orderItems, gross_amount: grossAmount,
+            discount_amount: discountAmount, discount_code: discountCodeNorm,
+            net_amount: netAmount, shipping_amount: shippingAmount,
+            shipping_address: shipping, emails_sent: {},
+          };
+          deferEmail(sendOrderEvent(emailOrder, "order_created"));
+          res.status(200).json({ tagada: "processing", orderId });
+          return;
+        }
         // Declined / failed — fail the order (releases the reserved credit +
         // the one-use code slot so the customer can retry).
         await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);

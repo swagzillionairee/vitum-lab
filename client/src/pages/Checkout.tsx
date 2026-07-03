@@ -233,6 +233,12 @@ export default function Checkout() {
         } else if (data.tagada === "redirect") {
           // 3DS challenge — Tagada returns to /order-success; the webhook confirms.
           window.location.href = data.url;
+        } else if (data.tagada === "processing") {
+          // Payment accepted but settling asynchronously (Tagada "pending") — NOT
+          // declined. The webhook (or admin Re-check) confirms it; take the
+          // customer to the success page where the order shows as awaiting payment.
+          clearCart();
+          navigate(`/order-success?order=${encodeURIComponent(data.orderId)}&processing=1`);
         } else if (data.tagada === "test") {
           // Admin opt-in test on prod (test key): the charge ran but the order is
           // intentionally left pending (never shipped). Surface the raw result.
