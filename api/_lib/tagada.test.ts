@@ -23,9 +23,11 @@ describe("verifyTagadaWebhook", () => {
     else process.env.TAGADA_WEBHOOK_SECRET = ORIGINAL;
   });
 
-  it("accepts any payload when no secret is configured", () => {
+  it("fails closed (rejects) when no secret is configured", () => {
     delete process.env.TAGADA_WEBHOOK_SECRET;
-    expect(verifyTagadaWebhook('{"type":"order/paid"}', undefined)).toBe(true);
+    // No secret ⇒ the payload can't be authenticated ⇒ reject, never accept.
+    expect(verifyTagadaWebhook('{"type":"order/paid"}', undefined)).toBe(false);
+    expect(verifyTagadaWebhook('{"type":"order/paid"}', "anything")).toBe(false);
   });
 
   it("accepts a correct HMAC-SHA256 signature and rejects a bad/missing one", () => {

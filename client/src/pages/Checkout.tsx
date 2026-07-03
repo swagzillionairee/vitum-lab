@@ -221,6 +221,10 @@ export default function Checkout() {
         } else if (data.tagada === "redirect") {
           // 3DS challenge — Tagada returns to /order-success; the webhook confirms.
           window.location.href = data.url;
+        } else if (data.tagada === "test") {
+          // Admin opt-in test on prod (test key): the charge ran but the order is
+          // intentionally left pending (never shipped). Surface the raw result.
+          setError(`✓ Tagada test charge ran (result: ${data.result}). Order left PENDING — not shipped (test key). Check Admin → Orders / logs to validate.`);
         } else {
           window.location.href = data.invoiceUrl; // NowPayments crypto fallback
         }
