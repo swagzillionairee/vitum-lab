@@ -18,6 +18,7 @@ import { googlePayAvailable, applePayAvailable, payWithGooglePay, payWithApplePa
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
 import TagadaCardBox from "@/components/TagadaCardBox";
+import GooglePayButton from "@/components/GooglePayButton";
 
 type PayMethod = "card" | "googlepay" | "applepay" | "crypto";
 
@@ -471,17 +472,20 @@ export default function Checkout() {
                   />
                 )}
                 {payMethod === "googlepay" && (
-                  <button
-                    onClick={() => {
-                      if (!attested) { setError("Please confirm the research-use acknowledgment to continue."); return; }
-                      setError("");
-                      payWithGooglePay(total, (t) => handlePay(t), setError);
-                    }}
-                    disabled={busy || !attested}
-                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-black text-white text-[0.9375rem] font-semibold border border-white/10 hover:bg-[oklch(0.25_0_0)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {busy ? "Processing…" : (<><Wallet className="w-4 h-4" /> Pay with Google Pay</>)}
-                  </button>
+                  busy ? (
+                    <div className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-black text-white text-[0.9375rem] font-semibold">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Processing…
+                    </div>
+                  ) : (
+                    <GooglePayButton
+                      disabled={busy || !attested}
+                      onClick={() => {
+                        if (!attested) { setError("Please confirm the research-use acknowledgment to continue."); return; }
+                        setError("");
+                        payWithGooglePay(total, (t) => handlePay(t), setError);
+                      }}
+                    />
+                  )
                 )}
                 {payMethod === "applepay" && (
                   <button

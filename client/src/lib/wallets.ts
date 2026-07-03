@@ -37,13 +37,15 @@ const GOOGLE_PAY_MERCHANT_ID = (import.meta.env.VITE_GOOGLE_PAY_MERCHANT_ID as s
 // + testing) while cards stay live; "false" forces production; unset falls back
 // to VITE_TAGADA_ENV. The BasisTheory vault follows the Google Pay env so the
 // token matches the environment.
-const GPAY_SANDBOX = (() => {
+export const GPAY_SANDBOX = (() => {
   const v = import.meta.env.VITE_GOOGLE_PAY_SANDBOX as string | undefined;
   if (v === "true") return true;
   if (v === "false") return false;
   return SANDBOXED;
 })();
 const GPAY_BT_ENV = (GPAY_SANDBOX ? "development" : "production") as "development" | "production";
+// gatewayMerchantId used when rendering the official Google Pay button (BasisTheory tenant).
+export const GPAY_GATEWAY_MERCHANT_ID = getGoogleTenantId(GPAY_BT_ENV);
 
 /** Availability probes — resolve false (never throw) so the UI can hide the tile. */
 export const googlePayAvailable = (): Promise<boolean> =>
