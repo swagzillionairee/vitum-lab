@@ -50,7 +50,17 @@ export default function TagadaCardBox({
       });
       onPay(tagadaToken);
     } catch (e) {
-      onError((e as Error)?.message || "We couldn't read that card — please check the details and try again.");
+      // The core-js SDK wraps the provider (BasisTheory) failure. Log the
+      // underlying error + code so a misconfig is diagnosable in devtools — the
+      // most common one being VITE_TAGADA_ENV not set to "production" for a live
+      // key, which tokenizes the card against the sandbox vault and fails.
+      const err = e as { message?: string; code?: string; originalError?: unknown };
+      console.error("Tagada card tokenization failed:", err?.code, err?.message, err?.originalError);
+      onError(
+        err?.message
+          ? `${err.message}${err.code ? ` (${err.code})` : ""}`
+          : "We couldn't read that card — please check the details and try again.",
+      );
     } finally {
       setTokenizing(false);
     }
