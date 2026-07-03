@@ -113,6 +113,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         : { active: false },
       quantity_tiers: (s?.quantity_tiers as { min_qty: number; percent: number }[] | null) ?? [],
+      // Whether card checkout (TagadaPay) is live — sourced from the single
+      // server flag so the storefront shows the "Pay with card" option without a
+      // separate client build flag to keep in sync.
+      tagada_enabled: process.env.TAGADA_CHECKOUT_ENABLED === "true",
     });
   }
 

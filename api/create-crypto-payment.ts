@@ -400,15 +400,23 @@ export default async function handler(req: any, res: any) {
     const tagadaToken = typeof (req.body as { tagadaToken?: unknown }).tagadaToken === "string"
       ? (req.body as { tagadaToken: string }).tagadaToken
       : "";
-    const tagadaOptIn = !useTagada && !!tagadaToken && (await isAdminEmail(email));
-    if (useTagada || tagadaOptIn) {
-      if (!tagadaToken) {
-        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
-        await releaseDiscountRedemption(orderId);
-        res.status(400).json({ error: "Card details are required." });
-        return;
+    // Charge via Tagada ONLY when the client actually collected a card token
+    // ("Pay with card"). With no token we fall through to NowPayments ("Pay with
+    // crypto") even when the global flag is on — so the crypto button always
+    // works and we never demand card details we didn't collect. A token charges
+    // LIVE when the flag is on, otherwise it's the admin opt-in test (test key,
+    // which never confirms/ships).
+    let chargeViaTagada = false;
+    let tagadaLive = false;
+    if (tagadaToken) {
+      if (useTagada) {
+        chargeViaTagada = true;
+        tagadaLive = true;
+      } else if (await isAdminEmail(email)) {
+        chargeViaTagada = true; // admin opt-in test on prod (test key)
       }
-      const tagadaLive = useTagada; // only a live-mode charge is allowed to confirm/ship
+    }
+    if (chargeViaTagada) {
       try {
         const result = await chargeCard({
           amountDue,
