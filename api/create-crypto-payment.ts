@@ -360,10 +360,12 @@ export default async function handler(req: any, res: any) {
     // vault it + charge amountDue via payments.process (amount is server-computed,
     // never client-sent). On success we confirm now; a 3DS challenge returns a
     // redirect url and the webhook confirms on return (with the amount-guard).
-    if (useTagada) {
-      const tagadaToken = typeof (req.body as { tagadaToken?: unknown }).tagadaToken === "string"
-        ? (req.body as { tagadaToken: string }).tagadaToken
-        : "";
+    // Charge via Tagada when the global flag is on OR the client sent a card token
+    // (owner opt-in test via /checkout?tagada=1). The amount stays server-computed.
+    const tagadaToken = typeof (req.body as { tagadaToken?: unknown }).tagadaToken === "string"
+      ? (req.body as { tagadaToken: string }).tagadaToken
+      : "";
+    if (useTagada || tagadaToken) {
       if (!tagadaToken) {
         await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
         res.status(400).json({ error: "Card details are required." });

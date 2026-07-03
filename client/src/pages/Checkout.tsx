@@ -158,6 +158,13 @@ export default function Checkout() {
   const creditApplied = round2(Math.min(creditBalance, netAfterDiscounts + shippingCost));
   const total = round2(netAfterDiscounts + shippingCost - creditApplied);
 
+  // Show the Tagada card form when the global flag is on, OR when the owner opts
+  // in with /checkout?tagada=1 (lets us test card checkout on prod without
+  // exposing it to real customers, who keep getting the NowPayments flow).
+  const showTagada =
+    TAGADA_ON ||
+    (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tagada") === "1");
+
   const handlePay = async (tagadaToken?: string) => {
     if (!email.trim() || !email.includes("@")) {
       setError("Please enter a valid email address.");
@@ -389,7 +396,7 @@ export default function Checkout() {
               </span>
             </label>
 
-            {TAGADA_ON && total > 0 ? (
+            {showTagada && total > 0 ? (
               <TagadaCardBox
                 amountDue={total}
                 disabled={busy || !attested}
@@ -405,7 +412,7 @@ export default function Checkout() {
             <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)] text-center">
               {total <= 0
                 ? "No payment needed — covered by store credit."
-                : TAGADA_ON
+                : showTagada
                   ? "Enter your card above — secured by TagadaPay. Not for human consumption."
                   : "Pay with crypto or card on the next step."}
             </p>
