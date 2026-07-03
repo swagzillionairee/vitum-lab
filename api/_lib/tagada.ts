@@ -176,3 +176,37 @@ export async function chargeCard(params: {
 
   return { status: "failed", error: "Your card was declined. Please try another card.", paymentId };
 }
+
+/** Normalized reconciliation state for an existing Tagada payment. */
+export type TagadaPaymentState = "paid" | "authorized" | "failed" | "refunded" | "pending" | "unknown";
+
+/**
+ * Retrieve a Tagada payment by id and normalize its status for admin
+ * reconciliation (the "Re-check" action). Tagada's canonical PaymentStatus is
+ * captured | authorized | declined | error | voided | cancelled | refunded |
+ * partially_refunded | pending; the dashboard/CSV export surfaces "succeeded"
+ * as a display alias for a capture (accepted here too). `amount` is in cents,
+ * mirroring payments.process.
+ *
+ * NOTE: unlike the synchronous charge path, "authorized" (a hold, not a
+ * capture) is deliberately NOT treated as paid here — an admin re-check must
+ * never confirm/ship on an uncaptured authorization; it surfaces as its own
+ * state for the owner to resolve in the Tagada dashboard.
+ */
+export async function getTagadaPaymentStatus(
+  paymentId: string,
+): Promise<{ state: TagadaPaymentState; raw: string; amount: number | null; currency: string | null }> {
+  const tagada = await tagadaClient();
+  const res: any = await tagada.payments.retrieve(paymentId);
+  const p: any = res?.payment ?? res;
+  const raw = String(p?.status ?? "").toLowerCase();
+  const amount = typeof p?.amount === "number" ? p.amount : null;
+  const currency = p?.currency ? String(p.currency) : null;
+  let state: TagadaPaymentState = "unknown";
+  if (raw === "captured" || raw === "succeeded" || raw === "paid") state = "paid";
+  else if (raw === "authorized") state = "authorized";
+  else if (raw === "declined" || raw === "error" || raw === "voided" || raw === "cancelled" || raw === "failed") state = "failed";
+  else if (raw === "refunded" || raw === "partially_refunded") state = "refunded";
+  else if (raw === "pending") state = "pending";
+  return { state, raw, amount, currency };
+}

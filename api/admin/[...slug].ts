@@ -4,6 +4,8 @@ import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { sendOrderEvent, sendBackInStock, sendAffiliateCommission, deferEmail, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
 import { buyLabel, getTrackingStatus, shippoConfigured, shipFromConfigured, shipFromPhoneConfigured } from "../_lib/shippo.js";
 import { getRewardConfig, earnLoyalty, grantReferralReward } from "../_lib/credit.js";
+import { confirmPaidOrder, sendConfirmationEmails, ORDER_COLS } from "../_lib/fulfillment.js";
+import { getTagadaPaymentStatus } from "../_lib/tagada.js";
 import { VT_LOGO_PNG_B64 } from "../_lib/vt-logo.js";
 import { formatOrderId } from "../_lib/orderId.js";
 
@@ -559,6 +561,69 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (action === "recheck") {
+        // ── TagadaPay orders (cards via Finix) reconcile against Tagada, NOT
+        // NowPayments — NowPayments has no record of them, so its /payment list
+        // would 404 ("Failed to reach NowPayments"). A live Tagada charge stores
+        // payment_id = "pay_…"; an admin ?tagada=1 TEST charge intentionally
+        // leaves the order pending with a "Tagada …" note and no payment_id. ──
+        const tagadaPaymentId = String((order as { payment_id?: string | null }).payment_id || "");
+        const looksTagada =
+          tagadaPaymentId.startsWith("pay_") ||
+          String((order as { admin_notes?: string | null }).admin_notes || "").includes("Tagada");
+
+        if (looksTagada) {
+          if (!process.env.TAGADA_API_KEY) return res.status(500).json({ error: "TAGADA_API_KEY not configured" });
+          if (!tagadaPaymentId.startsWith("pay_")) {
+            // No captured Tagada payment on record (e.g. an admin test charge left
+            // pending on purpose) — nothing to reconcile.
+            return res.json({ ...order, recheck: "tagada_no_payment" });
+          }
+          let pay;
+          try {
+            pay = await getTagadaPaymentStatus(tagadaPaymentId);
+          } catch (err) {
+            console.error("Tagada recheck retrieve failed:", err);
+            return res.status(502).json({ error: "Failed to reach TagadaPay" });
+          }
+
+          if (pay.state === "paid" && order.status === "pending") {
+            // Amount-guard (mirrors the webhook): only confirm when the captured
+            // amount equals the cash the order owes — net + shipping − store
+            // credit — in cents, so a mis-priced/tampered charge can't fulfill.
+            const dueCents = Math.round(
+              (Number(order.net_amount || 0) + Number(order.shipping_amount || 0) - Number(order.credit_applied || 0)) * 100,
+            );
+            if (pay.amount != null && Math.abs(pay.amount - dueCents) > 1) {
+              console.error(`⚠️ Tagada recheck amount mismatch for ${id}: captured=${pay.amount}c due=${dueCents}c`);
+              return res.json({ ...order, recheck: "tagada_amount_mismatch" });
+            }
+            // Reuse the shared, idempotent confirm path (atomic pending→confirmed
+            // claim + stock + loyalty/referral) that the Tagada webhook uses.
+            const { data: full } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("id", id).maybeSingle();
+            if (full) {
+              await confirmPaidOrder(full, {
+                payCurrency: pay.currency ?? "USD",
+                payAmount: pay.amount != null ? pay.amount / 100 : null,
+                paymentId: tagadaPaymentId,
+              });
+              await sendConfirmationEmails(full);
+            }
+            const { data } = await supabaseAdmin.from("orders").select(orderSelect).eq("id", id).single();
+            return res.json({ ...data, recheck: "confirmed" });
+          }
+
+          if (pay.state === "failed" && order.status === "pending") {
+            const { data } = await supabaseAdmin
+              .from("orders").update({ status: "failed" }).eq("id", id).select(orderSelect).single();
+            if (data) await emailAndRefresh(data, "failed");
+            return res.json({ ...data, recheck: "failed" });
+          }
+
+          // authorized / refunded / pending / unknown, or the order is no longer
+          // pending — report the state, change nothing.
+          return res.json({ ...order, recheck: `tagada_${pay.state}` });
+        }
+
         // Reconcile against NowPayments in case an IPN webhook was missed.
         const apiKey = process.env.NOWPAYMENTS_API_KEY;
         if (!apiKey) return res.status(500).json({ error: "NOWPAYMENTS_API_KEY not configured" });
