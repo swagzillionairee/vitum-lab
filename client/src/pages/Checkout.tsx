@@ -6,17 +6,20 @@
  *   promo code, and the "Continue to Payment" button (NowPayments invoice).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { ArrowRight, Tag, Check, Loader2, ShoppingBag, CreditCard, Bitcoin } from "lucide-react";
+import { ArrowRight, Tag, Check, Loader2, ShoppingBag, CreditCard, Bitcoin, Wallet, Apple } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
 import { getPromoCode, clearPromoCode } from "@/lib/promo";
 import { quantityDiscountPercent, round2, shippingFee, type QuantityTier } from "@/lib/discounts";
+import { googlePayAvailable, applePayAvailable, payWithGooglePay, payWithApplePay } from "@/lib/wallets";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
 import TagadaCardBox from "@/components/TagadaCardBox";
+
+type PayMethod = "card" | "googlepay" | "applepay" | "crypto";
 
 // Card checkout via TagadaPay (client-side flag; server gates the charge behind
 // TAGADA_CHECKOUT_ENABLED). When off, checkout uses the NowPayments redirect.
@@ -48,7 +51,10 @@ export default function Checkout() {
   // /api/public/site, so the "Pay with card" option needs no separate client
   // build flag. `payMethod === "card"` reveals the inline card fields.
   const [serverCardEnabled, setServerCardEnabled] = useState(false);
-  const [payMethod, setPayMethod] = useState<"card" | null>(null);
+  const [payMethod, setPayMethod] = useState<PayMethod>("card");
+  // Native-wallet availability (device/browser-gated; probed via core-js).
+  const [gpayAvail, setGpayAvail] = useState(false);
+  const [appleAvail, setAppleAvail] = useState(false);
 
   // Quantity discount tiers (for the breakdown display; server is authoritative).
   useEffect(() => {
@@ -176,6 +182,16 @@ export default function Checkout() {
     TAGADA_ON ||
     serverCardEnabled ||
     (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tagada") === "1");
+
+  // Probe Google Pay / Apple Pay availability once card checkout is on. Each
+  // resolves false on unsupported devices/browsers so the tile just hides.
+  useEffect(() => {
+    if (!showTagada) return;
+    let stale = false;
+    googlePayAvailable().then((ok) => { if (!stale) setGpayAvail(ok); });
+    applePayAvailable().then((ok) => { if (!stale) setAppleAvail(ok); });
+    return () => { stale = true; };
+  }, [showTagada]);
 
   const handlePay = async (tagadaToken?: string) => {
     if (!email.trim() || !email.includes("@")) {
@@ -419,8 +435,33 @@ export default function Checkout() {
             </label>
 
             {showTagada && total > 0 ? (
-              payMethod === "card" ? (
-                <div className="space-y-2.5">
+              <div className="space-y-3">
+                {/* Payment method selector — Card / Google Pay / Apple Pay / Crypto.
+                    Wallet tiles only appear on devices where they're available. */}
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { id: "card", label: "Card", icon: <CreditCard className="w-4 h-4" /> },
+                    ...(gpayAvail ? [{ id: "googlepay", label: "Google Pay", icon: <Wallet className="w-4 h-4" /> }] : []),
+                    ...(appleAvail ? [{ id: "applepay", label: "Apple Pay", icon: <Apple className="w-4 h-4" /> }] : []),
+                    { id: "crypto", label: "Crypto", icon: <Bitcoin className="w-4 h-4" /> },
+                  ] as { id: PayMethod; label: string; icon: ReactNode }[]).map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => { setPayMethod(m.id); setError(""); }}
+                      className={`flex items-center justify-center gap-2 rounded-xl border-2 py-2.5 text-[0.8125rem] font-semibold transition-colors ${
+                        payMethod === m.id
+                          ? "border-[oklch(0.40_0.16_260)] bg-[oklch(0.96_0.02_260)] text-[oklch(0.30_0.16_260)] dark:bg-[oklch(0.40_0.16_260)] dark:text-white dark:border-[oklch(0.40_0.16_260)]"
+                          : "border-[oklch(0.90_0.004_260)] text-[oklch(0.35_0.01_260)] hover:bg-[oklch(0.98_0.002_260)] dark:border-[oklch(0.30_0.01_260)] dark:text-[oklch(0.72_0.01_260)] dark:hover:bg-[oklch(0.22_0.01_260)]"
+                      }`}
+                    >
+                      {m.icon} {m.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Selected method's action */}
+                {payMethod === "card" && (
                   <TagadaCardBox
                     amountDue={total}
                     disabled={busy || !attested}
@@ -428,36 +469,43 @@ export default function Checkout() {
                     onPay={(token) => handlePay(token)}
                     onError={setError}
                   />
-                  <button
-                    onClick={() => { setPayMethod(null); setError(""); }}
-                    disabled={busy}
-                    className="w-full text-center text-[0.75rem] text-[oklch(0.50_0.01_260)] hover:underline disabled:opacity-60"
-                  >
-                    ← Choose a different payment method
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
+                )}
+                {payMethod === "googlepay" && (
                   <button
                     onClick={() => {
                       if (!attested) { setError("Please confirm the research-use acknowledgment to continue."); return; }
                       setError("");
-                      setPayMethod("card");
+                      payWithGooglePay(total, (t) => handlePay(t), setError);
                     }}
                     disabled={busy || !attested}
-                    className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-black text-white text-[0.9375rem] font-semibold border border-white/10 hover:bg-[oklch(0.25_0_0)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <CreditCard className="w-4 h-4" /> Pay with card
+                    {busy ? "Processing…" : (<><Wallet className="w-4 h-4" /> Pay with Google Pay</>)}
                   </button>
+                )}
+                {payMethod === "applepay" && (
+                  <button
+                    onClick={() => {
+                      if (!attested) { setError("Please confirm the research-use acknowledgment to continue."); return; }
+                      setError("");
+                      payWithApplePay(total, (t) => handlePay(t), setError);
+                    }}
+                    disabled={busy || !attested}
+                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-black text-white text-[0.9375rem] font-semibold border border-white/10 hover:bg-[oklch(0.25_0_0)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {busy ? "Processing…" : (<><Apple className="w-4 h-4" /> Pay with Apple Pay</>)}
+                  </button>
+                )}
+                {payMethod === "crypto" && (
                   <button
                     onClick={() => handlePay()}
                     disabled={busy || !attested}
-                    className="flex items-center justify-center gap-2 w-full py-3.5 text-[0.9375rem] rounded-xl border-2 border-[oklch(0.88_0.004_260)] font-semibold text-[oklch(0.20_0.01_260)] hover:bg-[oklch(0.98_0.002_260)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {busy ? "Processing…" : (<><Bitcoin className="w-4 h-4" /> Pay with crypto</>)}
+                    {busy ? "Processing…" : (<>Continue with crypto <ArrowRight className="w-4 h-4" /></>)}
                   </button>
-                </div>
-              )
+                )}
+              </div>
             ) : (
               <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
                 {busy ? "Processing…" : total <= 0 ? (<>Place Order <ArrowRight className="w-4 h-4" /></>) : (<>Continue to Payment <ArrowRight className="w-4 h-4" /></>)}
@@ -468,8 +516,10 @@ export default function Checkout() {
                 ? "No payment needed — covered by store credit."
                 : showTagada
                   ? payMethod === "card"
-                    ? "Enter your card above — secured by TagadaPay. Not for human consumption."
-                    : "Choose card (secured by TagadaPay · Finix) or crypto. Not for human consumption."
+                    ? "Enter your card above — secured by TagadaPay · Finix. Not for human consumption."
+                    : payMethod === "crypto"
+                      ? "You'll continue to our crypto checkout. Not for human consumption."
+                      : "Secured by TagadaPay · Finix. Not for human consumption."
                   : "Pay with crypto or card on the next step."}
             </p>
             <p className="text-[0.625rem] text-center text-[oklch(0.70_0.01_260)]">
