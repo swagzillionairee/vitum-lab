@@ -29,9 +29,25 @@ const MERCHANT_NAME = "Vitum Lab";
 const COUNTRY = "US";
 const GOOGLE_PAY_MERCHANT_ID = (import.meta.env.VITE_GOOGLE_PAY_MERCHANT_ID as string) || "";
 
+// Google Pay's environment is DECOUPLED from the card vault. Production Google
+// Pay requires Google Pay Business Console approval (the brand-verification
+// review these screenshots are for); until it's granted, a PRODUCTION Google Pay
+// charge fails in the sheet with OR_BIBED_11. VITE_GOOGLE_PAY_SANDBOX="true"
+// runs Google Pay in TEST (a working sheet with test cards — for the screenshots
+// + testing) while cards stay live; "false" forces production; unset falls back
+// to VITE_TAGADA_ENV. The BasisTheory vault follows the Google Pay env so the
+// token matches the environment.
+const GPAY_SANDBOX = (() => {
+  const v = import.meta.env.VITE_GOOGLE_PAY_SANDBOX as string | undefined;
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return SANDBOXED;
+})();
+const GPAY_BT_ENV = (GPAY_SANDBOX ? "development" : "production") as "development" | "production";
+
 /** Availability probes — resolve false (never throw) so the UI can hide the tile. */
 export const googlePayAvailable = (): Promise<boolean> =>
-  isGooglePayAvailable(SANDBOXED).catch(() => false);
+  isGooglePayAvailable(GPAY_SANDBOX).catch(() => false);
 export const applePayAvailable = (): Promise<boolean> => isApplePayAvailable().catch(() => false);
 
 // Wrap the wallet token result into the base64 TagadaToken the server decodes.
@@ -47,12 +63,12 @@ export function payWithGooglePay(
   try {
     startGooglePaySession(
       {
-        basisTheoryApiKey: getBasisTheoryApiKey(BT_ENV),
-        basisTheoryTenantId: getGoogleTenantId(BT_ENV),
+        basisTheoryApiKey: getBasisTheoryApiKey(GPAY_BT_ENV),
+        basisTheoryTenantId: getGoogleTenantId(GPAY_BT_ENV),
         merchantId: GOOGLE_PAY_MERCHANT_ID,
         merchantName: MERCHANT_NAME,
         countryCode: COUNTRY,
-        sandboxed: SANDBOXED,
+        sandboxed: GPAY_SANDBOX,
       },
       { currency: "USD", totalAmountMinor: Math.round(amountDue * 100), totalPriceStatus: "FINAL" },
       {

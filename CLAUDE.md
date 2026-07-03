@@ -216,9 +216,14 @@ VITE_TAGADA_ENV=development                # core-js env: development (test) | p
                                            # else a real card fails client-side with "Failed to tokenize card"
                                            # (VITE_ var → set in Vercel + REDEPLOY to rebuild the bundle).
 VITE_GOOGLE_PAY_MERCHANT_ID=               # Google Pay merchant id (Google Pay Business Console) — required for
-                                           # PRODUCTION Google Pay. In TEST (VITE_TAGADA_ENV≠production) a placeholder
-                                           # works and the sheet shows test cards. Apple Pay needs no id but requires
-                                           # the domain registered with Apple Pay (via Tagada/Finix) + Safari/iOS.
+                                           # PRODUCTION Google Pay. In TEST a placeholder works and the sheet shows
+                                           # test cards. Apple Pay needs no id but requires the domain registered
+                                           # with Apple Pay (via Tagada/Finix) + Safari/iOS.
+VITE_GOOGLE_PAY_SANDBOX=                    # "true" → Google Pay runs in TEST (working sheet + test cards) EVEN when
+                                           # cards are live; "false" → production; unset → follows VITE_TAGADA_ENV.
+                                           # Production Google Pay only works AFTER Google Pay Business Console approval —
+                                           # before that a live Google Pay charge fails in the sheet with OR_BIBED_11,
+                                           # so keep this "true" until Google approves the integration.
 GMAIL_USER=hello@vitumlab.com
 GMAIL_APP_PASSWORD=
 BASE_URL=https://vitumlab.com         # canonical site URL (emails, order links, NowPayments callbacks) — set this in Vercel; code default is also vitumlab.com
