@@ -170,6 +170,8 @@ Tables in `public`:
 - `store_credit_ledger(id UUID PK, email, amount NUMERIC [+ earned / − redeemed], reason 'loyalty'|'referral'|'redemption'|'manual', order_id, created_at)` — store-credit wallet. **Balance is derived** via the `store_credit_balance(email)` RPC, which excludes every ledger entry tied to a cancelled/failed order (so a dead order auto-refunds its reserved credit AND claws back any loyalty/referral it earned — no explicit writes). Idempotent via a unique (order_id, reason) index. Service-role only.
 - `referral_codes(code PK, email UNIQUE, created_at)` — one referral code per customer (lazily created by `GET /api/account/referral`). Service-role only.
 - `stock_waitlist(id UUID PK, cart_code, email, created_at, notified_at, UNIQUE(cart_code,email))` — back-in-stock signups. `POST /api/inventory` upserts (notified_at=null); an admin inventory PATCH that takes stock 0→>0 emails all pending rows then stamps `notified_at`. Service-role only.
+- `discount_redemptions(email, code, order_id, created_at, PRIMARY KEY(email,code))` — atomic one-use backstop for promo + referral codes (a race-proof slot per (email,code); referral uses the sentinel code `__REFERRAL__` = one referral ever per referee). Claimed at checkout via `reserve_discount_redemption`, released on abandonment/death via `release_discount_redemption` + the hourly `sweep_discount_redemptions`. Additive to the historical confirmed-order check. Service-role only.
+- `rate_limits(id BIGINT PK, bucket, created_at)` — generic per-key sliding-window rate limiter (`rate_limit_hit`), used by the public contact form (5/10min/IP). Service-role only.
 - `orders.emails_sent JSONB DEFAULT '{}'` — `{event: ISO timestamp}` per sent email; the idempotency log shown in the admin order detail (with Resend buttons).
 
 Key RPCs:
@@ -178,10 +180,12 @@ Key RPCs:
 - `increment_promo_use(p_code TEXT)` — atomic promo usage counter.
 - `store_credit_balance(p_email TEXT) → NUMERIC` — derived store-credit balance (excludes every ledger entry tied to a cancelled/failed order — refunds reserved credit and claws back earned loyalty/referral).
 - `reserve_store_credit(p_email TEXT, p_amount NUMERIC, p_order_id TEXT) → BOOLEAN` — atomic check-and-reserve under a per-customer advisory lock (false = insufficient balance, e.g. a concurrent checkout spent it); idempotent per order.
+- `reserve_discount_redemption(p_email, p_code, p_order_id) → BOOLEAN` — atomically claim a one-use code's (email,code) slot (INSERT…ON CONFLICT DO NOTHING; false = another live order already holds it). `release_discount_redemption(p_order_id)` frees it; `sweep_discount_redemptions() → INT` (hourly via `/api/cron`) frees slots whose order died/vanished (10-min floor to skip in-flight).
+- `rate_limit_hit(p_bucket TEXT, p_max INT, p_window_seconds INT) → BOOLEAN` — sliding-window limiter; prunes the bucket, returns false when over `p_max` else records the hit and returns true.
 
 **Scheduled jobs (pg_cron):** `expire-stale-orders` runs hourly — sets `status='cancelled'` (reason `auto-expired…`) on `pending` orders older than 24h (pending orders never decremented stock, so no restock needed). `email-cron` runs hourly — pg_net POST to `/api/cron` (CRON_SECRET header), which also expires stale orders AND sends the cancellation emails (idempotent; the two jobs coexist safely — the endpoint's sweep emails anything the SQL job expired).
 
-RLS: `inventory` is publicly readable (anon). `orders`, `affiliates`, `affiliate_payouts`, `promo_codes`, `store_settings`, `store_credit_ledger`, and `referral_codes` are service-role only.
+RLS: `inventory` is publicly readable (anon). `products` is anon-read where `is_active`. `affiliates` is own-row (`auth.uid() = user_id`). `orders`, `admins`, `affiliate_payouts`, `promo_codes`, `store_settings`, `store_credit_ledger`, `referral_codes`, `stock_waitlist`, `discount_redemptions`, and `rate_limits` are service-role only (RLS on, zero policies = deny-all). Verified live via the Supabase security advisor + `pg_policies` (July 2026 audit).
 
 ---
 
@@ -356,6 +360,25 @@ Note: `vitePluginLocalApi` routes every endpoint **except** `/api/nowpayments-we
 **Shipping labels + auto-delivery (USPS via Shippo) — BUILT & WORKING in test mode (June 2026).** `api/_lib/shippo.ts` wraps Shippo; the token decides test vs live (no code change to switch). Admin → Orders has a **Buy label** button (paid + unfulfilled) → `buy_label` order action → buys a **USPS Priority Mail Flat Rate Padded Envelope** label, stores `orders.label_url` + tracking + carrier, sets `shipped`, fires the shipped email, and opens the label PDF; a **Manual** button still allows typing tracking by hand, and a **Label** link reopens the PDF. **Auto-delivery:** `/api/cron` polls Shippo tracking for shipped orders (`getTrackingStatus`); when a number reads `DELIVERED` it marks the order delivered and fires the customer `delivered` + `admin_delivered` (→ `delivered@`) emails — no manual clicking. **All `SHIP_FROM_*` env vars (return address incl. the USPS-required `SHIP_FROM_PHONE`) are configured in Vercel, and test labels are confirmed generating** (sender email auto-fills from `GMAIL_USER`). `SHIPPO_API_KEY` is still a TEST key, so Buy label returns watermarked SAMPLE labels + test tracking — **swap to the live token (no code change) to ship real postage.** Labels print as a **4×6 PDF** (`label_file_type: "PDF_4x6"`). Lives in the admin catch-all + cron + `_lib`.
 
 ---
+
+## Security audit (July 2026) — shipped + outstanding
+
+A full audit ran across auth/authz, payment & webhook integrity, pricing/store-credit, secrets/config/RLS, and input-validation/injection. **Reassuring:** JWTs are truly verified server-side, RLS is correctly locked on all 11 tables (verified live), no secret leaks into the client bundle or git history (incl. the once-printed Tagada webhook secret), server-authoritative pricing holds, and there's no SQL injection / client XSS / open redirect / order enumeration.
+
+**Fixes shipped (PRs #83 + #84):**
+- **Critical** — `/checkout?tagada=1` could confirm an order for free (test-key charge). Now **admin-gated** (`isAdminEmail`; non-admins fall through to NowPayments) and a **non-live/test-key charge never confirms/ships** (records the result, leaves the order pending). `authorized`≠capture is logged for the live test.
+- **High** — `requireUser`/`requireAdmin` now reject an **unverified email** (`email_confirmed_at`), blocking role takeover via an unconfirmed password signup on an admin/affiliate address.
+- **High** — Tagada webhook verify now **fails closed** when `TAGADA_WEBHOOK_SECRET` is unset (was fail-open).
+- **High** — promo/referral **one-use is now atomic** (`discount_redemptions` + `reserve/release/sweep` RPCs); closes the TOCTOU race (duplicate 100%-off free orders, repeated referrer credit).
+- **Medium** — atomic pending→confirmed **claim** in `confirmPaidOrder` (kills the double stock-decrement race for both processors); **security headers** in `vercel.json`; **contact-form rate limit** (`rate_limit_hit`, 5/10min/IP); **referral cash-gate** (referrer earns only when the referee paid cash); webhook amount-unit diagnostic log.
+- **Low** — escape `tracking_number`/`cancel_reason` in emails.
+
+**⚠️ Outstanding — owner action (NOT code; do these in the dashboards):**
+1. **Supabase Auth → verify "Confirm email" is ON** (backs the email-verify fix) and **enable leaked-password protection** (advisor WARN).
+2. **Google Cloud → restrict `VITE_GOOGLE_MAPS_API_KEY`** by HTTP referrer (`vitumlab.com/*` + preview) — it ships in the bundle by design.
+3. Move the `pg_net` extension out of the `public` schema (advisor WARN).
+
+**Deferred code follow-ups (lower priority):** a **CSP** header (needs per-source enumeration for Maps/Supabase/Tagada so it doesn't break them); admin products PATCH column allowlist; admin upload content-type/size validation; stop logging raw customer emails in serverless logs; referral same-address/velocity caps (the cash-gate already removes the zero-cost abuse — the rest is an owner policy call).
 
 ## Recently shipped (June 2026)
 
