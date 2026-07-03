@@ -37,6 +37,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.106.2
         version: 2.106.2
+      '@tagadapay/node-sdk':
+        specifier: ^2.7.3
+        version: 2.7.3
       '@vercel/analytics':
         specifier: ^2.0.1
         version: 2.0.1(react@19.2.1)
@@ -1047,6 +1050,11 @@ packages:
   '@supabase/supabase-js@2.106.2':
     resolution: {integrity: sha512-2/RZ/1fmJx/MRSEDG2Xk8+J4JVk5clM9V0uSI6kUTrcS32KA89DtqI5RUOC9r6mzY3WBC9qexLjssIHjbLyVJA==}
     engines: {node: '>=20.0.0'}
+
+  '@tagadapay/node-sdk@2.7.3':
+    resolution: {integrity: sha512-DuU/tZHagjuUqHxsMNby/xXADfeolTQOBn8pClLYbMSvg2a0MVOtx1aglhi+N3H7xp1EK1mjrUVMYzZNRcU2vQ==}
+    engines: {node: '>=18.0.0'}
+    hasBin: true
 
   '@tailwindcss/node@4.1.14':
     resolution: {integrity: sha512-hpz+8vFk3Ic2xssIA3e01R6jkmsAhvkQdXlEbRTk6S10xDAtiQiM3FyvZVGsucefq764euO/b8WUW9ysLdThHw==}
@@ -3343,6 +3351,8 @@ snapshots:
       '@supabase/postgrest-js': 2.106.2
       '@supabase/realtime-js': 2.106.2
       '@supabase/storage-js': 2.106.2
+
+  '@tagadapay/node-sdk@2.7.3': {}
 
   '@tailwindcss/node@4.1.14':
     dependencies:

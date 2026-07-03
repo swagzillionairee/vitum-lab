@@ -48,6 +48,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pathname = (req.url ?? "").split("?")[0];
   const route = pathname.replace(/^\/api\/admin\/?/, "").split("/")[0];
 
+  // ── /api/admin/register-tagada-webhook — one-off; returns the signing secret ──
+  // Run once (POST), copy the returned `secret` into Vercel as TAGADA_WEBHOOK_SECRET.
+  if (route === "register-tagada-webhook") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    try {
+      const { registerTagadaWebhook } = await import("../_lib/tagada.js");
+      return res.json(await registerTagadaWebhook());
+    } catch (err: any) {
+      console.error("register-tagada-webhook failed:", err);
+      return res.status(500).json({ error: err?.message || "Failed to register webhook" });
+    }
+  }
+
+  // ── /api/admin/tagada-products — list catalog variant ids (cartCode mapping) ──
+  if (route === "tagada-products") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    try {
+      const { listTagadaProducts } = await import("../_lib/tagada.js");
+      return res.json({ products: await listTagadaProducts() });
+    } catch (err: any) {
+      console.error("tagada-products failed:", err);
+      return res.status(500).json({ error: err?.message || "Failed to list products" });
+    }
+  }
+
   // ── /api/admin/shipments — all orders that have a tracking number ──────────
   if (route === "shipments") {
     if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
