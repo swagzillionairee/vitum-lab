@@ -157,14 +157,13 @@ export async function chargeCard(params: {
   const paymentId = String(payment?.id ?? "");
   const status = String(payment?.status ?? "").toLowerCase();
 
-  // ⚠️ SANDBOX-CONFIRM: an "authorized" status is a hold, NOT a capture — treating
-  // it as paid risks confirming/shipping before the funds are captured. We log it
-  // loudly so the owner's live test reveals whether Tagada auto-captures (in which
-  // case "authorized" can stay in the success set) before the global flag is flipped.
-  if (status === "authorized") {
-    console.warn(`⚠️ Tagada payment ${paymentId} returned status="authorized" (auth ≠ capture) — confirm Tagada's capture model before treating this as paid.`);
-  }
-  if (status === "captured" || status === "authorized" || status === "succeeded" || status === "paid") {
+  // Only a real CAPTURE counts as paid. The charge runs in Tagada's auto-capture
+  // ("purchase") mode, which settles as captured/succeeded/paid (the July 2026 live
+  // test returned "succeeded"). A bare "authorized" is a hold, NOT captured funds,
+  // so it must never confirm/ship — it is handled explicitly below. If Tagada is
+  // ever run in auth-then-capture mode, add an explicit capture call here rather
+  // than relaxing this check.
+  if (status === "captured" || status === "succeeded" || status === "paid") {
     return { status: "succeeded", paymentId };
   }
   const redirectUrl =
@@ -173,6 +172,14 @@ export async function chargeCard(params: {
     payment?.redirectUrl ??
     res?.redirectUrl;
   if (redirectUrl) return { status: "redirect", url: String(redirectUrl), paymentId };
+
+  // Uncaptured authorization (hold, not a capture) — refuse rather than fulfill.
+  // The hold auto-expires and the customer can retry; configure Tagada for
+  // purchase/auto-capture to avoid landing here.
+  if (status === "authorized") {
+    console.warn(`⚠️ Tagada payment ${paymentId} returned "authorized" (auth ≠ capture) — refusing to confirm an uncaptured hold.`);
+    return { status: "failed", error: "Your payment couldn't be completed (authorized but not captured). Please try again or contact support.", paymentId };
+  }
 
   return { status: "failed", error: "Your card was declined. Please try another card.", paymentId };
 }
