@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
 import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, sitewideSalePrice, isSitewideActive, shippingFee, type QuantityTier } from "./_lib/pricing.js";
-import { getBalance, reserveCredit, getRewardConfig, earnLoyalty, grantReferralReward, type RewardConfig } from "./_lib/credit.js";
+import { getBalance, reserveCredit, reserveDiscountRedemption, releaseDiscountRedemption, getRewardConfig, earnLoyalty, grantReferralReward, type RewardConfig } from "./_lib/credit.js";
 import { validateAddress } from "./_lib/shippo.js";
 import { buildOrderId } from "./_lib/orderId.js";
 import { requireUser } from "./_lib/requireUser.js";
@@ -222,6 +222,30 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // Atomic one-use reservation for promo + referral codes. The historical check
+    // above only sees already-confirmed orders, so without this a race (concurrent
+    // checkouts, or several unpaid pending orders with the same code) could redeem
+    // it twice — duplicate free orders on a 100%-off promo, or repeated referrer
+    // credit. Affiliate codes are unlimited and are NOT reserved. The slot is
+    // released on every abandonment path below (and swept by /api/cron if the
+    // order later dies). Fails closed: an RPC error blocks rather than allows.
+    if (discount?.kind === "promo" || discount?.kind === "referral") {
+      // Promo → one use per (customer, code). Referral → one referral EVER per
+      // referee (any referrer code), matching the first-order-only rule and
+      // stopping a referee from farming referrer credit across codes.
+      const reservationKey = discount.kind === "referral" ? "__REFERRAL__" : discountCodeNorm!;
+      const reserved = await reserveDiscountRedemption(email, reservationKey, orderId);
+      if (!reserved) {
+        res.status(400).json({
+          error:
+            discount.kind === "referral"
+              ? "This referral code has already been used on an order."
+              : "You've already used this promo code — it's limited to one use per customer.",
+        });
+        return;
+      }
+    }
+
     // Quantity-tier discount (admin-configurable) stacks with the code discount:
     // the tier % comes off first, then the code (promo/affiliate % or referral $)
     // off the remainder.
@@ -286,6 +310,7 @@ export default async function handler(req: any, res: any) {
       });
       if (insertError) {
         console.error("Free order insert failed:", insertError);
+        await releaseDiscountRedemption(orderId);
         res.status(500).json({ error: "Failed to create order. Please try again." });
         return;
       }
@@ -294,6 +319,7 @@ export default async function handler(req: any, res: any) {
       // in which case this order is no longer actually fully covered.
       if (!(await reserveCredit(email, creditApplied, orderId))) {
         await supabaseAdmin.from("orders").delete().eq("id", orderId);
+        await releaseDiscountRedemption(orderId);
         res.status(409).json({ error: "Your store credit balance changed — please review your order and try again." });
         return;
       }
@@ -344,6 +370,7 @@ export default async function handler(req: any, res: any) {
     });
     if (insertError) {
       console.error("Order insert failed:", insertError);
+      await releaseDiscountRedemption(orderId);
       res.status(500).json({ error: "Failed to create order. Please try again." });
       return;
     }
@@ -352,6 +379,7 @@ export default async function handler(req: any, res: any) {
     // it automatically via the balance query.
     if (!(await reserveCredit(email, creditApplied, orderId))) {
       await supabaseAdmin.from("orders").delete().eq("id", orderId);
+      await releaseDiscountRedemption(orderId);
       res.status(409).json({ error: "Your store credit balance changed — please review your order and try again." });
       return;
     }
@@ -376,6 +404,7 @@ export default async function handler(req: any, res: any) {
     if (useTagada || tagadaOptIn) {
       if (!tagadaToken) {
         await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        await releaseDiscountRedemption(orderId);
         res.status(400).json({ error: "Card details are required." });
         return;
       }
@@ -398,6 +427,9 @@ export default async function handler(req: any, res: any) {
             (result.status === "redirect" ? ` redirectUrl=${result.url}` : "") +
             ` paymentId=${result.paymentId || "?"}`;
           await supabaseAdmin.from("orders").update({ admin_notes: note }).eq("id", orderId);
+          // Not a real redemption — free the one-use slot so a later real customer
+          // isn't blocked while this admin test order sits pending.
+          await releaseDiscountRedemption(orderId);
           res.status(200).json({ tagada: "test", orderId, result: result.status });
           return;
         }
@@ -427,13 +459,16 @@ export default async function handler(req: any, res: any) {
           res.status(200).json({ tagada: "redirect", url: result.url, orderId });
           return;
         }
-        // Declined / failed — fail the order (releases the reserved credit).
+        // Declined / failed — fail the order (releases the reserved credit +
+        // the one-use code slot so the customer can retry).
         await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        await releaseDiscountRedemption(orderId);
         res.status(402).json({ error: result.error });
         return;
       } catch (err) {
         console.error("Tagada charge error:", err);
         await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        await releaseDiscountRedemption(orderId);
         res.status(500).json({ error: "Card payment failed. Please try again." });
         return;
       }
@@ -463,6 +498,7 @@ export default async function handler(req: any, res: any) {
     if (!nowRes.ok) {
       console.error("NowPayments error:", await nowRes.text());
       await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+      await releaseDiscountRedemption(orderId);
       res.status(500).json({ error: "Failed to create payment" });
       return;
     }

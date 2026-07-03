@@ -72,6 +72,32 @@ export async function reserveCredit(email: string, amount: number, orderId: stri
   return data === true;
 }
 
+/**
+ * Atomically claim a one-use code's (email, code) slot for this order — used for
+ * promo and referral codes (affiliate codes are unlimited and must NOT call this).
+ * Backs the one-use / first-order limit with a DB uniqueness guarantee so
+ * concurrent checkouts or stacked pending orders can't redeem the same code
+ * twice. Returns false when another live order already holds the slot. Fails
+ * CLOSED (returns false) on an RPC error so a glitch can't wave a reuse through.
+ */
+export async function reserveDiscountRedemption(email: string, code: string, orderId: string): Promise<boolean> {
+  if (!email || !code) return true;
+  const { data, error } = await supabaseAdmin.rpc("reserve_discount_redemption", {
+    p_email: email,
+    p_code: code,
+    p_order_id: orderId,
+  });
+  if (error) { console.error("reserve_discount_redemption error:", error); return false; }
+  return data === true;
+}
+
+/** Release an order's reserved discount slot(s) when its checkout abandons/fails. */
+export async function releaseDiscountRedemption(orderId: string): Promise<void> {
+  if (!orderId) return;
+  const { error } = await supabaseAdmin.rpc("release_discount_redemption", { p_order_id: orderId });
+  if (error) console.error("release_discount_redemption error:", error);
+}
+
 /** Earn loyalty on confirmation. Base = cash actually paid (net − credit applied). */
 export async function earnLoyalty(
   order: { id: string; email: string; net_amount: number | string; credit_applied?: number | string | null },

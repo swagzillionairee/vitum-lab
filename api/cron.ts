@@ -115,6 +115,17 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // 1b. Backstop: release one-use discount slots (promo/referral) held by orders
+    // that have since died or vanished, so the code becomes usable again. Covers
+    // the paths that don't release inline (SQL expiry job, admin cancel, webhook
+    // failure). Explicit release at checkout handles the synchronous-failure paths.
+    try {
+      await supabaseAdmin.rpc("sweep_discount_redemptions");
+    } catch (err) {
+      console.error("cron: discount-redemption sweep failed:", err);
+      results.errors++;
+    }
+
     // 2. Sweep auto-expired orders (last 7 days) missing their email.
     const sweepSince = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
     const { data: unemailed } = await supabaseAdmin
