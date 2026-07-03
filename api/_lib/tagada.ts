@@ -105,3 +105,61 @@ export async function listTagadaProducts(): Promise<
     })),
   }));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Slice 2b — the actual charge. The client tokenizes the card with core-js
+// (store-agnostic) and sends us the token; we vault it into a payment instrument
+// for our store and charge the EXACT server-computed amountDue via payments
+// .process (amount is server-authoritative — the client never sends a price).
+// ⚠️ SANDBOX-CONFIRM: the 3DS redirect field + status casing on the process
+// result are confirmed against Tagada test mode (see CLAUDE.md Slice 2b).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ChargeResult =
+  | { status: "succeeded"; paymentId: string }
+  | { status: "redirect"; url: string; paymentId: string }
+  | { status: "failed"; error: string; paymentId: string };
+
+/** Charge `amountDue` (dollars) to a client-tokenized card. Tagada amounts are cents. */
+export async function chargeCard(params: {
+  amountDue: number;
+  tagadaToken: string;
+  email: string;
+  returnUrl: string;
+}): Promise<ChargeResult> {
+  const tagada = await tagadaClient();
+  const storeId = tagadaStoreId();
+
+  // 1) Vault the token → a payment instrument scoped to our store.
+  const inst: any = await tagada.paymentInstruments.createFromToken({
+    tagadaToken: params.tagadaToken,
+    storeId,
+    customerData: { email: params.email },
+  });
+  const paymentInstrumentId: string = inst?.paymentInstrument?.id ?? inst?.paymentInstrumentId ?? inst?.id ?? "";
+  if (!paymentInstrumentId) throw new Error("Tagada createFromToken returned no payment instrument id");
+
+  // 2) Charge the exact amountDue (cents). returnUrl is where 3DS bounces back.
+  const res: any = await tagada.payments.process({
+    amount: Math.round(params.amountDue * 100),
+    currency: "USD",
+    storeId,
+    paymentInstrumentId,
+    returnUrl: params.returnUrl,
+  });
+  const payment: any = res?.payment ?? res;
+  const paymentId = String(payment?.id ?? "");
+  const status = String(payment?.status ?? "").toLowerCase();
+
+  if (status === "captured" || status === "authorized" || status === "succeeded" || status === "paid") {
+    return { status: "succeeded", paymentId };
+  }
+  const redirectUrl =
+    payment?.requireActionData?.redirectUrl ??
+    payment?.nextAction?.redirectUrl ??
+    payment?.redirectUrl ??
+    res?.redirectUrl;
+  if (redirectUrl) return { status: "redirect", url: String(redirectUrl), paymentId };
+
+  return { status: "failed", error: "Your card was declined. Please try another card.", paymentId };
+}

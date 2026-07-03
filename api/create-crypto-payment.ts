@@ -5,6 +5,8 @@ import { getBalance, reserveCredit, getRewardConfig, earnLoyalty, grantReferralR
 import { validateAddress } from "./_lib/shippo.js";
 import { buildOrderId } from "./_lib/orderId.js";
 import { requireUser } from "./_lib/requireUser.js";
+import { chargeCard } from "./_lib/tagada.js";
+import { confirmPaidOrder, sendConfirmationEmails, ORDER_COLS } from "./_lib/fulfillment.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 
@@ -107,6 +109,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
   const email = user.email;
+  const useTagada = process.env.TAGADA_CHECKOUT_ENABLED === "true";
 
   try {
     const { items, discountCode, shipping, attestation } = req.body as {
@@ -350,6 +353,64 @@ export default async function handler(req: any, res: any) {
       await supabaseAdmin.from("orders").delete().eq("id", orderId);
       res.status(409).json({ error: "Your store credit balance changed — please review your order and try again." });
       return;
+    }
+
+    // ── TagadaPay (primary card processor) — charge the exact amountDue ──────
+    // The client tokenized the card with core-js and sent us `tagadaToken`; we
+    // vault it + charge amountDue via payments.process (amount is server-computed,
+    // never client-sent). On success we confirm now; a 3DS challenge returns a
+    // redirect url and the webhook confirms on return (with the amount-guard).
+    if (useTagada) {
+      const tagadaToken = typeof (req.body as { tagadaToken?: unknown }).tagadaToken === "string"
+        ? (req.body as { tagadaToken: string }).tagadaToken
+        : "";
+      if (!tagadaToken) {
+        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        res.status(400).json({ error: "Card details are required." });
+        return;
+      }
+      try {
+        const result = await chargeCard({
+          amountDue,
+          tagadaToken,
+          email,
+          returnUrl: `${baseUrl}/order-success?order=${orderId}`,
+        });
+        await supabaseAdmin.from("orders").update({ payment_id: result.paymentId || null }).eq("id", orderId);
+
+        if (result.status === "succeeded") {
+          // Confirm now (stock, emails, loyalty/referral). The webhook is the
+          // idempotent backup — it sees status=confirmed and only resends emails.
+          const { data: ord } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("id", orderId).maybeSingle();
+          if (ord) {
+            await confirmPaidOrder(ord, { payCurrency: "USD", payAmount: amountDue, paymentId: result.paymentId });
+            deferEmail(sendConfirmationEmails(ord));
+          }
+          res.status(200).json({ tagada: "succeeded", orderId });
+          return;
+        }
+        if (result.status === "redirect") {
+          // 3DS — the client redirects; the webhook confirms on return.
+          const emailOrder: EmailOrder = {
+            id: orderId, email, items: orderItems, gross_amount: grossAmount,
+            discount_amount: discountAmount, discount_code: discountCodeNorm,
+            net_amount: netAmount, shipping_amount: shippingAmount,
+            shipping_address: shipping, emails_sent: {},
+          };
+          deferEmail(sendOrderEvent(emailOrder, "order_created"));
+          res.status(200).json({ tagada: "redirect", url: result.url, orderId });
+          return;
+        }
+        // Declined / failed — fail the order (releases the reserved credit).
+        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        res.status(402).json({ error: result.error });
+        return;
+      } catch (err) {
+        console.error("Tagada charge error:", err);
+        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        res.status(500).json({ error: "Card payment failed. Please try again." });
+        return;
+      }
     }
 
     // Create the NowPayments hosted invoice; hand the client the invoice URL to

@@ -16,6 +16,11 @@ import { getPromoCode, clearPromoCode } from "@/lib/promo";
 import { quantityDiscountPercent, round2, shippingFee, type QuantityTier } from "@/lib/discounts";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
+import TagadaCardBox from "@/components/TagadaCardBox";
+
+// Card checkout via TagadaPay (client-side flag; server gates the charge behind
+// TAGADA_CHECKOUT_ENABLED). When off, checkout uses the NowPayments redirect.
+const TAGADA_ON = import.meta.env.VITE_TAGADA_CHECKOUT_ENABLED === "true";
 
 export default function Checkout() {
   const { items, subtotal, openCart, clearCart } = useCart();
@@ -153,7 +158,7 @@ export default function Checkout() {
   const creditApplied = round2(Math.min(creditBalance, netAfterDiscounts + shippingCost));
   const total = round2(netAfterDiscounts + shippingCost - creditApplied);
 
-  const handlePay = async () => {
+  const handlePay = async (tagadaToken?: string) => {
     if (!email.trim() || !email.includes("@")) {
       setError("Please enter a valid email address.");
       return;
@@ -184,6 +189,7 @@ export default function Checkout() {
           affiliateId: promoApplied ? affiliateId : undefined,
           discountAmount: promoApplied ? discountAmount : undefined,
           attestation: attested,
+          tagadaToken,
         }),
       });
       const data = await response.json();
@@ -198,11 +204,18 @@ export default function Checkout() {
         }).catch(() => {});
         clearPromoCode(); // consumed — don't auto-apply on the next order
         if (data.free) {
-          // $0 order (e.g. 100% promo) — already confirmed server-side, skip NowPayments.
+          // $0 order (e.g. 100% promo) — already confirmed server-side, skip payment.
           clearCart();
           navigate(`/order-success?order=${encodeURIComponent(data.orderId)}&free=1`);
+        } else if (data.tagada === "succeeded") {
+          // Card charged + confirmed server-side.
+          clearCart();
+          navigate(`/order-success?order=${encodeURIComponent(data.orderId)}`);
+        } else if (data.tagada === "redirect") {
+          // 3DS challenge — Tagada returns to /order-success; the webhook confirms.
+          window.location.href = data.url;
         } else {
-          window.location.href = data.invoiceUrl;
+          window.location.href = data.invoiceUrl; // NowPayments crypto fallback
         }
       }
     } catch {
@@ -376,11 +389,25 @@ export default function Checkout() {
               </span>
             </label>
 
-            <button onClick={handlePay} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
-              {busy ? "Processing…" : total <= 0 ? (<>Place Order <ArrowRight className="w-4 h-4" /></>) : (<>Continue to Payment <ArrowRight className="w-4 h-4" /></>)}
-            </button>
+            {TAGADA_ON && total > 0 ? (
+              <TagadaCardBox
+                amountDue={total}
+                disabled={busy || !attested}
+                busy={busy}
+                onPay={(token) => handlePay(token)}
+                onError={setError}
+              />
+            ) : (
+              <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
+                {busy ? "Processing…" : total <= 0 ? (<>Place Order <ArrowRight className="w-4 h-4" /></>) : (<>Continue to Payment <ArrowRight className="w-4 h-4" /></>)}
+              </button>
+            )}
             <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)] text-center">
-              {total <= 0 ? "No payment needed — covered by store credit." : "Pay with crypto, card, or Apple Pay on the next step."}
+              {total <= 0
+                ? "No payment needed — covered by store credit."
+                : TAGADA_ON
+                  ? "Enter your card above — secured by TagadaPay. Not for human consumption."
+                  : "Pay with crypto or card on the next step."}
             </p>
             <p className="text-[0.625rem] text-center text-[oklch(0.70_0.01_260)]">
               Research use only — not for human consumption.
