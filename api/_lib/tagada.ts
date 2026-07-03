@@ -92,7 +92,7 @@ export async function listTagadaProducts(): Promise<
   Array<{ productId: string; name: string; variants: Array<{ id: string; sku: string | null; price: number | null; name?: string }> }>
 > {
   const tagada = await tagadaClient();
-  const resp: any = await tagada.products.list({ storeId: tagadaStoreId() });
+  const resp: any = await tagada.products.list({ storeId: tagadaStoreId(), page: 1, per_page: 100, includeVariants: true });
   const products: any[] = resp?.data ?? resp?.items ?? (Array.isArray(resp) ? resp : []);
   return products.map((p: any) => ({
     productId: p.id,
