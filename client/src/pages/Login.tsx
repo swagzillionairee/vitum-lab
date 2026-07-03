@@ -68,7 +68,7 @@ export default function Login() {
           <h1 className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">Sign in</h1>
         </div>
         <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-6">
-          {redirect === "/checkout"
+          {redirect?.startsWith("/checkout")
             ? "Sign in to complete your checkout."
             : "Access your order history and shipping status."}
         </p>
