@@ -1,4 +1,12 @@
 import nodemailer from "nodemailer";
+import { supabaseAdmin } from "./_lib/supabase-admin.js";
+
+// Per-IP throttle: the contact form shares the Gmail transport with all order
+// email, so an unthrottled spam loop could burn the daily send cap and silently
+// stop payment/shipping confirmations. Allow a handful per window, then 429.
+const RATE_MAX = 5;
+const RATE_WINDOW_SECONDS = 600; // 5 messages / 10 min / IP
+const MAX_MESSAGE_LEN = 5000;
 
 // Escape user input before it's interpolated into the email HTML so a crafted
 // name/subject/message can't inject markup or links into the inbox email.
@@ -30,6 +38,28 @@ export default async function handler(req: any, res: any) {
   if (!name || !email || !message) {
     res.status(400).json({ error: "Missing required fields" });
     return;
+  }
+
+  if (typeof message !== "string" || message.length > MAX_MESSAGE_LEN) {
+    res.status(400).json({ error: "Message is too long." });
+    return;
+  }
+
+  // Rate-limit by client IP (Vercel sets x-forwarded-for). Fails OPEN on an RPC
+  // error so a database hiccup never blocks a genuine customer inquiry.
+  const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  try {
+    const { data: allowed, error } = await supabaseAdmin.rpc("rate_limit_hit", {
+      p_bucket: `contact:${ip}`,
+      p_max: RATE_MAX,
+      p_window_seconds: RATE_WINDOW_SECONDS,
+    });
+    if (!error && allowed === false) {
+      res.status(429).json({ error: "Too many messages — please wait a few minutes and try again." });
+      return;
+    }
+  } catch (err) {
+    console.error("contact rate-limit check failed (allowing):", err);
   }
 
   const transporter = nodemailer.createTransport({

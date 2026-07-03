@@ -72,6 +72,32 @@ export async function reserveCredit(email: string, amount: number, orderId: stri
   return data === true;
 }
 
+/**
+ * Atomically claim a one-use code's (email, code) slot for this order — used for
+ * promo and referral codes (affiliate codes are unlimited and must NOT call this).
+ * Backs the one-use / first-order limit with a DB uniqueness guarantee so
+ * concurrent checkouts or stacked pending orders can't redeem the same code
+ * twice. Returns false when another live order already holds the slot. Fails
+ * CLOSED (returns false) on an RPC error so a glitch can't wave a reuse through.
+ */
+export async function reserveDiscountRedemption(email: string, code: string, orderId: string): Promise<boolean> {
+  if (!email || !code) return true;
+  const { data, error } = await supabaseAdmin.rpc("reserve_discount_redemption", {
+    p_email: email,
+    p_code: code,
+    p_order_id: orderId,
+  });
+  if (error) { console.error("reserve_discount_redemption error:", error); return false; }
+  return data === true;
+}
+
+/** Release an order's reserved discount slot(s) when its checkout abandons/fails. */
+export async function releaseDiscountRedemption(orderId: string): Promise<void> {
+  if (!orderId) return;
+  const { error } = await supabaseAdmin.rpc("release_discount_redemption", { p_order_id: orderId });
+  if (error) console.error("release_discount_redemption error:", error);
+}
+
 /** Earn loyalty on confirmation. Base = cash actually paid (net − credit applied). */
 export async function earnLoyalty(
   order: { id: string; email: string; net_amount: number | string; credit_applied?: number | string | null },
@@ -85,10 +111,17 @@ export async function earnLoyalty(
 
 /** Grant the referrer their store credit on the referee's first paid order. */
 export async function grantReferralReward(
-  order: { id: string; email: string; referral_code?: string | null },
+  order: { id: string; email: string; referral_code?: string | null; net_amount?: number | string | null; credit_applied?: number | string | null },
   amount: number,
 ): Promise<void> {
   if (!order.referral_code || !(amount > 0)) return;
+  // Anti-abuse: reward the referrer only when the referee actually PAID cash on
+  // their first order (net − store credit applied > 0). A $0 / fully-credit-
+  // covered referee order earns the referrer nothing — this removes the zero-cost
+  // path for farming referrer credit with throwaway alt accounts. Same cash-paid
+  // basis as earnLoyalty.
+  const cashPaid = round2((Number(order.net_amount) || 0) - (Number(order.credit_applied) || 0));
+  if (cashPaid <= 0) return;
   const { data: ref } = await supabaseAdmin.from("referral_codes").select("email").eq("code", order.referral_code).maybeSingle();
   const referrer = ref?.email;
   if (!referrer || referrer.toLowerCase() === (order.email || "").toLowerCase()) return; // no self-referral

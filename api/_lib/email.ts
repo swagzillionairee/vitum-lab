@@ -276,7 +276,7 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
         subject: `Your order has shipped — ${shortId}`,
         html: layout(
           pill("📦 Shipped", "#eaf1fd", "#2c5fdb") +
-          heading("Your order is on the way", `Your order shipped via ${order.carrier || "USPS"}${order.tracking_number ? ` — tracking number <span style="font-family:monospace;font-weight:700;color:#0f1a2e;">${order.tracking_number}</span>` : ""}. East Coast orders typically arrive in 2 days; Central and West Coast in 3 days.`) +
+          heading("Your order is on the way", `Your order shipped via ${esc(order.carrier || "USPS")}${order.tracking_number ? ` — tracking number <span style="font-family:monospace;font-weight:700;color:#0f1a2e;">${esc(order.tracking_number)}</span>` : ""}. East Coast orders typically arrive in 2 days; Central and West Coast in 3 days.`) +
           button("Track Your Package", track) +
           orderBox(order, images) + addressBox(order.shipping_address),
         ),
@@ -299,7 +299,7 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
         subject: `Order cancelled — ${shortId}`,
         html: layout(
           pill("Order Cancelled", "#f4f4f5", "#52525b") +
-          heading("Your order was cancelled", `${order.cancel_reason ? `Reason: ${order.cancel_reason}.` : ""} ${opts?.wasPending !== false ? "No payment was collected for this order." : "If you believe this is a mistake, reply to this email and we'll make it right."}`) +
+          heading("Your order was cancelled", `${order.cancel_reason ? `Reason: ${esc(order.cancel_reason)}.` : ""} ${opts?.wasPending !== false ? "No payment was collected for this order." : "If you believe this is a mistake, reply to this email and we'll make it right."}`) +
           orderBox(order, images) +
           button("Place a New Order", `${baseUrl()}/shop`),
         ),

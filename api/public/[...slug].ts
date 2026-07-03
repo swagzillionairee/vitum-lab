@@ -77,6 +77,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           (Number(order.net_amount ?? 0) + Number(order.shipping_amount ?? 0) - Number(order.credit_applied ?? 0)) * 100,
         );
         const capturedCents = Number(meta.payAmount);
+        // ⚠️ SANDBOX-CONFIRM: the guard treats data.amount as CENTS (chargeCard
+        // sends cents). Log raw vs expected so the first live payment confirms the
+        // unit before the global flag is flipped — a dollars payload would read
+        // 100× low and (correctly, fail-closed) get flagged rather than fulfilled.
+        console.log(`ℹ️  Tagada amount-guard — captured(raw)=${meta.payAmount} → ${capturedCents} vs dueCents=${dueCents} (order ${order.id})`);
         if (!Number.isFinite(capturedCents) || Math.abs(capturedCents - dueCents) > 1) {
           await recordLatePayment(order, meta, `⚠️ Tagada "${type}" captured ${meta.payAmount} but order amountDue is ${dueCents} cents — NOT fulfilled. Review before shipping.`);
         } else {
