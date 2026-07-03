@@ -69,8 +69,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       if (action === "late_payment") {
         await recordLatePayment(order, meta, `⚠️ Tagada "${type}" received AFTER this order was ${order.status}. Not fulfilled automatically — refund or fulfill manually.`);
+      } else if (action === "fulfill") {
+        // Mandatory amount-guard: confirm ONLY if the captured amount matches the
+        // order's server-computed amountDue (net + shipping − credit, in cents).
+        // Server-authoritative backstop against a manipulated/underpaid charge.
+        const dueCents = Math.round(
+          (Number(order.net_amount ?? 0) + Number(order.shipping_amount ?? 0) - Number(order.credit_applied ?? 0)) * 100,
+        );
+        const capturedCents = Number(meta.payAmount);
+        if (!Number.isFinite(capturedCents) || Math.abs(capturedCents - dueCents) > 1) {
+          await recordLatePayment(order, meta, `⚠️ Tagada "${type}" captured ${meta.payAmount} but order amountDue is ${dueCents} cents — NOT fulfilled. Review before shipping.`);
+        } else {
+          await confirmPaidOrder(order, meta);
+          await sendConfirmationEmails(order);
+        }
       } else {
-        if (action === "fulfill") await confirmPaidOrder(order, meta);
+        // Already confirmed (duplicate / synchronous-confirm backup) — resend only.
         await sendConfirmationEmails(order);
       }
     } catch (err) {
