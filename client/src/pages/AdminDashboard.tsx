@@ -133,10 +133,18 @@ export default function AdminDashboard() {
       if (res.ok) {
         setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...data } : o)));
         if (action === "recheck") {
-          alert(data.recheck === "confirmed" ? "Payment found — order confirmed." :
-            data.recheck === "no_payment_found" ? "No matching payment found on NowPayments." :
-            data.recheck === "failed" ? "Payment failed/expired — order marked failed." :
-            `NowPayments status: ${data.recheck ?? "unchanged"}`);
+          const r: string | undefined = data.recheck;
+          alert(
+            r === "confirmed" ? "Payment found — order confirmed." :
+            r === "no_payment_found" ? "No matching payment found on NowPayments." :
+            r === "failed" ? "Payment failed/expired — order marked failed." :
+            r === "tagada_no_payment" ? "TagadaPay order — no captured payment on record yet (e.g. an admin test charge left pending). Nothing to reconcile." :
+            r === "tagada_authorized" ? "TagadaPay: the card was authorized but NOT captured — review it in the Tagada dashboard before fulfilling." :
+            r === "tagada_amount_mismatch" ? "TagadaPay: the captured amount doesn't match the order total — NOT confirmed. Review it in the Tagada dashboard." :
+            r === "tagada_refunded" ? "TagadaPay: this payment was refunded." :
+            r === "tagada_pending" ? "TagadaPay: payment still processing — try again shortly." :
+            r?.startsWith("tagada_") ? `TagadaPay status: ${r.slice("tagada_".length)}` :
+            `NowPayments status: ${r ?? "unchanged"}`);
         }
       } else {
         alert(data.error ?? "Action failed");
@@ -882,7 +890,7 @@ export default function AdminDashboard() {
                               <div className="flex items-center justify-end gap-1.5">
                                 {busy && <Loader2 className="w-3.5 h-3.5 animate-spin text-[oklch(0.52_0.01_260)]" />}
                                 {o.status === "pending" && (
-                                  <button onClick={() => orderAction(o.id, "recheck")} disabled={busy} title="Re-check payment on NowPayments"
+                                  <button onClick={() => orderAction(o.id, "recheck")} disabled={busy} title="Re-check payment status (NowPayments or TagadaPay)"
                                     className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.40_0.16_260)] border border-[oklch(0.40_0.16_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.02_260)] disabled:opacity-50">
                                     <RefreshCw className="w-3 h-3" /> Re-check
                                   </button>
