@@ -124,6 +124,7 @@ export async function listTagadaProducts(): Promise<
 export type ChargeResult =
   | { status: "succeeded"; paymentId: string }
   | { status: "redirect"; url: string; paymentId: string }
+  | { status: "processing"; paymentId: string }
   | { status: "failed"; error: string; paymentId: string };
 
 /** Charge `amountDue` (dollars) to a client-tokenized card. Tagada amounts are cents. */
@@ -172,6 +173,14 @@ export async function chargeCard(params: {
     payment?.redirectUrl ??
     res?.redirectUrl;
   if (redirectUrl) return { status: "redirect", url: String(redirectUrl), paymentId };
+
+  // Async settlement — the processor accepted the charge but the final result
+  // lands later (Tagada webhook order/paid | payment/succeeded, or admin
+  // Re-check). This is NOT a decline: leave the order pending rather than telling
+  // the customer their card failed.
+  if (status === "pending" || status === "processing" || status === "in_progress") {
+    return { status: "processing", paymentId };
+  }
 
   // Uncaptured authorization (hold, not a capture) — refuse rather than fulfill.
   // The hold auto-expires and the customer can retry; configure Tagada for
