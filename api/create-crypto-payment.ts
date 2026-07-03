@@ -5,6 +5,7 @@ import { getBalance, reserveCredit, getRewardConfig, earnLoyalty, grantReferralR
 import { validateAddress } from "./_lib/shippo.js";
 import { buildOrderId } from "./_lib/orderId.js";
 import { requireUser } from "./_lib/requireUser.js";
+import { isAdminEmail } from "./_lib/requireAdmin.js";
 import { chargeCard } from "./_lib/tagada.js";
 import { confirmPaidOrder, sendConfirmationEmails, ORDER_COLS } from "./_lib/fulfillment.js";
 
@@ -356,21 +357,29 @@ export default async function handler(req: any, res: any) {
     }
 
     // ── TagadaPay (primary card processor) — charge the exact amountDue ──────
-    // The client tokenized the card with core-js and sent us `tagadaToken`; we
-    // vault it + charge amountDue via payments.process (amount is server-computed,
-    // never client-sent). On success we confirm now; a 3DS challenge returns a
-    // redirect url and the webhook confirms on return (with the amount-guard).
-    // Charge via Tagada when the global flag is on OR the client sent a card token
-    // (owner opt-in test via /checkout?tagada=1). The amount stays server-computed.
+    // The client tokenizes the card with core-js and sends `tagadaToken`; we charge
+    // the server-computed amountDue via payments.process (never a client price).
+    //
+    // Gating (prevents free-goods abuse):
+    //  • Global flag TAGADA_CHECKOUT_ENABLED on ⇒ LIVE: charge and confirm on
+    //    success (the webhook is the idempotent backup).
+    //  • Otherwise this is the owner opt-in test (/checkout?tagada=1). It is
+    //    restricted to an ADMIN — a bare ?tagada=1 no longer works for customers,
+    //    who fall through to NowPayments — and because TAGADA_API_KEY is a TEST
+    //    key in this mode, a "successful" charge is NEVER confirmed/fulfilled (a
+    //    test-mode capture collects no money). We record the result for the owner
+    //    to validate and leave the order pending (it auto-expires, freeing credit).
     const tagadaToken = typeof (req.body as { tagadaToken?: unknown }).tagadaToken === "string"
       ? (req.body as { tagadaToken: string }).tagadaToken
       : "";
-    if (useTagada || tagadaToken) {
+    const tagadaOptIn = !useTagada && !!tagadaToken && (await isAdminEmail(email));
+    if (useTagada || tagadaOptIn) {
       if (!tagadaToken) {
         await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
         res.status(400).json({ error: "Card details are required." });
         return;
       }
+      const tagadaLive = useTagada; // only a live-mode charge is allowed to confirm/ship
       try {
         const result = await chargeCard({
           amountDue,
@@ -378,6 +387,21 @@ export default async function handler(req: any, res: any) {
           email,
           returnUrl: `${baseUrl}/order-success?order=${orderId}`,
         });
+
+        if (!tagadaLive) {
+          // Owner test on prod with a TEST key: do NOT confirm/ship, and do NOT
+          // store payment_id (so the webhook can't match + confirm it either).
+          // Record the raw result so the owner can validate the charge mechanics
+          // (status casing, 3DS redirect field). The order stays pending.
+          const note =
+            `Tagada admin TEST charge — NOT confirmed (test key). result=${result.status}` +
+            (result.status === "redirect" ? ` redirectUrl=${result.url}` : "") +
+            ` paymentId=${result.paymentId || "?"}`;
+          await supabaseAdmin.from("orders").update({ admin_notes: note }).eq("id", orderId);
+          res.status(200).json({ tagada: "test", orderId, result: result.status });
+          return;
+        }
+
         await supabaseAdmin.from("orders").update({ payment_id: result.paymentId || null }).eq("id", orderId);
 
         if (result.status === "succeeded") {

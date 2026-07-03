@@ -30,7 +30,13 @@ export const TAGADA_SIG_HEADER = (process.env.TAGADA_WEBHOOK_SIG_HEADER || "taga
  */
 export function verifyTagadaWebhook(rawBody: string, signature: string | undefined): boolean {
   const secret = process.env.TAGADA_WEBHOOK_SECRET;
-  if (!secret) return true;
+  // Fail CLOSED: with no configured secret we cannot authenticate the payload, so
+  // reject rather than accept. (A missing/cleared TAGADA_WEBHOOK_SECRET must never
+  // silently disable webhook auth and let a forged "paid" event confirm an order.)
+  if (!secret) {
+    console.error("⚠️ TAGADA_WEBHOOK_SECRET is not set — rejecting Tagada webhook (fail-closed).");
+    return false;
+  }
   if (!signature) return false;
   const computed = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
   const provided = signature.includes("=") ? signature.slice(signature.lastIndexOf("=") + 1) : signature;
@@ -151,6 +157,13 @@ export async function chargeCard(params: {
   const paymentId = String(payment?.id ?? "");
   const status = String(payment?.status ?? "").toLowerCase();
 
+  // ⚠️ SANDBOX-CONFIRM: an "authorized" status is a hold, NOT a capture — treating
+  // it as paid risks confirming/shipping before the funds are captured. We log it
+  // loudly so the owner's live test reveals whether Tagada auto-captures (in which
+  // case "authorized" can stay in the success set) before the global flag is flipped.
+  if (status === "authorized") {
+    console.warn(`⚠️ Tagada payment ${paymentId} returned status="authorized" (auth ≠ capture) — confirm Tagada's capture model before treating this as paid.`);
+  }
   if (status === "captured" || status === "authorized" || status === "succeeded" || status === "paid") {
     return { status: "succeeded", paymentId };
   }

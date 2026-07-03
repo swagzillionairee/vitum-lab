@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, sendAffiliateCommission, type EmailOrder } from "./_lib/email.js";
-import { getRewardConfig, earnLoyalty, grantReferralReward } from "./_lib/credit.js";
 import { paidIpnAction } from "./_lib/orderLifecycle.js";
+import { confirmPaidOrder } from "./_lib/fulfillment.js";
 
 function sortKeys(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;
@@ -100,52 +100,16 @@ export default async function handler(req: any, res: any) {
       }
 
       // Confirm the order exactly once (NowPayments fires both `confirmed`
-      // and `finished` for the same payment).
+      // and `finished` for the same payment). confirmPaidOrder atomically claims
+      // the pending→confirmed transition, so parallel IPNs can't double-decrement
+      // stock or double-count the promo — a duplicate is a no-op.
       try {
         if (action === "fulfill") {
-          const items = (order.items as { cartCode: string; quantity: number; price: number }[]) ?? [];
-          for (const item of items) {
-            if (item.price > 0 && item.cartCode !== "bac-water-free") {
-              const { error: decErr } = await supabaseAdmin.rpc("decrement_stock", {
-                p_cart_code: item.cartCode,
-                p_qty: item.quantity,
-              });
-              // The payment succeeded, so we still confirm the order — but a
-              // decrement failure means we oversold (a concurrent last-unit
-              // sale). Log loudly for reconciliation; never block confirmation.
-              if (decErr) {
-                console.error(`⚠️ OVERSOLD: decrement_stock failed for order ${payload.order_id} — ${item.cartCode} x${item.quantity}: ${decErr.message}`);
-              }
-            }
-          }
-
-          await supabaseAdmin
-            .from("orders")
-            .update({
-              status: "confirmed",
-              confirmed_at: new Date().toISOString(),
-              pay_currency: payload.pay_currency ?? null,
-              pay_amount: payload.actually_paid ?? payload.pay_amount ?? null,
-              payment_id: payload.payment_id != null ? String(payload.payment_id) : null,
-            })
-            .eq("id", payload.order_id);
-
-          // Count promo usage on first confirmation (no-op for affiliate codes).
-          if (order.discount_code) {
-            await supabaseAdmin.rpc("increment_promo_use", { p_code: order.discount_code }).then(
-              () => {},
-              () => {},
-            );
-          }
-
-          // Loyalty earn + referral reward (idempotent via the ledger).
-          try {
-            const cfg = await getRewardConfig();
-            await earnLoyalty(order as { id: string; email: string; net_amount: number; credit_applied?: number | null }, cfg.loyaltyPercent);
-            await grantReferralReward(order as { id: string; email: string; referral_code?: string | null }, cfg.referrerAmount);
-          } catch (err) {
-            console.error("Failed to apply loyalty/referral rewards:", err);
-          }
+          await confirmPaidOrder(order, {
+            payCurrency: payload.pay_currency ?? null,
+            payAmount: payload.actually_paid ?? payload.pay_amount ?? null,
+            paymentId: payload.payment_id != null ? String(payload.payment_id) : null,
+          });
         }
       } catch (err) {
         console.error("Failed to update order/stock:", err);

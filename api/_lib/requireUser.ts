@@ -17,5 +17,11 @@ export async function requireUser(req: any): Promise<AuthedUser | null> {
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user?.email) return null;
 
+  // Require a verified email. Only a confirmed identity — magic-link, Google, or
+  // a confirmed password sign-up — may act. This blocks an attacker who registers
+  // the email/password provider under someone else's address (e.g. a seeded admin
+  // or affiliate email) to inherit their role. Magic-link/Google always set this.
+  if (!data.user.email_confirmed_at) return null;
+
   return { id: data.user.id, email: data.user.email.toLowerCase() };
 }

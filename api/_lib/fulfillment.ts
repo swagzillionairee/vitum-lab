@@ -40,6 +40,29 @@ async function notifyAffiliate(order: any): Promise<void> {
  * and grant loyalty/referral rewards. Call once, when the order is pending.
  */
 export async function confirmPaidOrder(order: any, meta: PaymentMeta): Promise<void> {
+  // Atomically CLAIM the pending→confirmed transition. Only the caller that flips
+  // the row (WHERE status='pending') runs the side effects below, so a synchronous
+  // confirm racing its own webhook — or a processor firing two paid callbacks in
+  // parallel (NowPayments confirmed+finished, a Tagada retry) — can't double-
+  // decrement stock or double-count the promo. A losing/duplicate call updates 0
+  // rows and returns early; confirmation emails are sent separately and stay
+  // idempotent via orders.emails_sent.
+  const { data: claimed } = await supabaseAdmin
+    .from("orders")
+    .update({
+      status: "confirmed",
+      confirmed_at: new Date().toISOString(),
+      pay_currency: meta.payCurrency ?? null,
+      pay_amount: meta.payAmount ?? null,
+      payment_id: meta.paymentId != null ? String(meta.paymentId) : null,
+    })
+    .eq("id", order.id)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+
+  if (!claimed) return; // another confirmation already won the race — do nothing
+
   const items = (order.items as { cartCode: string; quantity: number; price: number }[]) ?? [];
   for (const item of items) {
     if (item.price > 0 && item.cartCode !== FREE_GIFT_CODE) {
@@ -54,17 +77,6 @@ export async function confirmPaidOrder(order: any, meta: PaymentMeta): Promise<v
       }
     }
   }
-
-  await supabaseAdmin
-    .from("orders")
-    .update({
-      status: "confirmed",
-      confirmed_at: new Date().toISOString(),
-      pay_currency: meta.payCurrency ?? null,
-      pay_amount: meta.payAmount ?? null,
-      payment_id: meta.paymentId != null ? String(meta.paymentId) : null,
-    })
-    .eq("id", order.id);
 
   // Count promo usage on first confirmation (no-op for affiliate codes).
   if (order.discount_code) {
