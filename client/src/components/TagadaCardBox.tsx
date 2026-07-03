@@ -15,6 +15,20 @@ const TGD_ENV = ((import.meta.env.VITE_TAGADA_ENV as string) || "development") a
   | "local"
   | "default";
 
+/**
+ * Normalize a free-form expiry entry to the strict `MM/YY` the tokenizer's
+ * validator requires (/^(0[1-9]|1[0-2])\/\d{2}$/). Handles "03 / 30", "0330",
+ * and "03/2030" alike — the spaces our old "MM / YY" placeholder invited were
+ * rejected by that regex and surfaced as an opaque "Failed to tokenize card".
+ */
+function normalizeExpiry(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  const mm = digits.slice(0, 2);
+  let yy = digits.slice(2);
+  if (yy.length > 2) yy = yy.slice(-2); // 4-digit year → last two
+  return yy ? `${mm}/${yy}` : mm;
+}
+
 export default function TagadaCardBox({
   amountDue,
   disabled,
@@ -45,7 +59,7 @@ export default function TagadaCardBox({
     try {
       const { tagadaToken } = await tokenizeCard({
         cardNumber: card.number.replace(/\s+/g, ""),
-        expiryDate: card.expiry.trim(),
+        expiryDate: normalizeExpiry(card.expiry),
         cvc: card.cvc.trim(),
       });
       onPay(tagadaToken);
@@ -81,7 +95,7 @@ export default function TagadaCardBox({
       <div className="flex gap-3">
         <input
           autoComplete="cc-exp"
-          placeholder="MM / YY"
+          placeholder="MM/YY"
           value={card.expiry}
           onChange={(e) => setCard({ ...card, expiry: e.target.value })}
           className={`${inputBase} flex-1 min-w-0`}
