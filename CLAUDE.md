@@ -322,6 +322,7 @@ Note: `vitePluginLocalApi` routes every endpoint **except** `/api/nowpayments-we
 - **`vercel.json` SPA rewrite** uses a negative lookahead `/((?!api/).*)` so that `/api/*` requests reach serverless functions instead of falling through to `index.html`. Do not change this to `(.*)` or catch-all dynamic routes (e.g. `api/admin/[...slug].ts`) will break.
 - **`api/` is excluded from `tsconfig.json`** — `pnpm check` does not type-check serverless functions. ESM extension errors will not surface locally; test against Vercel preview before merging.
 - **`vitePluginLocalApi`** in `vite.config.ts` intercepts `/api/*` in local dev via `server.ssrLoadModule` — no separate API server needed for `pnpm dev`.
+- **Customer-facing payment copy must be processor-agnostic.** The store accepts **both card (TagadaPay) and crypto (NowPayments)**, and the order-status pages (`OrderSuccess.tsx`, `OrderCancel.tsx`) are shared across both. Say "your payment" — never "crypto payment", "on the blockchain", "coin selected", etc. (`OrderSuccess` reads `?free=1`/`?processing=1` for tone but stays payment-method-neutral.) The **only** places that name a specific method are the checkout "Pay with crypto"/"Pay with card" buttons and the FAQ payment-methods answer (owner-decision copy — leave as-is).
 
 ---
 

@@ -22,7 +22,7 @@ export default function OrderSuccess() {
 
   return (
     <div className="min-h-screen bg-[oklch(0.98_0.002_260)] flex items-center justify-center px-6">
-      <SEO title="Order Confirmed" description="Your crypto payment has been received by Vitum Lab." />
+      <SEO title="Order Confirmed" description="Your payment has been received by Vitum Lab." />
       <div className="bg-white rounded-2xl border border-[oklch(0.91_0.004_260)] shadow-[0_4px_24px_oklch(0.13_0.01_260/0.08)] max-w-md w-full p-10 text-center">
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 rounded-full bg-[oklch(0.95_0.04_155)] flex items-center justify-center">
@@ -33,7 +33,7 @@ export default function OrderSuccess() {
         <p className="text-[oklch(0.45_0.01_260)] text-[0.9375rem] leading-relaxed mb-6">
           {isFree
             ? "Your order is confirmed and is being prepared for shipment. A confirmation email is on its way."
-            : "Your crypto payment is being confirmed on the blockchain. This typically takes a few minutes depending on the network and coin selected."}
+            : "Your payment is being confirmed. This usually takes a few minutes."}
         </p>
 
         {orderId && (
