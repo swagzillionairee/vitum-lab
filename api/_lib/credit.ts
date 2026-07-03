@@ -111,10 +111,17 @@ export async function earnLoyalty(
 
 /** Grant the referrer their store credit on the referee's first paid order. */
 export async function grantReferralReward(
-  order: { id: string; email: string; referral_code?: string | null },
+  order: { id: string; email: string; referral_code?: string | null; net_amount?: number | string | null; credit_applied?: number | string | null },
   amount: number,
 ): Promise<void> {
   if (!order.referral_code || !(amount > 0)) return;
+  // Anti-abuse: reward the referrer only when the referee actually PAID cash on
+  // their first order (net − store credit applied > 0). A $0 / fully-credit-
+  // covered referee order earns the referrer nothing — this removes the zero-cost
+  // path for farming referrer credit with throwaway alt accounts. Same cash-paid
+  // basis as earnLoyalty.
+  const cashPaid = round2((Number(order.net_amount) || 0) - (Number(order.credit_applied) || 0));
+  if (cashPaid <= 0) return;
   const { data: ref } = await supabaseAdmin.from("referral_codes").select("email").eq("code", order.referral_code).maybeSingle();
   const referrer = ref?.email;
   if (!referrer || referrer.toLowerCase() === (order.email || "").toLowerCase()) return; // no self-referral
