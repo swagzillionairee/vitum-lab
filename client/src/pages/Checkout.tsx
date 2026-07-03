@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowRight, Tag, Check, Loader2, ShoppingBag } from "lucide-react";
+import { ArrowRight, Tag, Check, Loader2, ShoppingBag, CreditCard, Bitcoin } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
@@ -44,13 +44,18 @@ export default function Checkout() {
   const [attested, setAttested] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Whether card checkout (TagadaPay) is live — from the server flag via
+  // /api/public/site, so the "Pay with card" option needs no separate client
+  // build flag. `payMethod === "card"` reveals the inline card fields.
+  const [serverCardEnabled, setServerCardEnabled] = useState(false);
+  const [payMethod, setPayMethod] = useState<"card" | null>(null);
 
   // Quantity discount tiers (for the breakdown display; server is authoritative).
   useEffect(() => {
     let stale = false;
     fetch("/api/public/site")
       .then((r) => r.json())
-      .then((d) => { if (!stale) setTiers(d.quantity_tiers ?? []); })
+      .then((d) => { if (!stale) { setTiers(d.quantity_tiers ?? []); setServerCardEnabled(!!d.tagada_enabled); } })
       .catch(() => {});
     return () => { stale = true; };
   }, []);
@@ -163,11 +168,13 @@ export default function Checkout() {
   const creditApplied = round2(Math.min(creditBalance, netAfterDiscounts + shippingCost));
   const total = round2(netAfterDiscounts + shippingCost - creditApplied);
 
-  // Show the Tagada card form when the global flag is on, OR when the owner opts
-  // in with /checkout?tagada=1 (lets us test card checkout on prod without
-  // exposing it to real customers, who keep getting the NowPayments flow).
+  // Offer the "Pay with card" option when card checkout is live — signalled by
+  // the server flag (serverCardEnabled, via /api/public/site), the client build
+  // flag, OR the owner opt-in /checkout?tagada=1 (test card on prod without
+  // exposing it to real customers). Crypto (NowPayments) is always available.
   const showTagada =
     TAGADA_ON ||
+    serverCardEnabled ||
     (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tagada") === "1");
 
   const handlePay = async (tagadaToken?: string) => {
@@ -406,13 +413,45 @@ export default function Checkout() {
             </label>
 
             {showTagada && total > 0 ? (
-              <TagadaCardBox
-                amountDue={total}
-                disabled={busy || !attested}
-                busy={busy}
-                onPay={(token) => handlePay(token)}
-                onError={setError}
-              />
+              payMethod === "card" ? (
+                <div className="space-y-2.5">
+                  <TagadaCardBox
+                    amountDue={total}
+                    disabled={busy || !attested}
+                    busy={busy}
+                    onPay={(token) => handlePay(token)}
+                    onError={setError}
+                  />
+                  <button
+                    onClick={() => { setPayMethod(null); setError(""); }}
+                    disabled={busy}
+                    className="w-full text-center text-[0.75rem] text-[oklch(0.50_0.01_260)] hover:underline disabled:opacity-60"
+                  >
+                    ← Choose a different payment method
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <button
+                    onClick={() => {
+                      if (!attested) { setError("Please confirm the research-use acknowledgment to continue."); return; }
+                      setError("");
+                      setPayMethod("card");
+                    }}
+                    disabled={busy || !attested}
+                    className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <CreditCard className="w-4 h-4" /> Pay with card
+                  </button>
+                  <button
+                    onClick={() => handlePay()}
+                    disabled={busy || !attested}
+                    className="flex items-center justify-center gap-2 w-full py-3.5 text-[0.9375rem] rounded-xl border-2 border-[oklch(0.88_0.004_260)] font-semibold text-[oklch(0.20_0.01_260)] hover:bg-[oklch(0.98_0.002_260)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {busy ? "Processing…" : (<><Bitcoin className="w-4 h-4" /> Pay with crypto</>)}
+                  </button>
+                </div>
+              )
             ) : (
               <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
                 {busy ? "Processing…" : total <= 0 ? (<>Place Order <ArrowRight className="w-4 h-4" /></>) : (<>Continue to Payment <ArrowRight className="w-4 h-4" /></>)}
@@ -422,7 +461,9 @@ export default function Checkout() {
               {total <= 0
                 ? "No payment needed — covered by store credit."
                 : showTagada
-                  ? "Enter your card above — secured by TagadaPay. Not for human consumption."
+                  ? payMethod === "card"
+                    ? "Enter your card above — secured by TagadaPay. Not for human consumption."
+                    : "Choose card (secured by TagadaPay · Finix) or crypto. Not for human consumption."
                   : "Pay with crypto or card on the next step."}
             </p>
             <p className="text-[0.625rem] text-center text-[oklch(0.70_0.01_260)]">
