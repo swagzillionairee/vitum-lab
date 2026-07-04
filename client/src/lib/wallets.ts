@@ -56,6 +56,26 @@ export const applePayAvailable = (): Promise<boolean> => isApplePayAvailable().c
 const toTagadaToken = (result: unknown, type: "google_pay" | "apple_pay"): string =>
   btoa(JSON.stringify(createTagadaDigitalWalletToken(result as never, type)));
 
+/**
+ * Map a wallet SDK error to customer-safe copy. The wallet SDKs surface raw
+ * provider/Apple/Google strings — e.g. Apple's "Merchant validation failed"
+ * when the store's wallet domain isn't registered / the method isn't provisioned
+ * yet — which must never reach a customer (processor-agnostic-copy rule) and
+ * shouldn't leak provider internals. The raw message is logged for debugging;
+ * the shopper sees a friendly line pointing them back to the other tiles.
+ */
+function walletErrorMessage(wallet: "Apple Pay" | "Google Pay", raw?: string): string {
+  if (raw) console.warn(`[wallet] ${wallet}: ${raw}`);
+  const r = (raw || "").toLowerCase();
+  // Provisioning / setup gaps (unregistered domain, merchant-session failure,
+  // method not enabled) — the wallet simply isn't available for this store.
+  if (/merchant|validation|domain|not enabled|unavailable|not available/.test(r)) {
+    return `${wallet} isn't available right now — please choose another payment method.`;
+  }
+  // Everything else (declines, transient failures) — generic friendly copy.
+  return `${wallet} didn't go through — please try again or choose another payment method.`;
+}
+
 /** Open the Google Pay sheet; on success hand a TagadaToken to `onToken`. */
 export function payWithGooglePay(
   amountDue: number,
@@ -75,12 +95,12 @@ export function payWithGooglePay(
       { currency: "USD", totalAmountMinor: Math.round(amountDue * 100), totalPriceStatus: "FINAL" },
       {
         onSuccess: (token) => onToken(toTagadaToken(token, "google_pay")),
-        onError: (msg) => onError(msg || "Google Pay didn't complete — please try another method."),
+        onError: (msg) => onError(walletErrorMessage("Google Pay", msg)),
         onCancel: () => {},
       },
     );
   } catch (e) {
-    onError((e as Error)?.message || "Google Pay is unavailable right now.");
+    onError(walletErrorMessage("Google Pay", (e as Error)?.message));
   }
 }
 
@@ -96,11 +116,11 @@ export function payWithApplePay(
       { currency: "USD", totalAmountMinor: Math.round(amountDue * 100) },
       {
         onSuccess: (token) => onToken(toTagadaToken(token, "apple_pay")),
-        onError: (msg) => onError(msg || "Apple Pay didn't complete — please try another method."),
+        onError: (msg) => onError(walletErrorMessage("Apple Pay", msg)),
         onCancel: () => {},
       },
     );
   } catch (e) {
-    onError((e as Error)?.message || "Apple Pay is unavailable right now.");
+    onError(walletErrorMessage("Apple Pay", (e as Error)?.message));
   }
 }
