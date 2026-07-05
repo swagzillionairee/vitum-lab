@@ -15,10 +15,9 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import SaleBanner from "@/components/SaleBanner";
 
-const navLinks = [
+const baseNavLinks = [
   { label: "Shop", href: "/shop" },
   { label: "COA Library", href: "/coa-library" },
-  { label: "Reconstitution", href: "/reconstitution-calculator" },
   { label: "Research", href: "/research" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
@@ -38,6 +37,16 @@ export default function Navbar() {
   const { theme, toggleTheme } = useTheme();
   const { session } = useAuth();
   const [scrolled, setScrolled] = useState(false);
+
+  // "Dose Calculator" is a customer-only tool — only surface it to signed-in users.
+  const navLinks = session
+    ? [
+        baseNavLinks[0],
+        baseNavLinks[1],
+        { label: "Dose Calculator", href: "/dose-calculator" },
+        ...baseNavLinks.slice(2),
+      ]
+    : baseNavLinks;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);

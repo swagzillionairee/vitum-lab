@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, FileText, Check, ChevronDown, ChevronUp, ShieldCheck, Truck, FlaskConical, Bell, Loader2, Minus, Plus } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useInventory } from "@/hooks/useInventory";
 import { quantityDiscountPercent, round2 } from "@/lib/discounts";
@@ -77,6 +78,7 @@ export default function ProductDetail() {
   const product = products.find((p) => p.slug === slug);
 
   const { addItem } = useCart();
+  const { session } = useAuth();
   const { isAvailable, stockDisplay } = useInventory();
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -460,8 +462,8 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* ── Reconstitution Calculator ─────────────────────────────────── */}
-      {product.reconstitutionNote && (
+      {/* ── Dose Calculator (customer-only — signed-in users) ──────────── */}
+      {session && product.reconstitutionNote && (
         <section className="py-12 bg-[oklch(0.975_0.003_260)]">
           <div className="container max-w-3xl">
             <ReconstitutionCalculator
