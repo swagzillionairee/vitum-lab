@@ -90,11 +90,11 @@ const faqCategories = [
       },
       {
         q: "What is BAC Water and why do I need it?",
-        a: "Bacteriostatic Water (BAC Water) is sterile water containing 0.9% benzyl alcohol, used to reconstitute lyophilized (freeze-dried) peptides for laboratory use. The benzyl alcohol acts as a preservative, allowing multi-dose use from a single vial. It is required to prepare peptide solutions for in vitro research.",
+        a: "Bacteriostatic Water (BAC Water) is sterile water containing 0.9% benzyl alcohol, used to reconstitute lyophilized (freeze-dried) peptides for laboratory use. The benzyl alcohol acts as a preservative, allowing multi-use reconstitution from a single vial. It is required to prepare peptide solutions for in vitro research.",
       },
       {
         q: "How do I reconstitute a lyophilized peptide?",
-        a: "Using a sterile syringe, slowly inject the appropriate volume of BAC Water into the vial along the side wall — do not inject directly onto the lyophilized cake. Gently swirl (do not shake) until fully dissolved. Consult your research protocol for the appropriate reconstitution volume and concentration.",
+        a: "Using a sterile syringe, slowly add the appropriate volume of BAC Water into the vial along the side wall — do not dispense directly onto the lyophilized cake. Gently swirl (do not shake) until fully dissolved. Consult your research protocol for the appropriate reconstitution volume and concentration.",
       },
     ],
   },

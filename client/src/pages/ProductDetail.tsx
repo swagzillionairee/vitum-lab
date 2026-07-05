@@ -445,6 +445,17 @@ export default function ProductDetail() {
               )}
             </div>
 
+            {/* Compliance disclaimer */}
+            <div className="mt-5 rounded-xl bg-[oklch(0.97_0.01_50)] border border-[oklch(0.90_0.03_50)] px-4 py-3">
+              <p className="text-[0.75rem] text-[oklch(0.42_0.06_50)] leading-relaxed">
+                <strong>Research use only.</strong> All products currently listed on this site
+                are for research purposes ONLY and are intended for research and identification
+                purposes only. These products are not intended for human dosing, injections, or
+                ingestion. Peptides are strictly for laboratory, academic, or institutional
+                research and not for human or animal consumption.
+              </p>
+            </div>
+
           </div>
         </div>
       </div>

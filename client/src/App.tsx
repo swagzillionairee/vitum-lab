@@ -75,6 +75,7 @@ function Router() {
       <Route path="/terms-of-service" component={TermsOfService} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/research-disclaimer" component={ResearchDisclaimer} />
+      <Route path="/reconstitution-calculator" component={DoseCalculator} />
       <Route path="/dose-calculator" component={DoseCalculator} />
       <Route path="/research" component={Research} />
       <Route path="/checkout" component={Checkout} />
