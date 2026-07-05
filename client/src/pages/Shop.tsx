@@ -70,7 +70,7 @@ function ProductCard({ p }: { p: FlatProduct }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] group hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200">
+    <div className="bg-white rounded-2xl overflow-hidden shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] group hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200 flex flex-col h-full">
       {/* Image area — links to product detail */}
       <Link href={`/shop/${p.detailSlug}`}>
         <div className="relative overflow-hidden cursor-pointer" style={{ backgroundColor: p.cardBg, height: "280px" }}>
@@ -95,7 +95,7 @@ function ProductCard({ p }: { p: FlatProduct }) {
       </Link>
 
       {/* Info area */}
-      <div className="px-5 pt-4 pb-5">
+      <div className="px-5 pt-4 pb-5 flex-1 flex flex-col">
         <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-1">{p.category}</p>
         <div className="flex items-baseline gap-2 mb-0.5">
           <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight">{p.name}</h3>
@@ -104,7 +104,7 @@ function ProductCard({ p }: { p: FlatProduct }) {
         <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-2">LOT: {p.lot}</p>
         <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{p.description}</p>
 
-        <div className="space-y-3">
+        <div className="space-y-3 mt-auto">
           {/* Price */}
           <div>
             {p.salePrice != null ? (

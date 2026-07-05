@@ -1048,6 +1048,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // ── /api/admin/featured-banner — configurable pill next to the homepage
+  // "Featured Products" heading (owner-set text + color) ───────────────────────
+  if (route === "featured-banner") {
+    if (req.method === "GET") {
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .select("featured_banner_active, featured_banner_text, featured_banner_color")
+        .maybeSingle();
+      if (error) return res.status(500).json({ error: "Failed to load banner settings" });
+      return res.json(data ?? { featured_banner_active: false, featured_banner_text: null, featured_banner_color: null });
+    }
+    if (req.method === "PUT") {
+      const { active, text, color } = req.body as { active?: boolean; text?: string | null; color?: string | null };
+      const cleanText = (text ?? "").toString().trim().slice(0, 60) || null;
+      const cleanColor = /^#[0-9a-fA-F]{6}$/.test((color ?? "").toString()) ? (color as string) : null;
+      if (active && !cleanText) return res.status(400).json({ error: "Enter banner text to turn it on." });
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .upsert(
+          {
+            id: true,
+            featured_banner_active: !!active,
+            featured_banner_text: cleanText,
+            featured_banner_color: cleanColor,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        )
+        .select("featured_banner_active, featured_banner_text, featured_banner_color")
+        .maybeSingle();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json(data);
+    }
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   // ── /api/admin/rewards — loyalty % + referral amounts ───────────────────────
   if (route === "rewards") {
     if (req.method === "GET") {
