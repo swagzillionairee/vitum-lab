@@ -121,7 +121,7 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
   };
 
   return (
-    <div className="rounded-2xl overflow-hidden group shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200">
+    <div className="rounded-2xl overflow-hidden group shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200 flex flex-col h-full">
       {/* Image area */}
       <Link href={detailHref}>
         <div className="relative overflow-hidden cursor-pointer" style={{ backgroundColor: cardBg, height: "320px" }}>
@@ -146,7 +146,7 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
       </Link>
 
       {/* Info area */}
-      <div className="bg-white px-5 pt-4 pb-5">
+      <div className="bg-white px-5 pt-4 pb-5 flex-1 flex flex-col">
         <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-1">{category}</p>
         <div className="flex items-baseline gap-2 mb-1">
           <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">{name}</h3>
@@ -172,7 +172,7 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
 
         <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{description}</p>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-auto">
           {selected.salePrice != null ? (
             <div className="flex items-baseline gap-2">
               <span className="text-[1.25rem] font-bold text-[oklch(0.50_0.18_25)]">${selected.salePrice}</span>
@@ -239,7 +239,7 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
   };
 
   return (
-    <div className="rounded-2xl overflow-hidden group shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200">
+    <div className="rounded-2xl overflow-hidden group shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200 flex flex-col h-full">
       <Link href={detailHref}>
         <div className="relative overflow-hidden cursor-pointer" style={{ backgroundColor: p.cardBg, height: "320px" }}>
           {p.badge && p.badge !== "Out of Stock" && available && (
@@ -261,7 +261,7 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
           />
         </div>
       </Link>
-      <div className="bg-white px-5 pt-4 pb-5">
+      <div className="bg-white px-5 pt-4 pb-5 flex-1 flex flex-col">
         <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-1">{p.category}</p>
         <div className="flex items-baseline gap-2 mb-1">
           <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">{p.name}</h3>
@@ -269,7 +269,7 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
         </div>
         <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-3">LOT: {p.lot}</p>
         <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{p.description}</p>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-auto">
           {p.salePrice != null ? (
             <div className="flex items-baseline gap-2">
               <span className="text-[1.25rem] font-bold text-[oklch(0.50_0.18_25)]">${p.salePrice}</span>
@@ -304,6 +304,15 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
       </div>
     </div>
   );
+}
+
+// Readable pill text (black/white) for an owner-chosen banner color.
+function bannerTextColor(hex?: string): string {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex ?? "");
+  if (!m) return "#ffffff";
+  const n = parseInt(m[1], 16);
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.6 ? "#111111" : "#ffffff";
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -343,6 +352,17 @@ export default function Home() {
       badge: (p?.badge as string | undefined) ?? null,
     };
   }).filter((c) => c.cartCode);
+
+  // Owner-configurable promo pill next to the "Featured Products" heading.
+  const [featuredBanner, setFeaturedBanner] = useState<{ active: boolean; text?: string; color?: string }>({ active: false });
+  useEffect(() => {
+    let stale = false;
+    fetch("/api/public/site")
+      .then((r) => r.json())
+      .then((d) => { if (!stale) setFeaturedBanner(d.featured_banner ?? { active: false }); })
+      .catch(() => {});
+    return () => { stale = true; };
+  }, []);
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -404,8 +424,9 @@ export default function Home() {
               {[
                 "≥99% Purity Verified",
                 "COA with Every Batch",
+                "12–24 Hour Dispatch",
                 "US-Based & Tested",
-                "USPS Priority Mail",
+                "2–3 Day USPS Priority Mail",
               ].map((t) => (
                 <span key={t} className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.01_260)]">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[oklch(0.40_0.16_260)] flex-shrink-0" />
@@ -479,9 +500,19 @@ export default function Home() {
       ═══════════════════════════════════════════════════════════════ */}
       <section className="py-20 bg-white">
         <div className="container">
-          <div className="flex items-end justify-between mb-10">
-            <h2 className="text-[2.25rem] font-bold tracking-tight text-[oklch(0.13_0.01_260)]">Featured Products</h2>
-            <Link href="/shop" className="hidden sm:flex items-center gap-1.5 text-[0.875rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">
+          <div className="flex items-end justify-between mb-10 gap-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-[2.25rem] font-bold tracking-tight text-[oklch(0.13_0.01_260)]">Featured Products</h2>
+              {featuredBanner.active && featuredBanner.text && (
+                <span
+                  className="inline-flex items-center px-3 py-1.5 rounded-full text-[0.8125rem] font-bold shadow-sm"
+                  style={{ backgroundColor: featuredBanner.color ?? "#7c3aed", color: bannerTextColor(featuredBanner.color) }}
+                >
+                  {featuredBanner.text}
+                </span>
+              )}
+            </div>
+            <Link href="/shop" className="hidden sm:flex items-center gap-1.5 text-[0.875rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline flex-shrink-0">
               View all <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

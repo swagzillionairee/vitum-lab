@@ -220,6 +220,109 @@ function SiteWideSaleCard() {
   );
 }
 
+// Pick black or white text for readability on a given hex background.
+function readableText(hex: string): string {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex ?? "");
+  if (!m) return "#ffffff";
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.6 ? "#111111" : "#ffffff";
+}
+
+// ─── Featured-products banner ──────────────────────────────────────────────────
+function FeaturedBannerCard() {
+  const [active, setActive] = useState(false);
+  const [text, setText] = useState("");
+  const [color, setColor] = useState("#7c3aed");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    const res = await authedFetch("/api/admin/featured-banner");
+    if (res.ok) {
+      const d = await res.json();
+      setActive(!!d.featured_banner_active);
+      setText(d.featured_banner_text ?? "");
+      setColor(d.featured_banner_color ?? "#7c3aed");
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (nextActive: boolean) => {
+    setErr(""); setMsg("");
+    if (nextActive && !text.trim()) { setErr("Enter banner text to turn it on."); return; }
+    setSaving(true);
+    const res = await authedFetch("/api/admin/featured-banner", {
+      method: "PUT",
+      body: JSON.stringify({ active: nextActive, text: text.trim() || null, color }),
+    });
+    setSaving(false);
+    if (!res.ok) { setErr((await res.json().catch(() => ({}))).error ?? "Failed to save"); return; }
+    const d = await res.json();
+    setActive(!!d.featured_banner_active);
+    setMsg(nextActive ? "Banner is live next to Featured Products." : "Banner turned off.");
+  };
+
+  return (
+    <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
+      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Megaphone className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
+          <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Featured Products Banner</h2>
+        </div>
+        <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${
+          active ? "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]" : "bg-[oklch(0.92_0.005_260)] text-[oklch(0.45_0.01_260)]"
+        }`}>
+          {active ? "live" : "off"}
+        </span>
+      </div>
+      <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-5">
+        A small pill shown next to the homepage <span className="font-semibold">Featured Products</span> heading. Pick any text and color
+        (emoji welcome). Purely cosmetic — it doesn&apos;t change any pricing.
+      </p>
+
+      <div className="flex flex-wrap items-end gap-3 bg-[oklch(0.98_0.002_260)] rounded-xl p-4">
+        <Field label="Banner text">
+          <input value={text} onChange={(e) => setText(e.target.value)} maxLength={60}
+            placeholder="🎉 40% OFF, AUTO-APPLIED" className="input-sm w-64" />
+        </Field>
+        <Field label="Color">
+          <input type="color" value={color} onChange={(e) => setColor(e.target.value)}
+            className="h-9 w-14 rounded-lg border border-[oklch(0.88_0.004_260)] cursor-pointer bg-white p-0.5" />
+        </Field>
+        <div className="flex flex-col gap-1">
+          <span className="text-[0.6875rem] font-semibold uppercase tracking-wide text-[oklch(0.52_0.01_260)]">Preview</span>
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[0.8125rem] font-bold"
+            style={{ backgroundColor: color, color: readableText(color) }}>
+            {text.trim() || "Your banner"}
+          </span>
+        </div>
+        {active ? (
+          <>
+            <button onClick={() => save(true)} disabled={saving}
+              className="flex items-center gap-1.5 btn-primary text-[0.875rem] py-2 px-4 disabled:opacity-60">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Update
+            </button>
+            <button onClick={() => save(false)} disabled={saving}
+              className="flex items-center gap-1.5 text-[0.875rem] font-semibold text-red-500 border border-red-200 py-2 px-4 rounded-lg hover:bg-red-50 disabled:opacity-60">
+              <Power className="w-4 h-4" /> Turn off
+            </button>
+          </>
+        ) : (
+          <button onClick={() => save(true)} disabled={saving}
+            className="flex items-center gap-1.5 btn-primary text-[0.875rem] py-2 px-4 disabled:opacity-60">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Megaphone className="w-4 h-4" />} Turn on
+          </button>
+        )}
+      </div>
+      {err && <p className="text-[0.8125rem] text-red-500 mt-3">{err}</p>}
+      {msg && <p className="text-[0.8125rem] text-[oklch(0.35_0.14_155)] mt-3 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> {msg}</p>}
+    </section>
+  );
+}
+
 // ─── Loyalty & referral rewards ────────────────────────────────────────────────
 function RewardsCard() {
   const [form, setForm] = useState<{ loyalty_percent: string; referee: string; referrer: string; min: string } | null>(null);
@@ -354,6 +457,7 @@ export default function PromosTab() {
   return (
     <div className="space-y-6">
       <SiteWideSaleCard />
+      <FeaturedBannerCard />
       <QuantityDiscountsCard />
       <RewardsCard />
 

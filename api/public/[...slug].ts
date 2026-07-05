@@ -113,6 +113,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         : { active: false },
       quantity_tiers: (s?.quantity_tiers as { min_qty: number; percent: number }[] | null) ?? [],
+      // Configurable pill shown next to the homepage "Featured Products" heading.
+      featured_banner:
+        s?.featured_banner_active && s?.featured_banner_text
+          ? {
+              active: true,
+              text: s.featured_banner_text as string,
+              color: (s.featured_banner_color as string | null) ?? "#7c3aed",
+            }
+          : { active: false },
       // Whether card checkout (TagadaPay) is live — sourced from the single
       // server flag so the storefront shows the "Pay with card" option without a
       // separate client build flag to keep in sync.
