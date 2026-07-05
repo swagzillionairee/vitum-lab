@@ -13,17 +13,23 @@ interface AgeGateProps {
 export default function AgeGate({ onVerified }: AgeGateProps) {
   const [ageChecked, setAgeChecked] = useState(false);
   const [researchChecked, setResearchChecked] = useState(false);
+  const [researchField, setResearchField] = useState("");
   const [error, setError] = useState(false);
 
   const handleEnter = () => {
-    if (!ageChecked || !researchChecked) {
+    if (!ageChecked || !researchChecked || !researchField) {
       setError(true);
       return;
     }
-    // Store consent in cookie (30 days)
+    // Store consent + declared research field (30 days)
     const expires = new Date();
     expires.setDate(expires.getDate() + 30);
     document.cookie = `vitum_age_verified=true; expires=${expires.toUTCString()}; path=/; SameSite=Strict`;
+    try {
+      localStorage.setItem("vitum_research_field", researchField);
+    } catch {
+      /* ignore storage errors */
+    }
     onVerified();
   };
 
@@ -105,10 +111,38 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
             </label>
           </div>
 
+          {/* Research field */}
+          <div className="mb-6">
+            <label htmlFor="research-field" className="block text-sm text-[oklch(0.35_0.05_255)] leading-relaxed mb-2">
+              Primary <strong>research field</strong>
+            </label>
+            <select
+              id="research-field"
+              value={researchField}
+              onChange={(e) => {
+                setResearchField(e.target.value);
+                setError(false);
+              }}
+              className="w-full border border-[oklch(0.55_0.02_255)] rounded-none bg-white px-3 py-2.5 text-sm text-[oklch(0.18_0.04_255)] focus:outline-none focus:ring-2 focus:ring-[oklch(0.35_0.15_260)] cursor-pointer"
+            >
+              <option value="" disabled>
+                Select your research field…
+              </option>
+              <option value="Pharmacology">Pharmacology</option>
+              <option value="Molecular Biology">Molecular Biology</option>
+              <option value="Medicinal Chemistry">Medicinal Chemistry</option>
+              <option value="Biochemistry">Biochemistry</option>
+              <option value="Toxicology">Toxicology</option>
+              <option value="Analytical Chemistry">Analytical Chemistry</option>
+              <option value="Academic / Institutional Research">Academic / Institutional Research</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
           {/* Error message */}
           {error && (
             <p className="mb-4 text-xs text-red-600 font-medium">
-              Please confirm both statements to continue.
+              Please confirm both statements and select your research field to continue.
             </p>
           )}
 

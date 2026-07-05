@@ -1,53 +1,37 @@
 /**
  * ReconstitutionCalculator
- * Design: Clean card with input fields + animated syringe SVG visual.
- * The syringe fill level and unit markers update in real-time.
+ * Laboratory reconstitution helper: given a lyophilized peptide mass and a
+ * diluent (BAC water) volume, computes the resulting concentration and the
+ * volume required to draw a target amount for an aliquot. Strictly a lab-prep
+ * reference — no human-dosing framing (no "dose", no insulin-syringe visual).
  */
 
 import { useState, useMemo } from "react";
 import { FlaskConical, Info } from "lucide-react";
 
 interface Props {
-  peptideMg: number; // default peptide amount in mg (e.g. 10 for Retatrutide 10mg)
+  peptideMg: number; // default peptide amount in mg (e.g. 10 for a 10mg vial)
 }
 
 export default function ReconstitutionCalculator({ peptideMg }: Props) {
   const [peptideAmount, setPeptideAmount] = useState(String(peptideMg));
   const [bacWaterMl, setBacWaterMl] = useState("2");
-  const [desiredDoseMg, setDesiredDoseMg] = useState("0.25");
+  const [targetMg, setTargetMg] = useState("0.25");
 
   const result = useMemo(() => {
     const peptide = parseFloat(peptideAmount);
     const bac = parseFloat(bacWaterMl);
-    const dose = parseFloat(desiredDoseMg);
-    if (!peptide || !bac || !dose || bac <= 0 || peptide <= 0 || dose <= 0) {
+    const target = parseFloat(targetMg);
+    if (!peptide || !bac || !target || bac <= 0 || peptide <= 0 || target <= 0) {
       return null;
     }
     const concentrationMgPerMl = peptide / bac;
-    const volumePerDoseMl = dose / concentrationMgPerMl;
-    const volumePerDoseUnits = volumePerDoseMl * 100;
-    const dosesPerVial = Math.floor(peptide / dose);
-    return { concentrationMgPerMl, volumePerDoseMl, volumePerDoseUnits, dosesPerVial };
-  }, [peptideAmount, bacWaterMl, desiredDoseMg]);
-
-  // Syringe fill: 0–100 units on a U-100 syringe
-  const syringeUnits = result ? Math.min(Math.max(result.volumePerDoseUnits, 0), 100) : 0;
-  const fillPercent = syringeUnits / 100; // 0 to 1
-
-  // Tick marks at 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
-  const ticks = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
-
-  // Syringe SVG dimensions
-  const syringeH = 280;
-  const barrelTop = 30;
-  const barrelBottom = 240;
-  const barrelH = barrelBottom - barrelTop;
-  const barrelX = 44;
-  const barrelW = 28;
-
-  // Fill level: fills from bottom up
-  const fillH = fillPercent * barrelH;
-  const fillY = barrelBottom - fillH;
+    const volumePerAliquotMl = target / concentrationMgPerMl;
+    const aliquotsPerVial = Math.floor(peptide / target);
+    // Fraction of the reconstituted vial one aliquot represents (for the fill bar).
+    const fractionOfVial = Math.min(Math.max(volumePerAliquotMl / bac, 0), 1);
+    return { concentrationMgPerMl, volumePerAliquotMl, aliquotsPerVial, fractionOfVial };
+  }, [peptideAmount, bacWaterMl, targetMg]);
 
   return (
     <div className="rounded-2xl border border-[oklch(0.92_0.004_260)] bg-white overflow-hidden">
@@ -56,7 +40,7 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
         <FlaskConical className="w-5 h-5 text-white/70" />
         <div>
           <h3 className="text-[1rem] font-bold">Reconstitution Calculator</h3>
-          <p className="text-[0.75rem] text-white/55">For research use only — not medical dosing advice</p>
+          <p className="text-[0.75rem] text-white/55">For laboratory reconstitution reference only — not medical or dosing advice</p>
         </div>
       </div>
 
@@ -92,14 +76,14 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
             </div>
             <div>
               <label className="block text-[0.75rem] font-semibold tracking-wide uppercase text-[oklch(0.45_0.01_260)] mb-1.5">
-                Desired Dose (mg)
+                Target Amount per Aliquot (mg)
               </label>
               <input
                 type="number"
                 min={0.001}
                 step={0.001}
-                value={desiredDoseMg}
-                onChange={(e) => setDesiredDoseMg(e.target.value)}
+                value={targetMg}
+                onChange={(e) => setTargetMg(e.target.value)}
                 className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3.5 py-2.5 text-[0.9375rem] font-mono focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
               />
             </div>
@@ -107,123 +91,46 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
             {/* Results */}
             {result && (
               <div className="rounded-xl bg-[oklch(0.975_0.003_260)] p-4 space-y-3">
-                <ResultRow label="Concentration" value={`${result.concentrationMgPerMl.toFixed(3)} mg/mL`} />
-                <ResultRow label="Volume per dose" value={`${result.volumePerDoseMl.toFixed(3)} mL`} highlight />
-                <ResultRow label="Syringe units (U-100)" value={`${result.volumePerDoseUnits.toFixed(1)} units`} highlight />
-                <ResultRow label="Doses per vial" value={`~${result.dosesPerVial} doses`} />
+                <ResultRow label="Concentration" value={`${result.concentrationMgPerMl.toFixed(3)} mg/mL`} highlight />
+                <ResultRow label="Volume per aliquot" value={`${result.volumePerAliquotMl.toFixed(3)} mL`} highlight />
+                <ResultRow label="Aliquots per vial" value={`~${result.aliquotsPerVial}`} />
               </div>
             )}
           </div>
 
-          {/* Syringe visual */}
-          <div className="flex flex-col items-center gap-2 flex-shrink-0">
-            <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)]">
-              U-100 / 1mL / 1cc
+          {/* Vial concentration visual (graduated tube, no syringe/needle) */}
+          <div className="flex flex-col items-center gap-2 flex-shrink-0 w-[116px]">
+            <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] text-center">
+              Reconstituted vial
             </p>
-            <svg
-              width="116"
-              height={syringeH}
-              viewBox={`0 0 116 ${syringeH}`}
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="overflow-visible"
-            >
-              {/* Plunger rod */}
-              <rect x="54" y="4" width="8" height={barrelTop - 4} rx="2" fill="oklch(0.75 0.01 260)" />
-              {/* Plunger handle */}
-              <rect x="44" y="2" width="28" height="8" rx="3" fill="oklch(0.55 0.01 260)" />
-
-              {/* Barrel background */}
-              <rect x={barrelX} y={barrelTop} width={barrelW} height={barrelH} rx="4" fill="oklch(0.97 0.003 260)" stroke="oklch(0.80 0.01 260)" strokeWidth="1.5" />
-
-              {/* Fill */}
-              {fillH > 0 && (
-                <rect
-                  x={barrelX + 1}
-                  y={fillY}
-                  width={barrelW - 2}
-                  height={fillH}
-                  rx="2"
-                  fill="oklch(0.55 0.14 260)"
-                  style={{ transition: "y 0.35s cubic-bezier(0.23,1,0.32,1), height 0.35s cubic-bezier(0.23,1,0.32,1)" }}
+            <div className="relative w-14 h-[260px] rounded-b-xl rounded-t-md border-2 border-[oklch(0.80_0.01_260)] bg-[oklch(0.97_0.003_260)] overflow-hidden">
+              {/* Diluent fill */}
+              <div
+                className="absolute bottom-0 left-0 right-0 bg-[oklch(0.72_0.09_240)]"
+                style={{ height: "72%" }}
+              />
+              {/* One-aliquot band */}
+              {result && (
+                <div
+                  className="absolute left-0 right-0 bg-[oklch(0.55_0.14_260)]"
+                  style={{
+                    bottom: 0,
+                    height: `${result.fractionOfVial * 72}%`,
+                    transition: "height 0.35s cubic-bezier(0.23,1,0.32,1)",
+                  }}
                 />
               )}
-
-              {/* Tick marks and labels */}
-              {ticks.map((tick) => {
-                const y = barrelBottom - (tick / 100) * barrelH;
-                const isMajor = tick % 20 === 0;
-                const isHighlighted = result && Math.abs(result.volumePerDoseUnits - tick) < 3;
-                return (
-                  <g key={tick}>
-                    {/* Left tick */}
-                    <line
-                      x1={barrelX - (isMajor ? 10 : 6)}
-                      y1={y}
-                      x2={barrelX}
-                      y2={y}
-                      stroke={isHighlighted ? "oklch(0.40 0.16 260)" : "oklch(0.65 0.01 260)"}
-                      strokeWidth={isMajor ? 1.5 : 1}
-                    />
-                    {/* Right tick */}
-                    <line
-                      x1={barrelX + barrelW}
-                      y1={y}
-                      x2={barrelX + barrelW + (isMajor ? 10 : 6)}
-                      y2={y}
-                      stroke={isHighlighted ? "oklch(0.40 0.16 260)" : "oklch(0.65 0.01 260)"}
-                      strokeWidth={isMajor ? 1.5 : 1}
-                    />
-                    {/* Label on major ticks */}
-                    {isMajor && (
-                      <text
-                        x={barrelX - 13}
-                        y={y + 4}
-                        textAnchor="end"
-                        fontSize="9"
-                        fill={isHighlighted ? "oklch(0.30 0.16 260)" : "oklch(0.55 0.01 260)"}
-                        fontFamily="monospace"
-                        fontWeight={isHighlighted ? "700" : "400"}
-                      >
-                        {tick}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-
-              {/* Dose indicator arrow */}
-              {result && syringeUnits > 0 && syringeUnits <= 100 && (
-                <g style={{ transition: "transform 0.35s cubic-bezier(0.23,1,0.32,1)" }}
-                   transform={`translate(0, ${barrelBottom - (syringeUnits / 100) * barrelH})`}>
-                  <line
-                    x1={barrelX + barrelW + 12}
-                    y1={0}
-                    x2={barrelX + barrelW + 32}
-                    y2={0}
-                    stroke="oklch(0.40 0.16 260)"
-                    strokeWidth="1.5"
-                    strokeDasharray="3 2"
-                  />
-                  <text
-                    x={barrelX + barrelW + 34}
-                    y={4}
-                    fontSize="9"
-                    fill="oklch(0.30 0.16 260)"
-                    fontFamily="monospace"
-                    fontWeight="700"
-                  >
-                    {syringeUnits.toFixed(1)}u
-                  </text>
-                </g>
-              )}
-
-              {/* Needle */}
-              <rect x="55" y={barrelBottom} width="6" height="8" rx="1" fill="oklch(0.75 0.01 260)" />
-              <path d={`M55 ${barrelBottom + 8} L58 ${barrelBottom + 22} L61 ${barrelBottom + 8} Z`} fill="oklch(0.70 0.01 260)" />
-            </svg>
-            <p className="text-[0.6875rem] text-[oklch(0.60_0.01_260)] text-center leading-tight max-w-[90px]">
-              Units on U-100 / 1mL / 1cc syringe
+              {/* Graduation ticks */}
+              {[20, 40, 60, 80].map((pct) => (
+                <div
+                  key={pct}
+                  className="absolute left-0 w-2.5 h-px bg-[oklch(0.70_0.01_260)]"
+                  style={{ bottom: `${pct}%` }}
+                />
+              ))}
+            </div>
+            <p className="text-[0.6875rem] text-[oklch(0.60_0.01_260)] text-center leading-tight">
+              Shaded band = one aliquot
             </p>
           </div>
         </div>
@@ -233,7 +140,8 @@ export default function ReconstitutionCalculator({ peptideMg }: Props) {
           <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
           <span>
             This calculator is provided for <strong>in vitro research reference only</strong> and does not
-            constitute medical or dosing advice. Always verify calculations independently before use.
+            constitute medical or dosing advice. These products are not intended for human dosing, injections,
+            or ingestion. Always verify calculations independently before use.
           </span>
         </div>
       </div>

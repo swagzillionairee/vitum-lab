@@ -40,7 +40,7 @@ export const products: Product[] = [
     description:
       "GLP-1/GIP/Glucagon triple receptor agonist studied for metabolic pathway modulation in preclinical models.",
     longDescription:
-      "GLP-3 (R) is a novel triple receptor agonist targeting GLP-1, GIP, and glucagon receptors simultaneously. It has attracted significant research interest for its potential role in metabolic regulation, energy homeostasis, and adipose tissue dynamics. Available in three doses to support a range of preclinical study designs.",
+      "GLP-3 (R) is a novel triple receptor agonist targeting GLP-1, GIP, and glucagon receptors simultaneously. It is studied in vitro for its receptor-binding pharmacology and metabolic-pathway signaling in preclinical models. Available in three vial sizes to support a range of laboratory study designs.",
     cardBg: "#f5e8e8",
     badge: "Best Seller",
     variants: [
@@ -80,11 +80,11 @@ export const products: Product[] = [
     storageInstructions:
       "Store lyophilized vials at −20°C (−4°F). Once reconstituted with BAC Water, store at 4°C (39°F) and use within 28 days. Avoid repeated freeze-thaw cycles.",
     reconstitutionNote:
-      "Reconstitute with Bacteriostatic Water (BAC Water). Inject slowly along the vial wall. Gently swirl — do not shake.",
+      "Reconstitute with Bacteriostatic Water (BAC Water). Add slowly along the vial wall. Gently swirl — do not shake.",
     researchNotes: [
       "Triple agonist activity at GLP-1, GIP, and glucagon receptors",
       "Studied for metabolic pathway modulation in preclinical models",
-      "Research interest in energy homeostasis and adipose tissue dynamics",
+      "Studied for receptor pharmacology and metabolic-pathway signaling in vitro",
       "For in vitro / laboratory research use only",
     ],
     coaHref: "/coa/Retatrutide_COA.pdf",
@@ -185,9 +185,9 @@ export const products: Product[] = [
     category: "Reconstitution",
     tagline: "USP-grade bacteriostatic water for peptide reconstitution",
     description:
-      "USP-grade bacteriostatic water with 0.9% benzyl alcohol for safe multi-dose reconstitution of lyophilized research peptides.",
+      "USP-grade bacteriostatic water with 0.9% benzyl alcohol for safe multi-use reconstitution of lyophilized research peptides.",
     longDescription:
-      "Bacteriostatic Water (BAC Water) is sterile water for injection containing 0.9% benzyl alcohol as a preservative. It is the standard reconstitution medium for lyophilized research peptides, enabling multi-dose use from a single vial without risk of microbial contamination.",
+      "Bacteriostatic Water (BAC Water) is sterile water containing 0.9% benzyl alcohol as a preservative. It is the standard reconstitution medium for lyophilized research peptides, enabling multi-use reconstitution from a single vial without risk of microbial contamination.",
     cardBg: "#e0eaf5",
     variants: [
       {
@@ -200,7 +200,7 @@ export const products: Product[] = [
       },
     ],
     specs: [
-      { label: "Composition", value: "Water for injection, 0.9% Benzyl Alcohol" },
+      { label: "Composition", value: "Sterile water, 0.9% Benzyl Alcohol" },
       { label: "Volume", value: "10 mL" },
       { label: "Grade", value: "USP" },
       { label: "Sterility", value: "Sterile filtered (0.22 µm)" },
@@ -210,7 +210,7 @@ export const products: Product[] = [
     storageInstructions:
       "Store at room temperature (15–30°C / 59–86°F). Keep away from direct sunlight. Do not freeze. Discard any unused portion after 28 days of first use.",
     researchNotes: [
-      "0.9% benzyl alcohol preservative enables multi-dose use",
+      "0.9% benzyl alcohol preservative enables multi-use reconstitution",
       "Sterile filtered through 0.22 µm membrane",
       "Standard reconstitution medium for lyophilized peptides",
       "For laboratory research use only",

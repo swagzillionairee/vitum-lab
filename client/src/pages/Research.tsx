@@ -40,7 +40,7 @@ const sections: ProductSection[] = [
         year: 2023,
         journal: "New England Journal of Medicine",
         summary:
-          "Phase 2 randomized trial demonstrating significant weight reduction with retatrutide, a GLP-1/GIP/glucagon triple receptor agonist, across multiple dose cohorts.",
+          "Phase 2 randomized, dose-ranging characterization of the triple GLP-1/GIP/glucagon receptor agonist retatrutide and its pharmacodynamic profile across multiple dose cohorts.",
         url: "https://www.nejm.org/doi/full/10.1056/NEJMoa2301972",
       },
       {
@@ -50,7 +50,7 @@ const sections: ProductSection[] = [
         year: 2023,
         journal: "The Lancet",
         summary:
-          "Evaluated glycemic control and weight outcomes in adults with type 2 diabetes, showing dose-dependent reductions in HbA1c and body weight.",
+          "Randomized, double-blind, placebo- and active-controlled phase 2 study characterizing retatrutide's receptor pharmacology and metabolic-pathway signaling across dose cohorts.",
         url: "https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(23)01053-X/fulltext",
       },
     ],
@@ -69,7 +69,7 @@ const sections: ProductSection[] = [
         year: 2018,
         journal: "Cell Metabolism",
         summary:
-          "Comprehensive review of in vivo evidence for NAD+ precursors in aging, metabolic disease, and neurodegeneration, covering sirtuins and PARP enzyme pathways.",
+          "Comprehensive review of the in vivo biochemistry of NAD+ precursors, covering sirtuin and PARP enzyme pathways and mitochondrial cofactor function.",
         url: "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5884172/",
       },
       {
@@ -78,7 +78,7 @@ const sections: ProductSection[] = [
         year: 2015,
         journal: "Science",
         summary:
-          "Reviews the role of NAD+ as a key metabolic cofactor in aging biology, mitochondrial function, and its decline with age.",
+          "Reviews the role of NAD+ as a key metabolic cofactor in mitochondrial function and cellular redox biochemistry.",
         url: "https://www.science.org/doi/10.1126/science.aac4854",
       },
       {
@@ -87,7 +87,7 @@ const sections: ProductSection[] = [
         year: 2021,
         journal: "Science",
         summary:
-          "Randomized controlled trial showing NMN supplementation increases NAD+ levels in skeletal muscle and enhances insulin sensitivity in postmenopausal women with prediabetes.",
+          "Randomized controlled trial measuring NAD+ levels in skeletal muscle tissue following NMN administration.",
         url: "https://www.science.org/doi/10.1126/science.abe9985",
       },
     ],
@@ -106,7 +106,7 @@ const sections: ProductSection[] = [
         year: 2018,
         journal: "International Journal of Molecular Sciences",
         summary:
-          "Reviews GHK-Cu’s modulation of over 4,000 human genes involved in tissue remodeling, anti-inflammation, antioxidant defense, and wound healing.",
+          "Reviews GHK-Cu’s modulation of over 4,000 human genes in laboratory studies, including pathways involved in gene expression, extracellular matrix remodeling, and antioxidant activity.",
         url: "https://www.mdpi.com/1422-0067/19/7/1987",
       },
       {

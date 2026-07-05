@@ -125,9 +125,11 @@ export default function Footer() {
             © {new Date().getFullYear()} Vitum Lab. All rights reserved.
           </p>
           <p className="text-xs text-white/40 text-center sm:text-right max-w-md">
-            All products sold by Vitum Lab are intended for in vitro research
-            and laboratory use only. Not for human or veterinary use. Not for
-            use in diagnostic procedures.
+            All products sold on this website are intended for research and
+            identification purposes only and are not intended for human dosing,
+            injections, or ingestion. Peptides are strictly for laboratory,
+            academic, or institutional research and not for human or animal
+            consumption.
           </p>
         </div>
       </div>
