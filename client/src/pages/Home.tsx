@@ -325,7 +325,7 @@ export default function Home() {
     (liveBySlug(slug)?.variants ?? []).map((v) => ({
       dose: v.dose, lot: v.lot, price: v.price, salePrice: v.salePrice, img: v.img, cartCode: v.cartCode, id: v.id,
     }));
-  const liveStaticCards = ["nad", "bacwater"].map((slug) => {
+  const liveStaticCards = ["bpc157", "cjc1295-ipamorelin", "tb500", "motsc", "tesamorelin", "nad", "bacwater"].map((slug) => {
     const p = liveBySlug(slug);
     const v = p?.variants[0];
     return {
