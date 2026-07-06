@@ -1,42 +1,44 @@
 /*
  * Referral.tsx — Vitum Lab
- * Public, self-serve referral program (no application, no login):
- *   - Get a code instantly (name + email)
+ * Self-serve referral program, account-locked:
+ *   - Sign in (Google or email magic-link) to get your unique code — it's tied
+ *     to your account, so it can't be lost or claimed by anyone else
  *   - Buyers get a % off at checkout; referrer earns a flat bounty per N paid orders
- *   - Code-based dashboard (enter code → stats) + email Claim when a payout is due
+ *   - Signed-in dashboard (stats + progress) + email Claim when a payout is due
  * All numbers come from the store config (Admin → Promos → Referral Program).
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
-import { Check, Copy, ArrowRight, Zap, Share2, DollarSign, Loader2 } from "lucide-react";
+import { Check, Copy, ArrowRight, Zap, Share2, DollarSign, Loader2, Mail, Lock, LogOut } from "lucide-react";
 import SEO from "@/components/SEO";
+import { useAuth } from "@/contexts/AuthContext";
+import { authedFetch } from "@/lib/api";
 
 const CLAIM_EMAIL = "orders@vitumlab.com";
 
 interface ReferralConfig { active: boolean; buyer_discount: number; bounty_amount: number; bounty_orders: number; }
 interface Stats {
-  code: string; name: string | null; buyer_discount: number;
+  active: boolean; code: string; link: string; buyer_discount: number;
   paid_orders: number; bounty_orders: number; bounty_amount: number;
   earned: number; toward_next: number; remaining_to_next: number; claimable: boolean;
 }
 
 export default function Referral() {
+  const { session, user, loading: authLoading, signInWithGoogle, signInWithEmail, signOut } = useAuth();
   const [cfg, setCfg] = useState<ReferralConfig | null>(null);
 
-  // Signup
-  const [name, setName] = useState("");
+  // Email magic-link sign-in
   const [email, setEmail] = useState("");
-  const [signingUp, setSigningUp] = useState(false);
-  const [signupErr, setSignupErr] = useState("");
-  const [myCode, setMyCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [sendingLink, setSendingLink] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
+  const [signinErr, setSigninErr] = useState("");
 
-  // Dashboard lookup
-  const [lookupCode, setLookupCode] = useState("");
+  // Signed-in dashboard
+  const [stats, setStats] = useState<Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [statsErr, setStatsErr] = useState("");
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch("/api/public/site")
@@ -45,57 +47,56 @@ export default function Referral() {
       .catch(() => setCfg({ active: false, buyer_discount: 10, bounty_amount: 100, bounty_orders: 5 }));
   }, []);
 
-  const loadStats = async (code: string) => {
-    setStatsErr(""); setLoadingStats(true); setStats(null);
+  const loadStats = useCallback(async () => {
+    setStatsErr(""); setLoadingStats(true);
     try {
-      const res = await fetch(`/api/public/referral-stats?code=${encodeURIComponent(code.trim().toUpperCase())}`);
+      const res = await authedFetch("/api/account/referral-program");
       const d = await res.json();
-      if (!res.ok) { setStatsErr(d.error ?? "Couldn't load that code."); return; }
+      if (!res.ok) { setStatsErr(d.error ?? "Couldn't load your referral dashboard."); return; }
       setStats(d);
     } catch {
       setStatsErr("Something went wrong — please try again.");
     } finally {
       setLoadingStats(false);
     }
-  };
+  }, []);
 
-  const signup = async (e: React.FormEvent) => {
+  // Once signed in, pull the account's code + dashboard.
+  useEffect(() => {
+    if (session) loadStats();
+  }, [session, loadStats]);
+
+  const sendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSignupErr("");
-    if (!name.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setSignupErr("Enter your name and a valid email."); return; }
-    setSigningUp(true);
+    setSigninErr("");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { setSigninErr("Enter a valid email address."); return; }
+    setSendingLink(true);
     try {
-      const res = await fetch("/api/public/referral-signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim() }),
-      });
-      const d = await res.json();
-      if (!res.ok) { setSignupErr(d.error ?? "Couldn't create your code."); return; }
-      setMyCode(d.code);
-      setLookupCode(d.code);
-      loadStats(d.code);
+      const { error } = await signInWithEmail(email.trim(), "/referral");
+      if (error) { setSigninErr(error); return; }
+      setLinkSent(true);
     } catch {
-      setSignupErr("Something went wrong — please try again.");
+      setSigninErr("Something went wrong — please try again.");
     } finally {
-      setSigningUp(false);
+      setSendingLink(false);
     }
   };
 
   const copyCode = () => {
-    if (!myCode) return;
-    navigator.clipboard?.writeText(myCode).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }, () => {});
+    if (!stats?.code) return;
+    navigator.clipboard?.writeText(stats.code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }, () => {});
   };
-
-  const claimHref = stats
-    ? `mailto:${CLAIM_EMAIL}?subject=${encodeURIComponent(`Referral payout claim — ${stats.code}`)}&body=${encodeURIComponent(
-        `Referral code: ${stats.code}\nName: ${stats.name ?? ""}\nPaid referrals: ${stats.paid_orders}\nPayouts due: ${Math.floor(stats.paid_orders / stats.bounty_orders)}\nAmount earned: $${stats.earned}\n\nRequesting my payout. Preferred method (PayPal / Venmo / crypto): `,
-      )}`
-    : "#";
 
   const bountyAmount = cfg?.bounty_amount ?? 100;
   const bountyOrders = cfg?.bounty_orders ?? 5;
   const buyerDiscount = cfg?.buyer_discount ?? 10;
+
+  const payoutsDue = stats ? Math.floor(stats.paid_orders / stats.bounty_orders) : 0;
+  const claimHref = stats
+    ? `mailto:${CLAIM_EMAIL}?subject=${encodeURIComponent(`Referral payout claim — ${stats.code}`)}&body=${encodeURIComponent(
+        `Referral code: ${stats.code}\nAccount: ${user?.email ?? ""}\nPaid referrals: ${stats.paid_orders}\nPayouts due: ${payoutsDue}\nAmount earned: $${stats.earned}\n\nRequesting my payout. Preferred method (PayPal / Venmo / crypto): `,
+      )}`
+    : "#";
 
   // ── Loading / inactive states ─────────────────────────────────────────────
   if (cfg === null) {
@@ -121,13 +122,11 @@ export default function Referral() {
     );
   }
 
-  const payoutsDue = stats ? Math.floor(stats.paid_orders / stats.bounty_orders) : 0;
-
   return (
     <div className="min-h-screen bg-[oklch(0.98_0.004_255)]">
       <SEO
         title="Referral Program"
-        description={`Share your code and earn $${bountyAmount} for every ${bountyOrders} paid orders. Your buyers get ${buyerDiscount}% off. No application, no cap, no expiry.`}
+        description={`Share your code and earn $${bountyAmount} for every ${bountyOrders} paid orders. Your buyers get ${buyerDiscount}% off. Sign in to grab your code — no application, no cap, no expiry.`}
       />
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
@@ -139,8 +138,8 @@ export default function Referral() {
           Share a Code.<br />Earn <span className="text-[oklch(0.55_0.13_200)]">${bountyAmount}</span> Forever.
         </h1>
         <p className="text-[1.0625rem] text-[oklch(0.45_0.01_260)] leading-relaxed max-w-xl mx-auto">
-          Get your unique referral code in seconds. Every {bountyOrders} orders placed using it = ${bountyAmount} cash.
-          No cap. No expiry. Just share and earn.
+          Sign in and get your unique referral code in seconds — it's locked to your account, so your earnings can never
+          be lost. Every {bountyOrders} orders placed using it = ${bountyAmount} cash. No cap. No expiry.
         </p>
 
         {/* Stat row */}
@@ -159,121 +158,154 @@ export default function Referral() {
         </div>
       </section>
 
-      {/* ── Get code + dashboard card ─────────────────────────────────────── */}
+      {/* ── Sign in / dashboard card ──────────────────────────────────────── */}
       <section className="px-6 pb-20 max-w-2xl mx-auto">
         <div className="bg-white rounded-3xl shadow-[0_8px_40px_oklch(0.13_0.02_255/0.08)] border border-[oklch(0.93_0.004_260)] p-8 sm:p-10">
-          <h2 className="text-[1.5rem] font-bold text-[oklch(0.13_0.02_255)]">Get Your Referral Code</h2>
-          <p className="text-[0.9375rem] text-[oklch(0.45_0.01_260)] mt-1.5 mb-6">
-            Enter your name and email — your personal code is created instantly and works at checkout right away.
-          </p>
+          {authLoading ? (
+            <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[oklch(0.52_0.01_260)]" /></div>
+          ) : !session ? (
+            /* ── Signed-out: sign in to claim a code ─────────────────────── */
+            <>
+              <div className="inline-flex items-center gap-1.5 bg-[oklch(0.95_0.03_260)] text-[oklch(0.40_0.14_260)] text-[0.6875rem] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full mb-4">
+                <Lock className="w-3 h-3" /> Locked to your account
+              </div>
+              <h2 className="text-[1.5rem] font-bold text-[oklch(0.13_0.02_255)]">Sign In to Get Your Code</h2>
+              <p className="text-[0.9375rem] text-[oklch(0.45_0.01_260)] mt-1.5 mb-6">
+                Your referral code is tied to your account so every order — and every dollar you earn — is tracked and
+                can never be lost. Sign in with Google or your email to grab it.
+              </p>
 
-          {myCode ? (
-            <div className="rounded-2xl bg-[oklch(0.96_0.03_200)] border border-[oklch(0.88_0.05_200)] p-6 text-center">
-              <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-[oklch(0.45_0.08_200)] mb-2">Your code</p>
-              <div className="flex items-center justify-center gap-3">
-                <span className="text-[2rem] font-bold tracking-wide text-[oklch(0.20_0.06_200)] font-mono">{myCode}</span>
-                <button onClick={copyCode} className="flex items-center gap-1 text-[0.8125rem] font-semibold text-[oklch(0.42_0.11_200)] border border-[oklch(0.80_0.06_200)] rounded-full px-3 py-1.5 hover:bg-white transition-colors">
-                  {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+              {linkSent ? (
+                <div className="rounded-2xl bg-[oklch(0.96_0.03_155)] border border-[oklch(0.85_0.06_155)] p-6 text-center">
+                  <Mail className="w-7 h-7 mx-auto text-[oklch(0.42_0.12_155)] mb-2" />
+                  <p className="text-[0.9375rem] font-semibold text-[oklch(0.30_0.10_155)]">Check your inbox</p>
+                  <p className="text-[0.8125rem] text-[oklch(0.40_0.06_155)] mt-1">
+                    We sent a magic sign-in link to <span className="font-semibold">{email}</span>. Click it to open your referral dashboard.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => signInWithGoogle("/referral")}
+                    className="w-full flex items-center justify-center gap-2.5 border border-[oklch(0.88_0.004_260)] rounded-xl px-4 py-3 text-[0.9375rem] font-semibold text-[oklch(0.20_0.01_260)] hover:bg-[oklch(0.98_0.003_260)] transition-colors"
+                  >
+                    <GoogleIcon /> Continue with Google
+                  </button>
+
+                  <div className="flex items-center gap-4 my-5">
+                    <div className="flex-1 h-px bg-[oklch(0.92_0.004_260)]" />
+                    <span className="text-[0.75rem] font-semibold text-[oklch(0.55_0.01_260)]">or</span>
+                    <div className="flex-1 h-px bg-[oklch(0.92_0.004_260)]" />
+                  </div>
+
+                  <form onSubmit={sendMagicLink} className="flex flex-col sm:flex-row gap-2.5">
+                    <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="your@email.com"
+                      className="flex-1 border border-[oklch(0.88_0.004_260)] rounded-xl px-4 py-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.55_0.13_200)] focus:border-transparent" />
+                    <button type="submit" disabled={sendingLink}
+                      className="flex items-center justify-center gap-1.5 bg-[oklch(0.55_0.13_200)] text-white font-semibold text-[0.9375rem] px-6 py-3 rounded-xl hover:bg-[oklch(0.48_0.13_200)] transition-colors disabled:opacity-60">
+                      {sendingLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Email me a link <ArrowRight className="w-4 h-4" /></>}
+                    </button>
+                  </form>
+                </>
+              )}
+              {signinErr && <p className="text-[0.8125rem] text-red-500 mt-3">{signinErr}</p>}
+
+              <div className="flex flex-wrap gap-x-5 gap-y-2 mt-6">
+                {["Free forever", "No approval needed", "Tied to your account", `Gives buyers ${buyerDiscount}% off`].map((t) => (
+                  <span key={t} className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.10_155)] font-medium">
+                    <Check className="w-4 h-4 flex-shrink-0" /> {t}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : loadingStats && !stats ? (
+            <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[oklch(0.52_0.01_260)]" /></div>
+          ) : statsErr ? (
+            <div className="text-center py-6">
+              <p className="text-[0.875rem] text-red-500 mb-3">{statsErr}</p>
+              <button onClick={loadStats} className="btn-primary inline-flex">Try again</button>
+            </div>
+          ) : stats && !stats.active ? (
+            <div className="text-center py-6">
+              <p className="text-[0.9375rem] text-[oklch(0.45_0.01_260)]">The referral program isn't open right now — check back soon.</p>
+            </div>
+          ) : stats ? (
+            /* ── Signed-in: code + dashboard ─────────────────────────────── */
+            <>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-[1.5rem] font-bold text-[oklch(0.13_0.02_255)]">Your Referral Dashboard</h2>
+                  <p className="text-[0.875rem] text-[oklch(0.45_0.01_260)] mt-1">{user?.email}</p>
+                </div>
+                <button onClick={() => signOut()} className="flex items-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] flex-shrink-0">
+                  <LogOut className="w-4 h-4" /> Sign out
                 </button>
               </div>
-              <p className="text-[0.8125rem] text-[oklch(0.42_0.03_200)] mt-3">Share it anywhere. Buyers enter it at checkout for {buyerDiscount}% off — and it counts toward your ${bountyAmount}.</p>
-            </div>
-          ) : (
-            <form onSubmit={signup} className="flex flex-col sm:flex-row gap-2.5">
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="First name"
-                className="flex-1 border border-[oklch(0.88_0.004_260)] rounded-xl px-4 py-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.55_0.13_200)] focus:border-transparent" />
-              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="your@email.com"
-                className="flex-1 border border-[oklch(0.88_0.004_260)] rounded-xl px-4 py-3 text-[0.9375rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.55_0.13_200)] focus:border-transparent" />
-              <button type="submit" disabled={signingUp}
-                className="flex items-center justify-center gap-1.5 bg-[oklch(0.55_0.13_200)] text-white font-semibold text-[0.9375rem] px-6 py-3 rounded-xl hover:bg-[oklch(0.48_0.13_200)] transition-colors disabled:opacity-60">
-                {signingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Get Code <ArrowRight className="w-4 h-4" /></>}
-              </button>
-            </form>
-          )}
-          {signupErr && <p className="text-[0.8125rem] text-red-500 mt-3">{signupErr}</p>}
 
-          {!myCode && (
-            <div className="flex flex-wrap gap-x-5 gap-y-2 mt-5">
-              {["Free forever", "No approval needed", "Works at checkout instantly", `Gives buyers ${buyerDiscount}% off`].map((t) => (
-                <span key={t} className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.10_155)] font-medium">
-                  <Check className="w-4 h-4 flex-shrink-0" /> {t}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Divider */}
-          <div className="flex items-center gap-4 my-8">
-            <div className="flex-1 h-px bg-[oklch(0.92_0.004_260)]" />
-            <span className="text-[0.75rem] font-semibold text-[oklch(0.55_0.01_260)]">Already have a code?</span>
-            <div className="flex-1 h-px bg-[oklch(0.92_0.004_260)]" />
-          </div>
-
-          {/* Dashboard lookup */}
-          <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.02_255)]">Check Your Dashboard</h3>
-          <p className="text-[0.875rem] text-[oklch(0.45_0.01_260)] mt-1 mb-4">Enter your referral code to view your stats, referrals, and earnings.</p>
-          <div className="flex flex-col sm:flex-row gap-2.5">
-            <input value={lookupCode} onChange={(e) => setLookupCode(e.target.value.toUpperCase())} placeholder="E.G. MARCUS OR SARAH2"
-              className="flex-1 border border-[oklch(0.88_0.004_260)] rounded-xl px-4 py-3 text-[0.9375rem] font-mono uppercase focus:outline-none focus:ring-2 focus:ring-[oklch(0.55_0.13_200)] focus:border-transparent" />
-            <button onClick={() => loadStats(lookupCode)} disabled={loadingStats || !lookupCode.trim()}
-              className="flex items-center justify-center gap-1.5 border border-[oklch(0.55_0.13_200)] text-[oklch(0.42_0.11_200)] font-semibold text-[0.9375rem] px-6 py-3 rounded-xl hover:bg-[oklch(0.97_0.02_200)] transition-colors disabled:opacity-50">
-              {loadingStats ? <Loader2 className="w-4 h-4 animate-spin" /> : <>View Stats <ArrowRight className="w-4 h-4" /></>}
-            </button>
-          </div>
-          {statsErr && <p className="text-[0.8125rem] text-red-500 mt-3">{statsErr}</p>}
-
-          {/* Stats result */}
-          {stats && (
-            <div className="mt-6 rounded-2xl border border-[oklch(0.93_0.004_260)] overflow-hidden">
-              <div className="bg-[oklch(0.13_0.02_255)] text-white px-6 py-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-white/50">Referral code</p>
-                  <p className="text-[1.25rem] font-bold font-mono">{stats.code}</p>
+              {/* Your code */}
+              <div className="rounded-2xl bg-[oklch(0.96_0.03_200)] border border-[oklch(0.88_0.05_200)] p-6 text-center mt-5">
+                <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-[oklch(0.45_0.08_200)] mb-2">Your code</p>
+                <div className="flex items-center justify-center gap-3">
+                  <span className="text-[2rem] font-bold tracking-wide text-[oklch(0.20_0.06_200)] font-mono">{stats.code}</span>
+                  <button onClick={copyCode} className="flex items-center gap-1 text-[0.8125rem] font-semibold text-[oklch(0.42_0.11_200)] border border-[oklch(0.80_0.06_200)] rounded-full px-3 py-1.5 hover:bg-white transition-colors">
+                    {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                  </button>
                 </div>
-                <div className="text-right">
-                  <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-white/50">Earned</p>
-                  <p className="text-[1.25rem] font-bold text-[oklch(0.80_0.14_155)]">${stats.earned}</p>
-                </div>
+                <p className="text-[0.8125rem] text-[oklch(0.42_0.03_200)] mt-3">Share it anywhere. Buyers enter it at checkout for {stats.buyer_discount}% off — and it counts toward your ${stats.bounty_amount}.</p>
               </div>
-              <div className="grid grid-cols-2 divide-x divide-[oklch(0.93_0.004_260)]">
-                <div className="px-6 py-4 text-center">
-                  <p className="text-[1.5rem] font-bold text-[oklch(0.13_0.02_255)]">{stats.paid_orders}</p>
-                  <p className="text-[0.6875rem] font-semibold tracking-wide uppercase text-[oklch(0.55_0.01_260)]">Paid referrals</p>
+
+              {/* Stats */}
+              <div className="mt-6 rounded-2xl border border-[oklch(0.93_0.004_260)] overflow-hidden">
+                <div className="bg-[oklch(0.13_0.02_255)] text-white px-6 py-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-white/50">Paid referrals</p>
+                    <p className="text-[1.25rem] font-bold">{stats.paid_orders}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-white/50">Earned</p>
+                    <p className="text-[1.25rem] font-bold text-[oklch(0.80_0.14_155)]">${stats.earned}</p>
+                  </div>
                 </div>
-                <div className="px-6 py-4 text-center">
-                  <p className="text-[1.5rem] font-bold text-[oklch(0.13_0.02_255)]">{payoutsDue}</p>
-                  <p className="text-[0.6875rem] font-semibold tracking-wide uppercase text-[oklch(0.55_0.01_260)]">Payouts of ${stats.bounty_amount}</p>
+                <div className="grid grid-cols-2 divide-x divide-[oklch(0.93_0.004_260)]">
+                  <div className="px-6 py-4 text-center">
+                    <p className="text-[1.5rem] font-bold text-[oklch(0.13_0.02_255)]">{payoutsDue}</p>
+                    <p className="text-[0.6875rem] font-semibold tracking-wide uppercase text-[oklch(0.55_0.01_260)]">Payouts of ${stats.bounty_amount}</p>
+                  </div>
+                  <div className="px-6 py-4 text-center">
+                    <p className="text-[1.5rem] font-bold text-[oklch(0.13_0.02_255)]">{stats.buyer_discount}%</p>
+                    <p className="text-[0.6875rem] font-semibold tracking-wide uppercase text-[oklch(0.55_0.01_260)]">Buyer discount</p>
+                  </div>
                 </div>
-              </div>
-              {/* Progress to next payout */}
-              <div className="px-6 py-4 border-t border-[oklch(0.93_0.004_260)]">
-                <div className="flex items-center justify-between text-[0.8125rem] mb-1.5">
-                  <span className="text-[oklch(0.45_0.01_260)]">Progress to next ${stats.bounty_amount}</span>
-                  <span className="font-semibold text-[oklch(0.13_0.02_255)]">{stats.toward_next} / {stats.bounty_orders}</span>
-                </div>
-                <div className="h-2 rounded-full bg-[oklch(0.93_0.004_260)] overflow-hidden">
-                  <div className="h-full rounded-full bg-[oklch(0.55_0.13_200)]" style={{ width: `${(stats.toward_next / stats.bounty_orders) * 100}%` }} />
-                </div>
-                <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-2">
-                  {stats.remaining_to_next === stats.bounty_orders
-                    ? `${stats.bounty_orders} more paid orders unlock your next $${stats.bounty_amount}.`
-                    : `${stats.remaining_to_next} more paid order${stats.remaining_to_next !== 1 ? "s" : ""} until your next $${stats.bounty_amount}.`}
-                </p>
-              </div>
-              {/* Claim */}
-              <div className="px-6 py-4 border-t border-[oklch(0.93_0.004_260)] bg-[oklch(0.98_0.002_260)]">
-                {stats.claimable ? (
-                  <a href={claimHref} className="flex items-center justify-center gap-2 bg-[oklch(0.40_0.14_155)] text-white font-semibold text-[0.9375rem] px-6 py-3 rounded-xl hover:bg-[oklch(0.35_0.14_155)] transition-colors">
-                    <DollarSign className="w-4 h-4" /> Claim ${payoutsDue * stats.bounty_amount}
-                  </a>
-                ) : (
-                  <p className="text-center text-[0.8125rem] text-[oklch(0.55_0.01_260)]">
-                    Hit {stats.bounty_orders} paid referrals to unlock your first payout.
+                {/* Progress to next payout */}
+                <div className="px-6 py-4 border-t border-[oklch(0.93_0.004_260)]">
+                  <div className="flex items-center justify-between text-[0.8125rem] mb-1.5">
+                    <span className="text-[oklch(0.45_0.01_260)]">Progress to next ${stats.bounty_amount}</span>
+                    <span className="font-semibold text-[oklch(0.13_0.02_255)]">{stats.toward_next} / {stats.bounty_orders}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-[oklch(0.93_0.004_260)] overflow-hidden">
+                    <div className="h-full rounded-full bg-[oklch(0.55_0.13_200)]" style={{ width: `${(stats.toward_next / stats.bounty_orders) * 100}%` }} />
+                  </div>
+                  <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-2">
+                    {stats.remaining_to_next === stats.bounty_orders
+                      ? `${stats.bounty_orders} more paid orders unlock your next $${stats.bounty_amount}.`
+                      : `${stats.remaining_to_next} more paid order${stats.remaining_to_next !== 1 ? "s" : ""} until your next $${stats.bounty_amount}.`}
                   </p>
-                )}
+                </div>
+                {/* Claim */}
+                <div className="px-6 py-4 border-t border-[oklch(0.93_0.004_260)] bg-[oklch(0.98_0.002_260)]">
+                  {stats.claimable ? (
+                    <a href={claimHref} className="flex items-center justify-center gap-2 bg-[oklch(0.40_0.14_155)] text-white font-semibold text-[0.9375rem] px-6 py-3 rounded-xl hover:bg-[oklch(0.35_0.14_155)] transition-colors">
+                      <DollarSign className="w-4 h-4" /> Claim ${payoutsDue * stats.bounty_amount}
+                    </a>
+                  ) : (
+                    <p className="text-center text-[0.8125rem] text-[oklch(0.55_0.01_260)]">
+                      Hit {stats.bounty_orders} paid referrals to unlock your first payout.
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -287,7 +319,7 @@ export default function Referral() {
           <p className="text-[oklch(0.45_0.01_260)] mb-10">If you can paste a link, you can earn with this.</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
-              { tag: "1", title: "Get Your Code", body: `Enter your name and email above. Your personal code — like SARAH or MIKE3 — is ready instantly. No waiting, no approval.` },
+              { tag: "1", title: "Sign In & Get Your Code", body: `Sign in with Google or your email above. Your personal code — like SARAH or MIKE3 — is ready instantly and tied to your account, so it's never lost.` },
               { tag: "2", title: "Share It Anywhere", body: `Drop it in Reddit threads, Discord servers, forums — anywhere people talk about peptides or research. Your buyers get ${buyerDiscount}% off automatically.` },
               { tag: `$${bountyAmount}`, title: "Get Paid", body: `Every ${bountyOrders} paid orders using your code = $${bountyAmount} cash. Hit Claim on your dashboard and we pay within 48 hours. No cap — ever.` },
             ].map((s) => (
@@ -332,6 +364,7 @@ export default function Referral() {
           <div className="space-y-3">
             {[
               { q: `How exactly does the $${bountyAmount} payout work?`, a: `Every ${bountyOrders} paid orders using your code earns you $${bountyAmount} cash. Orders build toward it; the ${ordinal(bountyOrders)} triggers it — then the cycle resets. No cap. ${bountyOrders * 2} referrals = $${bountyAmount * 2}. ${bountyOrders * 10} = $${bountyAmount * 10}.` },
+              { q: "Why do I need to sign in?", a: "Your code is locked to your account, so every order it brings in — and every dollar you earn — is tracked to you and can never be lost or claimed by someone else. Sign in once with Google or an email link and your dashboard is always there." },
               { q: "How do I claim my payout?", a: `Once you hit ${bountyOrders} referrals a Claim button appears on your dashboard. Click it — it opens an email to ${CLAIM_EMAIL} with your code and stats pre-filled. Just hit send. We process within 48 hours via PayPal, Venmo, or crypto.` },
               { q: "What does my referral get?", a: `Anyone who enters your code at checkout gets ${buyerDiscount}% off their entire order. That's a real discount that makes people actually want to use your code.` },
               { q: "Does my code expire?", a: "Never. Post it once in a forum — if someone finds it six months later and orders, you get the credit." },
@@ -355,6 +388,17 @@ export default function Referral() {
         </div>
       </section>
     </div>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" />
+      <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38Z" />
+    </svg>
   );
 }
 
