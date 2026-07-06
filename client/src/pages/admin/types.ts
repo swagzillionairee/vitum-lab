@@ -36,6 +36,7 @@ export interface OrderRow {
   created_at: string;
   items?: OrderItem[];
   fulfillment_status?: string;
+  payment_method?: string | null;
   tracking_number?: string | null;
   carrier?: string | null;
   cancel_reason?: string | null;

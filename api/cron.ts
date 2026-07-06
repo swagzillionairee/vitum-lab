@@ -95,19 +95,33 @@ export default async function handler(req: any, res: any) {
   const results = { expired: 0, emailed: 0, errors: 0, lowStockDigest: 0, delivered: 0, followup: 0, statements: 0 };
 
   try {
-    // 1. Expire stale pending orders (mirrors the original pg_cron SQL).
-    const cutoff = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const { data: expired } = await supabaseAdmin
+    // 1. Expire stale pending orders (mirrors the expire_stale_orders pg_cron
+    // fn). Automated invoices (crypto/square/legacy-null) die at 24h; manual
+    // transfers the admin verifies (Zelle/Cash App/Venmo/ACH) get 14 days.
+    const MANUAL_METHODS = ["zelle", "cashapp", "venmo", "ach"];
+    const nowIso = new Date().toISOString();
+    const cutoff24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const cutoff14d = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
+    const expired: any[] = [];
+    // Automated: crypto/square, or legacy rows with no payment_method.
+    const { data: autoExpired } = await supabaseAdmin
       .from("orders")
-      .update({
-        status: "cancelled",
-        cancelled_at: new Date().toISOString(),
-        cancel_reason: "auto-expired: payment not received within 24h",
-      })
+      .update({ status: "cancelled", cancelled_at: nowIso, cancel_reason: "auto-expired: payment not received in time" })
       .eq("status", "pending")
-      .lt("created_at", cutoff)
+      .lt("created_at", cutoff24)
+      .or("payment_method.is.null,payment_method.eq.crypto,payment_method.eq.square")
       .select(ORDER_COLS);
-    results.expired = expired?.length ?? 0;
+    expired.push(...(autoExpired ?? []));
+    // Manual transfers — longer grace window.
+    const { data: manualExpired } = await supabaseAdmin
+      .from("orders")
+      .update({ status: "cancelled", cancelled_at: nowIso, cancel_reason: "auto-expired: payment not received in time" })
+      .eq("status", "pending")
+      .lt("created_at", cutoff14d)
+      .in("payment_method", MANUAL_METHODS)
+      .select(ORDER_COLS);
+    expired.push(...(manualExpired ?? []));
+    results.expired = expired.length;
 
     for (const order of expired ?? []) {
       try {

@@ -3,7 +3,28 @@ import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { isSitewideActive } from "../_lib/pricing.js";
 import { paidIpnAction } from "../_lib/orderLifecycle.js";
 import { isTagadaPaidEvent, isTagadaRefundEvent, verifyTagadaWebhook, TAGADA_SIG_HEADER } from "../_lib/tagada.js";
+import { squareConfigured } from "../_lib/square.js";
 import { ORDER_COLS, confirmPaidOrder, sendConfirmationEmails, recordLatePayment, refundClawback, type PaymentMeta } from "../_lib/fulfillment.js";
+
+// Shape the admin payment_config into the offer the checkout renders. A manual
+// method is offered only when enabled AND it has a handle; Square only when
+// enabled AND the server has credentials; crypto defaults on.
+function buildPayments(raw: unknown) {
+  const cfg = (raw ?? {}) as Record<string, { enabled?: boolean; handle?: string; instructions?: string }>;
+  const manual = (key: string) => {
+    const m = cfg[key] ?? {};
+    const handle = String(m.handle ?? "").trim();
+    return { enabled: !!m.enabled && handle.length > 0, handle, instructions: String(m.instructions ?? "") };
+  };
+  return {
+    square: { enabled: !!cfg.square?.enabled && squareConfigured() },
+    zelle: manual("zelle"),
+    cashapp: manual("cashapp"),
+    venmo: manual("venmo"),
+    ach: manual("ach"),
+    crypto: { enabled: cfg.crypto?.enabled !== false },
+  };
+}
 
 // bodyParser off so the Tagada webhook can read the raw body for signature
 // verification. The GET routes below don't use req.body, so this is harmless.
@@ -156,6 +177,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         bounty_orders: Number(s?.referral_bounty_orders ?? 5),
         min_order: Number(s?.referral_min_order ?? 0),
       },
+      // Payment methods offered at checkout. A manual method appears only when
+      // enabled AND it has a handle to send to; Square appears only when enabled
+      // AND its server credentials are present. Handles are public (customers
+      // must see them to pay).
+      payments: buildPayments(s?.payment_config),
       // Whether card checkout (TagadaPay) is live — sourced from the single
       // server flag so the storefront shows the "Pay with card" option without a
       // separate client build flag to keep in sync.

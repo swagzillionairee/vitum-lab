@@ -28,13 +28,14 @@ import AffiliatesTab from "./admin/AffiliatesTab";
 import PromosTab from "./admin/PromosTab";
 import CustomersTab from "./admin/CustomersTab";
 import ShippingTab from "./admin/ShippingTab";
+import PaymentsTab from "./admin/PaymentsTab";
 
 // ─── Main dashboard ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { session, loading, signOut } = useAuth();
   const [, navigate] = useLocation();
   const [authorized, setAuthorized] = useState<boolean | null>(null);
-  const [tab, setTab] = useState<"overview" | "products" | "inventory" | "orders" | "shipping" | "affiliates" | "promos" | "customers">("overview");
+  const [tab, setTab] = useState<"overview" | "products" | "inventory" | "orders" | "shipping" | "payments" | "affiliates" | "promos" | "customers">("overview");
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Products
@@ -366,6 +367,7 @@ export default function AdminDashboard() {
     { key: "inventory" as const, label: "Inventory", icon: Package },
     { key: "orders" as const, label: "Orders", icon: ClipboardList },
     { key: "shipping" as const, label: "Shipping", icon: Truck },
+    { key: "payments" as const, label: "Payments", icon: Banknote },
     { key: "affiliates" as const, label: "Affiliates", icon: Users },
     { key: "promos" as const, label: "Promos", icon: Tag },
     { key: "customers" as const, label: "Customers", icon: UserRound },
@@ -875,6 +877,9 @@ export default function AdminDashboard() {
                               <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${STATUS_COLORS[o.status] ?? STATUS_COLORS.pending}`}>
                                 {o.status}
                               </span>
+                              {o.status === "pending" && ["zelle", "cashapp", "venmo", "ach"].includes(o.payment_method ?? "") && (
+                                <span className="block mt-1 text-[0.625rem] font-semibold uppercase tracking-wide text-[oklch(0.55_0.12_50)]">awaiting {o.payment_method}</span>
+                              )}
                             </td>
                             <td className="py-3 pr-4">
                               {isPaid ? (
@@ -889,8 +894,14 @@ export default function AdminDashboard() {
                             <td className="py-3">
                               <div className="flex items-center justify-end gap-1.5">
                                 {busy && <Loader2 className="w-3.5 h-3.5 animate-spin text-[oklch(0.52_0.01_260)]" />}
-                                {o.status === "pending" && (
-                                  <button onClick={() => orderAction(o.id, "recheck")} disabled={busy} title="Re-check payment status (NowPayments or TagadaPay)"
+                                {o.status === "pending" && ["zelle", "cashapp", "venmo", "ach"].includes(o.payment_method ?? "") && (
+                                  <button onClick={() => { if (confirm(`Confirm you received this ${o.payment_method} payment? This marks the order paid, decrements stock, and emails the customer.`)) orderAction(o.id, "mark_paid"); }} disabled={busy} title="Mark this manual transfer as received"
+                                    className="flex items-center gap-1 text-[0.7rem] font-semibold text-white bg-[oklch(0.42_0.13_155)] px-2 py-1 rounded-lg hover:bg-[oklch(0.37_0.13_155)] disabled:opacity-50">
+                                    <CheckCircle2 className="w-3 h-3" /> Mark paid
+                                  </button>
+                                )}
+                                {o.status === "pending" && !["zelle", "cashapp", "venmo", "ach"].includes(o.payment_method ?? "") && (
+                                  <button onClick={() => orderAction(o.id, "recheck")} disabled={busy} title="Re-check payment status (NowPayments)"
                                     className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.40_0.16_260)] border border-[oklch(0.40_0.16_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.02_260)] disabled:opacity-50">
                                     <RefreshCw className="w-3 h-3" /> Re-check
                                   </button>
@@ -1095,6 +1106,7 @@ export default function AdminDashboard() {
 
         {/* ── Self-contained tabs (own their state + data fetching) ───────── */}
         {tab === "shipping" && <ShippingTab />}
+        {tab === "payments" && <PaymentsTab />}
         {tab === "affiliates" && <AffiliatesTab onMutate={loadData} />}
         {tab === "promos" && <PromosTab />}
         {tab === "customers" && <CustomersTab />}
