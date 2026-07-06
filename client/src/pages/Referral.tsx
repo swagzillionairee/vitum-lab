@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
-import { Check, Copy, ArrowRight, Zap, Share2, DollarSign, Loader2, Mail, ShieldCheck, LogOut } from "lucide-react";
+import { Check, Copy, ArrowRight, Zap, Share2, DollarSign, Loader2, Mail, ShieldCheck, LogOut, Award } from "lucide-react";
 import SEO from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
@@ -22,6 +22,7 @@ interface Stats {
   active: boolean; code: string; link: string; buyer_discount: number;
   paid_orders: number; bounty_orders: number; bounty_amount: number;
   earned: number; toward_next: number; remaining_to_next: number; claimable: boolean;
+  already_affiliate?: boolean; affiliate_code?: string;
 }
 
 export default function Referral() {
@@ -228,6 +229,27 @@ export default function Referral() {
           ) : stats && !stats.active ? (
             <div className="text-center py-6">
               <p className="text-[0.9375rem] text-[oklch(0.45_0.01_260)]">The referral program isn't open right now — check back soon.</p>
+            </div>
+          ) : stats && stats.already_affiliate ? (
+            /* ── Signed-in, but already a curated affiliate ──────────────── */
+            <div className="text-center py-2">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[oklch(0.95_0.04_85)] text-[oklch(0.55_0.13_85)] mb-4">
+                <Award className="w-7 h-7" />
+              </div>
+              <h2 className="text-[1.5rem] font-bold text-[oklch(0.13_0.02_255)]">You're already an affiliate</h2>
+              <p className="text-[0.9375rem] text-[oklch(0.45_0.01_260)] mt-2 max-w-md mx-auto">
+                Your affiliate {stats.affiliate_code ? <>code <span className="font-mono font-bold text-[oklch(0.20_0.02_255)]">{stats.affiliate_code}</span></> : "code"} already
+                gives your buyers a discount <span className="whitespace-nowrap">— and earns you a commission on every paid order,</span> which
+                beats the referral bounty. Just keep sharing that code; your earnings and payouts live in your affiliate dashboard.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
+                <Link href="/affiliate/dashboard" className="inline-flex items-center gap-1.5 bg-[oklch(0.55_0.13_200)] text-white font-semibold text-[0.9375rem] px-6 py-3 rounded-xl hover:bg-[oklch(0.48_0.13_200)] transition-colors">
+                  Go to affiliate dashboard <ArrowRight className="w-4 h-4" />
+                </Link>
+                <button onClick={() => signOut()} className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)]">
+                  <LogOut className="w-4 h-4" /> Sign out
+                </button>
+              </div>
             </div>
           ) : stats ? (
             /* ── Signed-in: code + dashboard ─────────────────────────────── */
