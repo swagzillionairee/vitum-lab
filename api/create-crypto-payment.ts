@@ -69,10 +69,15 @@ async function resolveDiscount(code: string, gross: number, email: string, cfg: 
 
   const { data: aff } = await supabaseAdmin
     .from("affiliates")
-    .select("id, discount_percent, commission_percent")
+    .select("id, discount_percent, commission_percent, is_referral, email")
     .eq("code", normalized)
     .maybeSingle();
-  if (aff) return { kind: "affiliate", percent: aff.discount_percent, affiliateId: aff.id, commissionPercent: aff.commission_percent };
+  if (aff) {
+    // Self-serve referral codes can't be redeemed by the person who created them
+    // (anti-self-referral: no farming your own discount + payout).
+    if (aff.is_referral && (aff.email || "").toLowerCase() === email.toLowerCase()) return null;
+    return { kind: "affiliate", percent: aff.discount_percent, affiliateId: aff.id, commissionPercent: aff.commission_percent };
+  }
 
   const { data: promo } = await supabaseAdmin
     .from("promo_codes")

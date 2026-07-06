@@ -19,6 +19,7 @@ const baseNavLinks = [
   { label: "Shop", href: "/shop" },
   { label: "COA Library", href: "/coa-library" },
   { label: "Research", href: "/research" },
+  { label: "Referral", href: "/referral" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
   { label: "Track Order", href: "/track" },

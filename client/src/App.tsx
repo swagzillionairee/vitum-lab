@@ -37,6 +37,7 @@ import OrderTracking from "./pages/OrderTracking";
 import DoseCalculator from "./pages/DoseCalculator";
 import COALibrary from "./pages/COALibrary";
 import Research from "./pages/Research";
+import Referral from "./pages/Referral";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import Login from "./pages/Login";
@@ -78,6 +79,7 @@ function Router() {
       <Route path="/reconstitution-calculator" component={DoseCalculator} />
       <Route path="/dose-calculator" component={DoseCalculator} />
       <Route path="/research" component={Research} />
+      <Route path="/referral" component={Referral} />
       <Route path="/checkout" component={Checkout} />
       <Route path="/track" component={OrderTracking} />
       <Route path="/order-success" component={OrderSuccess} />

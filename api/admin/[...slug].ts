@@ -190,7 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const [orderRows, invRes, affRes, payRes] = await Promise.all([
         fetchAllOrders(),
         supabaseAdmin.from("inventory").select("cart_code, stock"),
-        supabaseAdmin.from("affiliates").select("id, code, name"),
+        supabaseAdmin.from("affiliates").select("id, code, name").eq("is_referral", false),
         supabaseAdmin.from("affiliate_payouts").select("affiliate_id, amount"),
       ]);
       rows = orderRows;
@@ -837,11 +837,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json({ pdf: Buffer.from(bytes).toString("base64") });
   }
 
+  // ── /api/admin/referral-program — self-serve referral config (bounty + buyer
+  // discount). Editing the buyer discount re-syncs it onto every referral code. ─
+  if (route === "referral-program") {
+    if (req.method === "GET") {
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .select("referral_program_active, referral_buyer_discount, referral_bounty_amount, referral_bounty_orders")
+        .maybeSingle();
+      if (error) return res.status(500).json({ error: "Failed to load referral config" });
+      return res.json(data ?? { referral_program_active: false, referral_buyer_discount: 10, referral_bounty_amount: 100, referral_bounty_orders: 5 });
+    }
+    if (req.method === "PUT") {
+      const b = req.body ?? {};
+      const active = !!b.active;
+      const buyerDiscount = Math.max(0, Math.min(100, Math.round(Number(b.buyer_discount) || 0)));
+      const bountyAmount = Math.max(0, Number(b.bounty_amount) || 0);
+      const bountyOrders = Math.max(1, Math.round(Number(b.bounty_orders) || 1));
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .upsert(
+          {
+            id: true,
+            referral_program_active: active,
+            referral_buyer_discount: buyerDiscount,
+            referral_bounty_amount: bountyAmount,
+            referral_bounty_orders: bountyOrders,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        )
+        .select("referral_program_active, referral_buyer_discount, referral_bounty_amount, referral_bounty_orders")
+        .maybeSingle();
+      if (error) return res.status(400).json({ error: error.message });
+      // Re-sync the buyer discount onto every existing referral code so a change
+      // applies retroactively (checkout reads discount_percent per affiliate row).
+      await supabaseAdmin.from("affiliates").update({ discount_percent: buyerDiscount }).eq("is_referral", true);
+      return res.json(data);
+    }
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   // ── /api/admin/affiliates ────────────────────────────────────────────────
   if (route === "affiliates") {
     if (req.method === "GET") {
       const [{ data: affs, error }, { data: payouts }] = await Promise.all([
-        supabaseAdmin.from("affiliates").select("id, email, code, name, discount_percent, commission_percent, created_at").order("created_at"),
+        supabaseAdmin.from("affiliates").select("id, email, code, name, discount_percent, commission_percent, created_at").eq("is_referral", false).order("created_at"),
         supabaseAdmin.from("affiliate_payouts").select("id, affiliate_id, amount, note, created_at").order("created_at", { ascending: false }),
       ]);
       if (error) return res.status(500).json({ error: "Failed to fetch affiliates" });
