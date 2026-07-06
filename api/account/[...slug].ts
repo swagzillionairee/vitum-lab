@@ -138,14 +138,14 @@ export default async function handler(req: any, res: any) {
     // so we can't mint a second (referral) code for this account — and they don't
     // need one: their affiliate code already gives buyers a discount AND earns a
     // % commission. Point them to their affiliate dashboard instead of erroring.
+    // Two typed .eq() lookups (NOT a .or() string) — an email can contain
+    // characters that are special inside PostgREST's .or() grammar (same
+    // pattern as api/me.ts).
     {
-      const { data: aff } = await supabaseAdmin
-        .from("affiliates")
-        .select("code")
-        .eq("is_referral", false)
-        .or(`user_id.eq.${user.id},email.eq.${user.email}`)
-        .limit(1)
-        .maybeSingle();
+      const { data: byUser } = await supabaseAdmin
+        .from("affiliates").select("code").eq("is_referral", false).eq("user_id", user.id).limit(1).maybeSingle();
+      const aff = byUser ?? (await supabaseAdmin
+        .from("affiliates").select("code").eq("is_referral", false).eq("email", user.email).limit(1).maybeSingle()).data;
       if (aff) { res.status(200).json({ active: true, already_affiliate: true, affiliate_code: aff.code }); return; }
     }
 
@@ -230,14 +230,22 @@ export default async function handler(req: any, res: any) {
     // confirmed/finished order with this code that clears the minimum — and who
     // aren't the referrer. Refunded/cancelled orders fall out automatically
     // (they leave confirmed/finished), so a refund claws the referral back. One
-    // buyer ordering repeatedly counts once, so a single friend can't farm a payout.
-    const { data: refOrders } = await supabaseAdmin
-      .from("orders")
-      .select("email, net_amount")
-      .eq("affiliate_id", ref.id)
-      .in("status", ["confirmed", "finished"]);
+    // buyer ordering repeatedly counts once, so a single friend can't farm a
+    // payout. Paged past the 1000-row cap so a popular code never undercounts.
+    const refOrders: { email: string | null; net_amount: number | string | null }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data: batch } = await supabaseAdmin
+        .from("orders")
+        .select("email, net_amount")
+        .eq("affiliate_id", ref.id)
+        .in("status", ["confirmed", "finished"])
+        .order("created_at", { ascending: true })
+        .range(from, from + 999);
+      refOrders.push(...((batch ?? []) as typeof refOrders));
+      if (!batch || batch.length < 1000) break;
+    }
     const qualifiedBuyers = new Set(
-      (refOrders ?? [])
+      refOrders
         .filter((o) => Number(o.net_amount ?? 0) >= minOrder && (o.email ?? "").toLowerCase() !== user.email)
         .map((o) => (o.email ?? "").toLowerCase()),
     );

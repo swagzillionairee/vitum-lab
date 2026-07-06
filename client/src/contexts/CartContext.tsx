@@ -51,7 +51,10 @@ const FREE_BAC_WATER: Omit<CartItem, "quantity"> = {
 function loadCart(): CartItem[] {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    // Shape guard: valid JSON that isn't an item array (extension/stale writer)
+    // would crash every page at items.reduce — treat it as an empty cart.
+    return Array.isArray(parsed) ? parsed.filter((i) => i && typeof i === "object" && typeof i.cartCode === "string") : [];
   } catch {
     return [];
   }

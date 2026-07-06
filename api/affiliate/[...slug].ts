@@ -13,15 +13,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── /api/affiliate/stats ──────────────────────────────────────────────────
   if (route === "stats") {
-    const { data, error } = await supabaseAdmin
-      .from("orders")
-      .select("net_amount, discount_amount, commission_amount, status, created_at")
-      .eq("affiliate_id", affiliate.id)
-      .in("status", ["confirmed", "finished"]);
-
-    if (error) return res.status(500).json({ error: "Failed to fetch stats" });
-
-    const orders = data ?? [];
+    // Page past PostgREST's 1000-row response cap (stable order so pages can't
+    // skip/duplicate rows) — a single un-paged select silently undercounted
+    // revenue/commission once an affiliate passed 1000 paid orders.
+    const orders: { net_amount: number | string | null; discount_amount: number | string | null; commission_amount: number | string | null; status: string; created_at: string }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabaseAdmin
+        .from("orders")
+        .select("net_amount, discount_amount, commission_amount, status, created_at")
+        .eq("affiliate_id", affiliate.id)
+        .in("status", ["confirmed", "finished"])
+        .order("created_at", { ascending: true })
+        .range(from, from + 999);
+      if (error) return res.status(500).json({ error: "Failed to fetch stats" });
+      orders.push(...((data ?? []) as typeof orders));
+      if (!data || data.length < 1000) break;
+    }
     const totalOrders = orders.length;
     const revenue = orders.reduce((s, o) => s + Number(o.net_amount || 0), 0);
     const discountsGiven = orders.reduce((s, o) => s + Number(o.discount_amount || 0), 0);

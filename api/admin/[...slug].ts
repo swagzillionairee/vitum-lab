@@ -111,6 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .from("orders")
         .select("email, net_amount")
         .in("status", ["confirmed", "finished"])
+        .order("created_at", { ascending: true })
         .range(from, from + 999);
       for (const o of batch ?? []) {
         const key = (o.email as string | null)?.toLowerCase() ?? "";
@@ -468,19 +469,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (action === "cancel") {
         if (order.status === "cancelled") return res.status(409).json({ error: "Order is already cancelled" });
         const wasPending = order.status === "pending";
-        // Restock only if the order was paid (stock was decremented on confirm).
+        // Atomically CLAIM the cancel against the status we read (CAS): a
+        // double-click or a refund webhook racing this cancel makes the second
+        // writer match 0 rows — so the restock below can never run twice.
+        const { data, error } = await supabaseAdmin
+          .from("orders")
+          .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: body.reason ?? "Cancelled by admin" })
+          .eq("id", id)
+          .eq("status", order.status)
+          .select(orderSelect)
+          .maybeSingle();
+        if (error) return res.status(500).json({ error: "Failed to cancel order" });
+        if (!data) return res.status(409).json({ error: "Order changed while cancelling — refresh and try again" });
+        // Restock only if the order was paid (stock was decremented on confirm)
+        // — AFTER winning the claim, so concurrent cancels can't double-restock.
         if (PAID.includes(order.status)) {
           for (const item of paidItems) {
             await supabaseAdmin.rpc("increment_stock", { p_cart_code: item.cartCode, p_qty: item.quantity });
           }
         }
-        const { data, error } = await supabaseAdmin
-          .from("orders")
-          .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: body.reason ?? "Cancelled by admin" })
-          .eq("id", id)
-          .select(orderSelect)
-          .single();
-        if (error) return res.status(500).json({ error: "Failed to cancel order" });
         return res.json(await emailAndRefresh(data, "cancelled", { wasPending }));
       }
 
@@ -645,41 +652,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const isFailed = statuses.every((s) => s === "failed" || s === "expired" || s === "refunded");
 
         if (isPaid && order.status === "pending") {
-          for (const item of paidItems) {
-            await supabaseAdmin.rpc("decrement_stock", { p_cart_code: item.cartCode, p_qty: item.quantity });
-          }
+          // Reuse the shared ATOMIC confirm path (pending→confirmed claim +
+          // stock + promo + rewards) — the same one the webhooks use. The old
+          // inline version here decremented stock with no claim, so a Re-check
+          // racing an IPN (or two rapid clicks) double-decremented stock and
+          // double-counted the promo.
           const paid = matches.find((m) => m.payment_status === "finished" || m.payment_status === "confirmed");
-          const { data, error } = await supabaseAdmin
-            .from("orders")
-            .update({
-              status: "confirmed",
-              confirmed_at: new Date().toISOString(),
-              pay_currency: paid?.pay_currency ?? null,
-              pay_amount: paid?.actually_paid ?? paid?.pay_amount ?? null,
-              payment_id: paid?.payment_id != null ? String(paid.payment_id) : null,
-            })
-            .eq("id", id)
-            .select(orderSelect)
-            .single();
-          if (error) return res.status(500).json({ error: "Failed to update order" });
-          if (data.discount_code) {
-            await supabaseAdmin.rpc("increment_promo_use", { p_code: data.discount_code }).then(() => {}, () => {});
+          const { data: full } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("id", id).maybeSingle();
+          if (full) {
+            await confirmPaidOrder(full, {
+              payCurrency: paid?.pay_currency ?? null,
+              payAmount: paid?.actually_paid ?? paid?.pay_amount ?? null,
+              paymentId: paid?.payment_id != null ? String(paid.payment_id) : null,
+            });
+            await sendConfirmationEmails(full);
           }
-          await emailAndRefresh(data, "confirmed");
-          await emailAndRefresh(data, "admin_new_order");
-          // Loyalty earn + referral reward (idempotent via the ledger).
-          try {
-            const cfg = await getRewardConfig();
-            await earnLoyalty(data, cfg.loyaltyPercent);
-            await grantReferralReward(data, cfg.referrerAmount);
-          } catch (err) { console.error("rewards (recheck) failed:", err); }
-          // Notify the attributed affiliate of their commission (idempotent).
-          if (data.affiliate_id && Number(data.commission_amount) > 0) {
-            try {
-              const { data: aff } = await supabaseAdmin.from("affiliates").select("email, code").eq("id", data.affiliate_id).maybeSingle();
-              if (aff?.email) await sendAffiliateCommission(data as EmailOrder, { email: aff.email, code: aff.code, commission: Number(data.commission_amount) });
-            } catch (err) { console.error("affiliate commission email failed:", err); }
-          }
+          const { data } = await supabaseAdmin.from("orders").select(orderSelect).eq("id", id).single();
           return res.json({ ...data, recheck: "confirmed" });
         }
 
@@ -897,6 +885,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .select("affiliate_id, commission_amount")
           .in("status", ["confirmed", "finished"])
           .not("affiliate_id", "is", null)
+          .order("created_at", { ascending: true })
           .range(from, from + 999);
         for (const o of batch ?? []) {
           const aid = o.affiliate_id as string;
@@ -924,6 +913,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.json(result);
     }
 
+    // Percent fields are money-critical: a negative discount silently SURCHARGES
+    // customers (the discount line is hidden when ≤ 0) and >100 makes orders free.
+    // Clamp server-side regardless of what the admin UI sends.
+    const clampPct = (v: unknown) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+
     if (req.method === "POST") {
       const { email, code, name, discount_percent, commission_percent } = req.body ?? {};
       if (!email || !code) return res.status(400).json({ error: "email and code are required" });
@@ -933,8 +927,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           email: String(email).toLowerCase().trim(),
           code: String(code).toUpperCase().trim(),
           name: name || null,
-          discount_percent: Number(discount_percent) || 0,
-          commission_percent: Number(commission_percent) || 0,
+          discount_percent: clampPct(discount_percent),
+          commission_percent: clampPct(commission_percent),
         })
         .select()
         .single();
@@ -947,7 +941,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!id) return res.status(400).json({ error: "id required" });
       const allowed: Record<string, unknown> = {};
       for (const k of ["name", "code", "email", "discount_percent", "commission_percent"]) {
-        if (patch[k] !== undefined) allowed[k] = k === "code" ? String(patch[k]).toUpperCase().trim() : patch[k];
+        if (patch[k] === undefined) continue;
+        allowed[k] =
+          k === "code" ? String(patch[k]).toUpperCase().trim()
+          : k === "discount_percent" || k === "commission_percent" ? clampPct(patch[k])
+          : patch[k];
       }
       const { data, error } = await supabaseAdmin.from("affiliates").update(allowed).eq("id", id).select().single();
       if (error) return res.status(400).json({ error: error.message });
@@ -1222,7 +1220,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "PATCH") {
       const { id, ...patch } = req.body;
       if (!id) return res.status(400).json({ error: "id required" });
-      const { data, error } = await supabaseAdmin.from("products").update(patch).eq("id", id).select().single();
+      // Column allowlist (mirrors the POST insert) — a stray/crafted body key
+      // must not write arbitrary columns.
+      const PRODUCT_COLS = [
+        "slug", "name", "full_name", "category", "tagline", "description", "long_description",
+        "card_bg", "badge", "variants", "specs", "storage_instructions", "reconstitution_note",
+        "research_notes", "coa_href", "is_active", "display_order",
+      ];
+      const allowed: Record<string, unknown> = {};
+      for (const k of PRODUCT_COLS) if (patch[k] !== undefined) allowed[k] = patch[k];
+      if (Object.keys(allowed).length === 0) return res.status(400).json({ error: "No editable fields in request" });
+      const { data, error } = await supabaseAdmin.from("products").update(allowed).eq("id", id).select().single();
       if (error) return res.status(400).json({ error: error.message });
       return res.json(data);
     }
@@ -1243,6 +1251,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const { filename, contentType } = req.body;
     if (!filename) return res.status(400).json({ error: "filename required" });
+    // Images only: check both the declared content type and the extension
+    // before minting a signed upload URL for the public bucket.
+    const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
+    const ext = String(filename).toLowerCase().match(/\.(jpe?g|png|webp|gif|avif)$/)?.[0];
+    if (!ext || (contentType && !IMAGE_TYPES.includes(String(contentType).toLowerCase()))) {
+      return res.status(400).json({ error: "Only image files (jpg, png, webp, gif, avif) can be uploaded" });
+    }
     const path = `products/${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const { data, error } = await supabaseAdmin.storage.from("product-images").createSignedUploadUrl(path);
     if (error) return res.status(500).json({ error: error.message });

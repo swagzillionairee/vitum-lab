@@ -361,7 +361,16 @@ function ReferralProgramCard() {
     setSaving(false);
     if (!res.ok) { setErr((await res.json().catch(() => ({}))).error ?? "Failed to save"); return; }
     const d = await res.json();
-    setForm((f) => f && { ...f, active: !!d.referral_program_active });
+    // Re-sync ALL fields from the response — the server clamps out-of-range
+    // values (e.g. bounty_orders → min 1), and the form must show what was
+    // actually saved, not what was typed.
+    setForm({
+      active: !!d.referral_program_active,
+      buyer_discount: String(d.referral_buyer_discount ?? 10),
+      bounty_amount: String(d.referral_bounty_amount ?? 100),
+      bounty_orders: String(d.referral_bounty_orders ?? 5),
+      min_order: String(d.referral_min_order ?? 0),
+    });
     setMsg(active ? "Referral program is live at /referral." : "Referral program turned off.");
   };
 
@@ -464,7 +473,10 @@ export default function PromosTab() {
         min_subtotal: promoForm.min_subtotal ? Number(promoForm.min_subtotal) : 0,
         max_uses: promoForm.max_uses ? Number(promoForm.max_uses) : null,
         starts_at: promoForm.starts_at ? new Date(`${promoForm.starts_at}T00:00:00`).toISOString() : null,
-        expires_at: promoForm.expires_at ? new Date(promoForm.expires_at).toISOString() : null,
+        // End-of-day LOCAL (same as the site-wide sale): a bare "YYYY-MM-DD"
+        // parses as UTC midnight, which killed codes the evening before the
+        // chosen date and made a same-day start/expire promo never valid.
+        expires_at: promoForm.expires_at ? new Date(`${promoForm.expires_at}T23:59:59`).toISOString() : null,
       }),
     });
     setPromoSaving(false);

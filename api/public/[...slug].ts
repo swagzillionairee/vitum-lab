@@ -98,8 +98,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!Number.isFinite(capturedCents) || Math.abs(capturedCents - dueCents) > 1) {
           await recordLatePayment(order, meta, `⚠️ Tagada "${type}" captured ${meta.payAmount} but order amountDue is ${dueCents} cents — NOT fulfilled. Review before shipping.`);
         } else {
-          await confirmPaidOrder(order, meta);
-          await sendConfirmationEmails(order);
+          const claimed = await confirmPaidOrder(order, meta);
+          if (claimed) {
+            await sendConfirmationEmails(order);
+          } else {
+            // Lost the pending→confirmed claim. Re-read: a duplicate webhook that
+            // lost to its twin (now confirmed) still resends idempotent emails; but
+            // if the hourly expiry cancelled the order a moment before the payment
+            // landed, alert the admin instead of telling the customer "confirmed".
+            const { data: now } = await supabaseAdmin.from("orders").select("status").eq("id", order.id).maybeSingle();
+            if (now?.status === "confirmed" || now?.status === "finished") {
+              await sendConfirmationEmails(order);
+            } else {
+              await recordLatePayment(order, meta, `⚠️ Tagada "${type}" payment landed while this order was being ${now?.status ?? "removed"} (expiry race). Not fulfilled automatically — refund or fulfill manually.`);
+            }
+          }
         }
       } else {
         // Already confirmed (duplicate / synchronous-confirm backup) — resend only.

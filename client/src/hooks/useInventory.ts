@@ -24,7 +24,10 @@ export function useInventory() {
   const [loading, setLoading] = useState(!cache);
 
   useEffect(() => {
-    if (cache) return;
+    // Same cache-arrival race as useProducts: if the shared cache filled between
+    // this component's initial render and this effect, adopt it and clear
+    // loading — the old bare return stranded stale state for that instance.
+    if (cache) { setStock(cache); setLoading(false); return; }
     fetchInventory().then((data) => {
       setStock(data);
       setLoading(false);

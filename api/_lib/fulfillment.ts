@@ -6,7 +6,7 @@
  */
 import { supabaseAdmin } from "./supabase-admin.js";
 import { sendOrderEvent, sendAffiliateCommission, type EmailOrder } from "./email.js";
-import { getRewardConfig, earnLoyalty, grantReferralReward } from "./credit.js";
+import { getRewardConfig, earnLoyalty, grantReferralReward, releaseDiscountRedemption } from "./credit.js";
 
 /** Columns a webhook needs to confirm/flag an order (mirrors nowpayments-webhook). */
 export const ORDER_COLS =
@@ -38,8 +38,14 @@ async function notifyAffiliate(order: any): Promise<void> {
 /**
  * Decrement stock, mark the order confirmed (+ payment meta), count promo use,
  * and grant loyalty/referral rewards. Call once, when the order is pending.
+ * Returns true when THIS call won the pending→confirmed claim (side effects ran),
+ * false when another caller already confirmed it — or the order is no longer
+ * pending at all (e.g. the hourly cron expired it a moment earlier). Callers
+ * must re-check the order before emailing on a false return: a payment landing
+ * on a just-cancelled order must alert the admin, not tell the customer
+ * "confirmed" while the row stays cancelled.
  */
-export async function confirmPaidOrder(order: any, meta: PaymentMeta): Promise<void> {
+export async function confirmPaidOrder(order: any, meta: PaymentMeta): Promise<boolean> {
   // Atomically CLAIM the pending→confirmed transition. Only the caller that flips
   // the row (WHERE status='pending') runs the side effects below, so a synchronous
   // confirm racing its own webhook — or a processor firing two paid callbacks in
@@ -61,7 +67,7 @@ export async function confirmPaidOrder(order: any, meta: PaymentMeta): Promise<v
     .select("id")
     .maybeSingle();
 
-  if (!claimed) return; // another confirmation already won the race — do nothing
+  if (!claimed) return false; // another confirmation (or an expiry) won the race
 
   const items = (order.items as { cartCode: string; quantity: number; price: number }[]) ?? [];
   for (const item of items) {
@@ -94,6 +100,7 @@ export async function confirmPaidOrder(order: any, meta: PaymentMeta): Promise<v
   } catch (err) {
     console.error("Failed to apply loyalty/referral rewards:", err);
   }
+  return true;
 }
 
 /** Idempotent confirmation emails (customer + admin alert + affiliate commission). */
@@ -114,6 +121,11 @@ export async function sendConfirmationEmails(order: any): Promise<void> {
 export async function refundClawback(order: any, reason: string): Promise<void> {
   if (order.status === "cancelled" || order.status === "failed") return;
 
+  // Snapshot BEFORE the claim: stock is only decremented on confirmation, so a
+  // refund on a still-pending order (charge landed pending, then reversed) must
+  // NOT restock — that would inflate inventory with units never taken out.
+  const wasPaid = order.status === "confirmed" || order.status === "finished";
+
   const note = `♻️ ${reason} — auto-cancelled so rewards, commission, and referral credit are clawed back.`;
   const { data: claimed } = await supabaseAdmin
     .from("orders")
@@ -124,14 +136,18 @@ export async function refundClawback(order: any, reason: string): Promise<void> 
       admin_notes: order.admin_notes ? `${order.admin_notes}\n\n${note}` : note,
     })
     .eq("id", order.id)
-    .not("status", "in", "(cancelled,failed)")
+    // Claim against the snapshotted status (CAS): if the row changed since our
+    // read — another refund event, an admin cancel, a concurrent confirm — we
+    // lose the claim and do nothing, so restock can never run twice.
+    .eq("status", order.status)
     .select("id")
     .maybeSingle();
-  if (!claimed) return; // another refund event already clawed it back
+  if (!claimed) return; // the order changed under us — the winner handles it
 
-  // Restock only if nothing shipped (a shipped/delivered order's stock is gone).
+  // Restock only paid orders that never shipped (a shipped order's stock is gone;
+  // a pending order's stock was never decremented).
   const shipped = order.fulfillment_status === "shipped" || order.fulfillment_status === "delivered";
-  if (!shipped) {
+  if (wasPaid && !shipped) {
     const items = (order.items as { cartCode: string; quantity: number; price: number }[]) ?? [];
     for (const item of items) {
       if (item.price > 0 && item.cartCode !== FREE_GIFT_CODE) {
@@ -139,6 +155,14 @@ export async function refundClawback(order: any, reason: string): Promise<void> 
       }
     }
   }
+
+  // Return the promo's global max_uses slot (counted on confirmation) and free
+  // the per-customer one-use reservation immediately (rather than waiting for
+  // the hourly sweep) so the customer can reuse their code on a retry.
+  if (wasPaid && order.discount_code) {
+    await supabaseAdmin.rpc("decrement_promo_use", { p_code: order.discount_code }).then(() => {}, () => {});
+  }
+  await releaseDiscountRedemption(order.id).catch(() => {});
 }
 
 /**

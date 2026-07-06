@@ -46,30 +46,45 @@ export default function AffiliatesTab({ onMutate }: { onMutate?: () => void }) {
     if (res.ok) { await loadAffiliates(); onMutate?.(); }
   };
 
+  // Percent prompt: Cancel aborts the whole flow (returns null); non-numeric or
+  // out-of-range input warns and aborts rather than silently becoming 0.
+  const promptPct = (label: string, initial: string): number | null => {
+    const raw = prompt(label, initial);
+    if (raw === null) return null; // Cancel pressed — abort
+    const n = Number(raw.replace(/[%\s]/g, ""));
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      alert("Enter a number between 0 and 100.");
+      return null;
+    }
+    return Math.round(n);
+  };
+
   const addAffiliate = async () => {
     const email = prompt("Affiliate email:");
     if (!email?.trim()) return;
     const code = prompt("Discount code (e.g. JANE10):");
     if (!code?.trim()) return;
     const name = prompt("Display name (optional):") || undefined;
-    const discount = Number(prompt("Customer discount % (e.g. 10):", "10") ?? "");
-    const commission = Number(prompt("Affiliate commission % (e.g. 10):", "10") ?? "");
+    const discount = promptPct("Customer discount % (e.g. 10):", "10");
+    if (discount === null) return;
+    const commission = promptPct("Affiliate commission % (e.g. 10):", "10");
+    if (commission === null) return;
     const res = await authedFetch("/api/admin/affiliates", {
       method: "POST",
-      body: JSON.stringify({ email, code, name, discount_percent: discount || 0, commission_percent: commission || 0 }),
+      body: JSON.stringify({ email, code, name, discount_percent: discount, commission_percent: commission }),
     });
     if (!res.ok) { alert((await res.json().catch(() => ({}))).error ?? "Failed to add affiliate"); return; }
     loadAffiliates();
   };
 
   const editAffiliate = async (a: AffiliateRow) => {
-    const discount = prompt("Customer discount %:", String(a.discount_percent));
+    const discount = promptPct("Customer discount %:", String(a.discount_percent));
     if (discount === null) return;
-    const commission = prompt("Affiliate commission %:", String(a.commission_percent));
+    const commission = promptPct("Affiliate commission %:", String(a.commission_percent));
     if (commission === null) return;
     const res = await authedFetch("/api/admin/affiliates", {
       method: "PATCH",
-      body: JSON.stringify({ id: a.id, discount_percent: Number(discount) || 0, commission_percent: Number(commission) || 0 }),
+      body: JSON.stringify({ id: a.id, discount_percent: discount, commission_percent: commission }),
     });
     if (res.ok) loadAffiliates();
   };

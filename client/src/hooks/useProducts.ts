@@ -62,7 +62,10 @@ export function useProducts() {
   const [loading, setLoading] = useState(!cache);
 
   useEffect(() => {
-    if (cache) { setProducts(cache); return; }
+    // If the shared cache landed between this component's initial render (which
+    // set loading=true) and this effect, we must still clear loading — the old
+    // early-return stranded loading=true forever for that instance.
+    if (cache) { setProducts(cache); setLoading(false); return; }
     fetchProducts().then((p) => { setProducts(p); setLoading(false); });
   }, []);
 
