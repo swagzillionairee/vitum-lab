@@ -133,6 +133,21 @@ export default async function handler(req: any, res: any) {
     const bountyOrders = Math.max(1, Number(cfg.referral_bounty_orders) || 5);
     const bountyAmount = Math.max(0, Number(cfg.referral_bounty_amount) || 100);
 
+    // 0) Already a curated affiliate? The affiliates table is one-code-per-email,
+    // so we can't mint a second (referral) code for this account — and they don't
+    // need one: their affiliate code already gives buyers a discount AND earns a
+    // % commission. Point them to their affiliate dashboard instead of erroring.
+    {
+      const { data: aff } = await supabaseAdmin
+        .from("affiliates")
+        .select("code")
+        .eq("is_referral", false)
+        .or(`user_id.eq.${user.id},email.eq.${user.email}`)
+        .limit(1)
+        .maybeSingle();
+      if (aff) { res.status(200).json({ active: true, already_affiliate: true, affiliate_code: aff.code }); return; }
+    }
+
     // 1) Already have a code tied to this account?
     let ref: { id: string; code: string } | null = null;
     {
