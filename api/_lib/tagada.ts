@@ -19,6 +19,12 @@ export function isTagadaPaidEvent(eventType: string | undefined | null): boolean
   return t === "order/paid" || t === "payment/succeeded";
 }
 
+/** Webhook event types that mean "the payment was reversed → claw the order back." */
+export function isTagadaRefundEvent(eventType: string | undefined | null): boolean {
+  const t = (eventType ?? "").toLowerCase();
+  return t === "payment/refunded" || t === "order/refunded";
+}
+
 /** Header Tagada signs webhooks with (Node lower-cases header names). */
 export const TAGADA_SIG_HEADER = (process.env.TAGADA_WEBHOOK_SIG_HEADER || "tagada-signature").toLowerCase();
 

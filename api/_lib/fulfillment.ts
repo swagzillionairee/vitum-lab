@@ -10,7 +10,7 @@ import { getRewardConfig, earnLoyalty, grantReferralReward } from "./credit.js";
 
 /** Columns a webhook needs to confirm/flag an order (mirrors nowpayments-webhook). */
 export const ORDER_COLS =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, credit_applied, referral_code, shipping_address, status, affiliate_id, commission_amount, emails_sent, admin_notes";
+  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, credit_applied, referral_code, shipping_address, status, fulfillment_status, affiliate_id, commission_amount, emails_sent, admin_notes";
 
 /** Processor-agnostic payment details recorded on the order. */
 export type PaymentMeta = {
@@ -101,6 +101,44 @@ export async function sendConfirmationEmails(order: any): Promise<void> {
   await sendOrderEvent(order as EmailOrder, "confirmed");
   await sendOrderEvent(order as EmailOrder, "admin_new_order");
   await notifyAffiliate(order);
+}
+
+/**
+ * A refund / chargeback on an order: revert it to cancelled so it stops counting
+ * everywhere status drives the books — store credit, loyalty, affiliate commission
+ * and the referral bounty all exclude cancelled/failed orders, so cancelling is a
+ * full clawback with no explicit reversals. Restock the paid items only if nothing
+ * shipped yet. Idempotent + atomic: only the caller that flips the row restocks, so
+ * duplicate refund webhooks can't double-restock.
+ */
+export async function refundClawback(order: any, reason: string): Promise<void> {
+  if (order.status === "cancelled" || order.status === "failed") return;
+
+  const note = `♻️ ${reason} — auto-cancelled so rewards, commission, and referral credit are clawed back.`;
+  const { data: claimed } = await supabaseAdmin
+    .from("orders")
+    .update({
+      status: "cancelled",
+      cancelled_at: new Date().toISOString(),
+      cancel_reason: reason,
+      admin_notes: order.admin_notes ? `${order.admin_notes}\n\n${note}` : note,
+    })
+    .eq("id", order.id)
+    .not("status", "in", "(cancelled,failed)")
+    .select("id")
+    .maybeSingle();
+  if (!claimed) return; // another refund event already clawed it back
+
+  // Restock only if nothing shipped (a shipped/delivered order's stock is gone).
+  const shipped = order.fulfillment_status === "shipped" || order.fulfillment_status === "delivered";
+  if (!shipped) {
+    const items = (order.items as { cartCode: string; quantity: number; price: number }[]) ?? [];
+    for (const item of items) {
+      if (item.price > 0 && item.cartCode !== FREE_GIFT_CODE) {
+        await supabaseAdmin.rpc("increment_stock", { p_cart_code: item.cartCode, p_qty: item.quantity }).then(() => {}, () => {});
+      }
+    }
+  }
 }
 
 /**

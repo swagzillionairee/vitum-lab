@@ -177,6 +177,10 @@ export default async function handler(req: any, res: any) {
     }
 
     // 3) Lazily create a fresh, unique code (from the name, else the email local-part).
+    // The affiliates.code UNIQUE constraint is the source of truth: two people can
+    // NEVER end up with the same code. We propose a candidate, but if a concurrent
+    // signup grabbed it first the insert 23505s — so we retry with the next suffix
+    // (then a random one) until it lands, rather than erroring out.
     if (!ref) {
       const { data: udata } = await supabaseAdmin.auth.admin.getUserById(user.id);
       const meta = (udata.user?.user_metadata ?? {}) as Record<string, unknown>;
@@ -185,33 +189,59 @@ export default async function handler(req: any, res: any) {
       const base = (String(seed).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12)) || "REF";
       const { data: taken } = await supabaseAdmin.from("affiliates").select("code").ilike("code", `${base}%`);
       const takenSet = new Set((taken ?? []).map((r: any) => String(r.code).toUpperCase()));
-      let code = base;
-      let n = 2;
-      while (takenSet.has(code)) code = `${base}${n++}`;
 
-      const { data: inserted, error } = await supabaseAdmin
-        .from("affiliates")
-        .insert({
-          code, name: rawName || null, email: user.email, is_referral: true, user_id: user.id,
-          discount_percent: buyerDiscount, commission_percent: 0,
-        })
-        .select("id, code")
-        .maybeSingle();
-      if (error || !inserted) { res.status(500).json({ error: "Couldn't create your referral code — please try again." }); return; }
-      ref = inserted;
+      // Candidate stream: BASE, BASE2, BASE3, … then BASE+4 random chars as a
+      // collision-proof fallback so we always terminate.
+      let n = 1;
+      const charForAttempt = () => {
+        const c = n === 1 ? base : n <= 200 ? `${base}${n}` : `${base}${Math.abs((user.id.charCodeAt(n % user.id.length) * n) % 9000) + 1000}`;
+        n += 1;
+        return c;
+      };
+      let candidate = charForAttempt();
+      while (takenSet.has(candidate.toUpperCase())) candidate = charForAttempt();
+
+      for (let attempt = 0; attempt < 8 && !ref; attempt++) {
+        const { data: inserted, error } = await supabaseAdmin
+          .from("affiliates")
+          .insert({
+            code: candidate, name: rawName || null, email: user.email, is_referral: true, user_id: user.id,
+            discount_percent: buyerDiscount, commission_percent: 0,
+          })
+          .select("id, code")
+          .maybeSingle();
+        if (inserted) { ref = inserted; break; }
+        // 23505 = unique_violation. If the CODE was taken by a race, try the next
+        // candidate. If it's the user_id/email that collided, this account already
+        // has a code — re-fetch it and use that (idempotent).
+        if (error?.code === "23505") {
+          const { data: mine } = await supabaseAdmin
+            .from("affiliates").select("id, code").eq("is_referral", true).eq("user_id", user.id).maybeSingle();
+          if (mine) { ref = mine; break; }
+          candidate = charForAttempt();
+          continue;
+        }
+        break; // non-conflict error — stop retrying
+      }
+      if (!ref) { res.status(500).json({ error: "Couldn't create your referral code — please try again." }); return; }
     }
 
-    // Qualifying referrals = confirmed/finished orders that carried this code,
-    // whose net value clears the minimum, placed by SOMEONE ELSE (a self-order by
-    // the referrer never counts — belt-and-suspenders with the checkout block).
+    // Qualifying referrals = UNIQUE buyers (distinct email) who placed a
+    // confirmed/finished order with this code that clears the minimum — and who
+    // aren't the referrer. Refunded/cancelled orders fall out automatically
+    // (they leave confirmed/finished), so a refund claws the referral back. One
+    // buyer ordering repeatedly counts once, so a single friend can't farm a payout.
     const { data: refOrders } = await supabaseAdmin
       .from("orders")
       .select("email, net_amount")
       .eq("affiliate_id", ref.id)
       .in("status", ["confirmed", "finished"]);
-    const paidOrders = (refOrders ?? []).filter(
-      (o) => Number(o.net_amount ?? 0) >= minOrder && (o.email ?? "").toLowerCase() !== user.email,
-    ).length;
+    const qualifiedBuyers = new Set(
+      (refOrders ?? [])
+        .filter((o) => Number(o.net_amount ?? 0) >= minOrder && (o.email ?? "").toLowerCase() !== user.email)
+        .map((o) => (o.email ?? "").toLowerCase()),
+    );
+    const paidOrders = qualifiedBuyers.size;
     const payouts = Math.floor(paidOrders / bountyOrders);
     const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
 

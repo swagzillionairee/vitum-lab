@@ -3,7 +3,7 @@
  * Self-serve referral program, account-locked:
  *   - Sign in (Google or email magic-link) to get your unique code — it's tied
  *     to your account, so it can't be lost or claimed by anyone else
- *   - Buyers get a % off at checkout; referrer earns a flat bounty per N paid orders
+ *   - Buyers get a % off at checkout; referrer earns a flat bounty per N referred customers
  *   - Signed-in dashboard (stats + progress) + email Claim when a payout is due
  * All numbers come from the store config (Admin → Promos → Referral Program).
  */
@@ -128,7 +128,7 @@ export default function Referral() {
     <div className="min-h-screen bg-[oklch(0.98_0.004_255)]">
       <SEO
         title="Referral Program"
-        description={`Share your code and earn $${bountyAmount} for every ${bountyOrders} paid orders. Your buyers get ${buyerDiscount}% off. Sign in to grab your code — no application, no cap, no expiry.`}
+        description={`Share your code and earn $${bountyAmount} for every ${bountyOrders} customers you refer. Your buyers get ${buyerDiscount}% off. Sign in to grab your code — no application, no cap, no expiry.`}
       />
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
@@ -141,7 +141,7 @@ export default function Referral() {
         </h1>
         <p className="text-[1.0625rem] text-[oklch(0.45_0.01_260)] leading-relaxed max-w-xl mx-auto">
           Sign in and get your unique referral code in seconds — it's locked to your account, so your earnings can never
-          be lost. Every {bountyOrders} orders placed using it = ${bountyAmount} cash. No cap. No expiry.
+          be lost. Every {bountyOrders} customers who order with it = ${bountyAmount} cash. No cap. No expiry.
         </p>
 
         {/* Stat row */}
@@ -275,8 +275,8 @@ export default function Referral() {
                   </button>
                 </div>
                 <p className="text-[0.8125rem] text-[oklch(0.42_0.03_200)] mt-3">
-                  Share it anywhere. Buyers enter it at checkout for {stats.buyer_discount}% off — and every paid order
-                  {(stats.min_order ?? 0) > 0 ? <> of <strong>${stats.min_order}+</strong></> : null} counts toward your ${stats.bounty_amount}.
+                  Share it anywhere. Buyers enter it at checkout for {stats.buyer_discount}% off — and every new customer who orders
+                  {(stats.min_order ?? 0) > 0 ? <> <strong>${stats.min_order}+</strong></> : null} counts toward your ${stats.bounty_amount}.
                 </p>
               </div>
 
@@ -313,8 +313,8 @@ export default function Referral() {
                   </div>
                   <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-2">
                     {stats.remaining_to_next === stats.bounty_orders
-                      ? `${stats.bounty_orders} more paid orders unlock your next $${stats.bounty_amount}.`
-                      : `${stats.remaining_to_next} more paid order${stats.remaining_to_next !== 1 ? "s" : ""} until your next $${stats.bounty_amount}.`}
+                      ? `${stats.bounty_orders} more referred customers unlock your next $${stats.bounty_amount}.`
+                      : `${stats.remaining_to_next} more referred customer${stats.remaining_to_next !== 1 ? "s" : ""} until your next $${stats.bounty_amount}.`}
                   </p>
                 </div>
                 {/* Claim */}
@@ -347,7 +347,7 @@ export default function Referral() {
             {[
               { tag: "1", title: "Sign In & Get Your Code", body: `Sign in with Google or your email above. Your personal code — like SARAH or MIKE3 — is ready instantly and tied to your account, so it's never lost.` },
               { tag: "2", title: "Share It Anywhere", body: `Drop it in Reddit threads, Discord servers, forums — anywhere people talk about peptides or research. Your buyers get ${buyerDiscount}% off automatically.` },
-              { tag: `$${bountyAmount}`, title: "Get Paid", body: `Every ${bountyOrders} paid orders using your code = $${bountyAmount} cash. Hit Claim on your dashboard and we pay within 48 hours. No cap — ever.` },
+              { tag: `$${bountyAmount}`, title: "Get Paid", body: `Every ${bountyOrders} customers who order with your code = $${bountyAmount} cash. Hit Claim on your dashboard and we pay within 48 hours. No cap — ever.` },
             ].map((s) => (
               <div key={s.title} className="bg-[oklch(0.98_0.003_260)] rounded-2xl border border-[oklch(0.93_0.004_260)] p-6">
                 <span className="inline-flex items-center justify-center min-w-[3rem] h-12 px-3 rounded-xl bg-[oklch(0.94_0.04_200)] text-[oklch(0.42_0.11_200)] text-[1.125rem] font-bold mb-4">{s.tag}</span>
@@ -389,7 +389,7 @@ export default function Referral() {
           <h2 className="text-[2.25rem] font-bold tracking-tight text-[oklch(0.13_0.02_255)] mb-8 text-center">Referral FAQ</h2>
           <div className="space-y-3">
             {[
-              { q: `How exactly does the $${bountyAmount} payout work?`, a: `Every ${bountyOrders} paid orders using your code earns you $${bountyAmount} cash. Orders build toward it; the ${ordinal(bountyOrders)} triggers it — then the cycle resets. No cap. ${bountyOrders * 2} referrals = $${bountyAmount * 2}. ${bountyOrders * 10} = $${bountyAmount * 10}.` },
+              { q: `How exactly does the $${bountyAmount} payout work?`, a: `Every ${bountyOrders} different customers who order with your code earns you $${bountyAmount} cash. Each new paying customer builds toward it; the ${ordinal(bountyOrders)} triggers it — then the cycle resets. Repeat orders from the same person count once. No cap. ${bountyOrders * 2} customers = $${bountyAmount * 2}. ${bountyOrders * 10} = $${bountyAmount * 10}.` },
               { q: "Why do I need to sign in?", a: "Your code is locked to your account, so every order it brings in — and every dollar you earn — is tracked to you and can never be lost or claimed by someone else. Sign in once with Google or an email link and your dashboard is always there." },
               { q: "How do I claim my payout?", a: `Once you hit ${bountyOrders} referrals a Claim button appears on your dashboard. Click it — it opens an email to ${CLAIM_EMAIL} with your code and stats pre-filled. Just hit send. We process within 48 hours via PayPal, Venmo, or crypto.` },
               { q: "What does my referral get?", a: `Anyone who enters your code at checkout gets ${buyerDiscount}% off their entire order. That's a real discount that makes people actually want to use your code.` },
