@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, sendAffiliateCommission, type EmailOrder } from "./_lib/email.js";
 import { paidIpnAction } from "./_lib/orderLifecycle.js";
-import { confirmPaidOrder, refundClawback } from "./_lib/fulfillment.js";
+import { confirmPaidOrder, refundClawback, recordLatePayment } from "./_lib/fulfillment.js";
+import { releaseDiscountRedemption } from "./_lib/credit.js";
 
 function sortKeys(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;
@@ -99,13 +100,39 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
+      // Amount-guard (mirror of the Tagada webhook's): the invoice was created
+      // with price_amount = the order's server-computed amountDue in USD. If the
+      // IPN's fiat amount doesn't match the order's due (net + shipping − credit),
+      // flag for review instead of fulfilling — defense-in-depth against a
+      // misclassified under-payment. price_amount absent → skip (legacy payloads).
+      if (action === "fulfill" && payload.price_amount != null) {
+        const dueUsd = Number(order.net_amount ?? 0) + Number(order.shipping_amount ?? 0) - Number(order.credit_applied ?? 0);
+        const paidUsd = Number(payload.price_amount);
+        if (!Number.isFinite(paidUsd) || Math.abs(paidUsd - dueUsd) > 0.01) {
+          try {
+            if (!order.emails_sent?.admin_late_payment) {
+              const note = `⚠️ NowPayments IPN "${status}" reports price_amount $${payload.price_amount} but the order is due $${dueUsd.toFixed(2)} — NOT fulfilled. Review before shipping.`;
+              await supabaseAdmin.from("orders")
+                .update({ admin_notes: order.admin_notes ? `${order.admin_notes}\n\n${note}` : note })
+                .eq("id", payload.order_id);
+              await sendOrderEvent(order as EmailOrder, "admin_late_payment");
+            }
+          } catch (err) {
+            console.error("Failed to flag amount mismatch:", err);
+          }
+          res.status(200).send("OK");
+          return;
+        }
+      }
+
       // Confirm the order exactly once (NowPayments fires both `confirmed`
       // and `finished` for the same payment). confirmPaidOrder atomically claims
       // the pending→confirmed transition, so parallel IPNs can't double-decrement
       // stock or double-count the promo — a duplicate is a no-op.
+      let claimed = false;
       try {
         if (action === "fulfill") {
-          await confirmPaidOrder(order, {
+          claimed = await confirmPaidOrder(order, {
             payCurrency: payload.pay_currency ?? null,
             payAmount: payload.actually_paid ?? payload.pay_amount ?? null,
             paymentId: payload.payment_id != null ? String(payload.payment_id) : null,
@@ -115,19 +142,42 @@ export default async function handler(req: any, res: any) {
         console.error("Failed to update order/stock:", err);
       }
 
+      // Only email "confirmed" when the order really IS confirmed. A fulfill
+      // attempt that lost its claim may have lost to a duplicate IPN (fine —
+      // resend idempotently) or to the hourly expiry cancelling the order right
+      // as the payment landed (NOT fine — alert the admin, don't tell the
+      // customer their cancelled order is confirmed).
+      let emailable = action === "resend_emails" || claimed;
+      if (action === "fulfill" && !claimed) {
+        const { data: now } = await supabaseAdmin.from("orders").select("status").eq("id", payload.order_id).maybeSingle();
+        emailable = now?.status === "confirmed" || now?.status === "finished";
+        if (!emailable) {
+          await recordLatePayment(order, {
+            payCurrency: payload.pay_currency ?? null,
+            payAmount: payload.actually_paid ?? payload.pay_amount ?? null,
+            paymentId: payload.payment_id != null ? String(payload.payment_id) : null,
+          }, `⚠️ NowPayments "${status}" payment landed while this order was being ${now?.status ?? "removed"} (expiry race). Not fulfilled automatically — refund or fulfill manually.`).catch((err) => console.error("Failed to flag expiry race:", err));
+        }
+      }
+
       // Emails are idempotent via orders.emails_sent — safe across duplicate IPNs.
-      try {
-        await sendOrderEvent(order as EmailOrder, "confirmed");
-        await sendOrderEvent(order as EmailOrder, "admin_new_order");
-        await notifyAffiliate(order);
-      } catch (err) {
-        console.error("Failed to send confirmation emails:", err);
+      if (emailable) {
+        try {
+          await sendOrderEvent(order as EmailOrder, "confirmed");
+          await sendOrderEvent(order as EmailOrder, "admin_new_order");
+          await notifyAffiliate(order);
+        } catch (err) {
+          console.error("Failed to send confirmation emails:", err);
+        }
       }
     }
 
     if ((status === "failed" || status === "expired" || status === "refunded") && order.status === "pending") {
       try {
         await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", payload.order_id);
+        // Free the promo/referral one-use slot right away (not just via the hourly
+        // sweep) so the customer can retry checkout with the same code immediately.
+        await releaseDiscountRedemption(payload.order_id).catch(() => {});
         await sendOrderEvent(order as EmailOrder, "failed");
       } catch (err) {
         console.error("Failed to process failed payment:", err);

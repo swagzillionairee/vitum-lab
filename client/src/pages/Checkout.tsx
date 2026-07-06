@@ -157,6 +157,15 @@ export default function Checkout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length]);
 
+  // Re-validate an applied code when the cart total changes (item added/removed
+  // via the drawer): a min-subtotal promo that no longer qualifies must drop out
+  // of the displayed total here, not surface as an opaque 400 at Pay.
+  useEffect(() => {
+    if (!promoApplied || promoLoading) return;
+    applyPromo(promoCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal]);
+
   // Stacked discounts (mirror of the server): quantity tier first, then the
   // promo/affiliate % off the remainder. The server recomputes authoritatively.
   const units = items.filter((i) => !i.isFreeGift).reduce((sum, i) => sum + i.quantity, 0);
@@ -195,6 +204,10 @@ export default function Checkout() {
   }, [showTagada]);
 
   const handlePay = async (tagadaToken?: string) => {
+    // Re-entrancy guard: a wallet/tokenize callback resolving while another
+    // payment attempt is in flight (e.g. the user switched method mid-tokenize)
+    // must never fire a second order-creating POST.
+    if (busy) return;
     if (!email.trim() || !email.includes("@")) {
       setError("Please enter a valid email address.");
       return;
@@ -449,6 +462,7 @@ export default function Checkout() {
                     <button
                       key={m.id}
                       type="button"
+                      disabled={busy}
                       onClick={() => { setPayMethod(m.id); setError(""); }}
                       className={`flex items-center justify-center gap-2 rounded-xl border-2 py-2.5 text-[0.8125rem] font-semibold transition-colors ${
                         payMethod === m.id

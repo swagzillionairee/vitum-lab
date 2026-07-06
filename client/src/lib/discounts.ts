@@ -19,7 +19,8 @@ export function quantityDiscountPercent(tiers: QuantityTier[] | null | undefined
   return best;
 }
 
-export const round2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
+// EPSILON nudge before rounding — keep identical to api/_lib/pricing.ts round2.
+export const round2 = (n: number): number => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
 
 export const SHIPPING_FEE = 15;
 export const FREE_SHIPPING_THRESHOLD = 150;

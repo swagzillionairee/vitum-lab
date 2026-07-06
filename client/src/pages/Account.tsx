@@ -57,6 +57,7 @@ export default function Account() {
   const [, navigate] = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [fetching, setFetching] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [credit, setCredit] = useState<number | null>(null);
   const { products } = useProducts();
   const { isAvailable } = useInventory();
@@ -67,9 +68,21 @@ export default function Account() {
   }, [loading, session, navigate]);
 
   const load = useCallback(async () => {
-    const res = await authedFetch("/api/account/orders");
-    if (res.ok) setOrders((await res.json()).orders ?? []);
-    setFetching(false);
+    setLoadError(false);
+    try {
+      const res = await authedFetch("/api/account/orders");
+      if (res.ok) {
+        setOrders((await res.json()).orders ?? []);
+      } else {
+        // Expired session / server error: show a retry state, never a false
+        // "No orders yet." to a customer who has orders.
+        setLoadError(true);
+      }
+    } catch {
+      setLoadError(true); // network failure — otherwise the spinner never resolves
+    } finally {
+      setFetching(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -159,6 +172,11 @@ export default function Account() {
 
         {fetching ? (
           <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-[oklch(0.52_0.01_260)]" /></div>
+        ) : loadError ? (
+          <div className="bg-white rounded-2xl p-8 text-center shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)]">
+            <p className="text-[0.875rem] text-[oklch(0.52_0.01_260)] mb-4">Couldn't load your orders — please try again.</p>
+            <button onClick={() => { setFetching(true); load(); }} className="btn-primary">Retry</button>
+          </div>
         ) : orders.length === 0 ? (
           <div className="bg-white rounded-2xl p-8 text-center shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)]">
             <p className="text-[0.875rem] text-[oklch(0.52_0.01_260)] mb-4">No orders yet.</p>

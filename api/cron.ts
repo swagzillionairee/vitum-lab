@@ -35,6 +35,9 @@ async function sendAffiliateStatements(results: { statements: number; errors: nu
       .select("affiliate_id, commission_amount, confirmed_at, status")
       .in("status", ["confirmed", "finished"])
       .not("affiliate_id", "is", null)
+      // Stable order: Postgres gives no ordering guarantee across ranged reads,
+      // so an un-ordered paged loop can skip/double-count rows past page 1.
+      .order("created_at", { ascending: true })
       .range(from, from + 999);
     for (const o of batch ?? []) {
       const aid = o.affiliate_id as string;

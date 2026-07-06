@@ -4,7 +4,9 @@
  * amount here from the code itself; client-sent amounts are ignored.
  */
 
-export const round2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
+// EPSILON nudge before rounding: 1.005*100 floats to 100.4999…, which would
+// round DOWN a true half-cent. Must stay identical to client/src/lib/discounts.ts.
+export const round2 = (n: number): number => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
 
 /** Sum of price × quantity across line items, rounded to cents. */
 export function grossFromItems(items: { price: number; quantity: number }[]): number {

@@ -153,8 +153,9 @@ export async function chargeCard(params: {
   if (!paymentInstrumentId) throw new Error("Tagada createFromToken returned no payment instrument id");
 
   // 2) Charge the exact amountDue (cents). returnUrl is where 3DS bounces back.
+  const requestedCents = Math.round(params.amountDue * 100);
   const res: any = await tagada.payments.process({
-    amount: Math.round(params.amountDue * 100),
+    amount: requestedCents,
     currency: "USD",
     storeId,
     paymentInstrumentId,
@@ -171,6 +172,15 @@ export async function chargeCard(params: {
   // ever run in auth-then-capture mode, add an explicit capture call here rather
   // than relaxing this check.
   if (status === "captured" || status === "succeeded" || status === "paid") {
+    // Amount guard on the synchronous confirm (mirrors the webhook's): if the
+    // SDK reports a captured amount that differs from what we requested, don't
+    // confirm inline — leave the order pending so the webhook/Re-check (both
+    // amount-guarded) reconcile it. Absent amount → trust the requested charge.
+    const capturedCents = Number(payment?.amount);
+    if (Number.isFinite(capturedCents) && Math.abs(capturedCents - requestedCents) > 1) {
+      console.warn(`⚠️ Tagada payment ${paymentId} captured ${capturedCents}¢ but ${requestedCents}¢ was requested — deferring to webhook reconciliation.`);
+      return { status: "processing", paymentId };
+    }
     return { status: "succeeded", paymentId };
   }
   const redirectUrl =

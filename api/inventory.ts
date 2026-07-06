@@ -12,6 +12,37 @@ export default async function handler(req: any, res: any) {
       res.status(400).json({ error: "A valid email and cartCode are required" });
       return;
     }
+
+    // Per-IP throttle: this endpoint is public and its rows later trigger
+    // "back in stock" email from our domain — unthrottled, it's an email-bomb
+    // vector (enroll a victim's address, re-arm every restock) and a junk-row
+    // sink. Same limiter as the contact form; fails open on an RPC error.
+    const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+    try {
+      const { data: allowed, error } = await supabaseAdmin.rpc("rate_limit_hit", {
+        p_bucket: `waitlist:${ip}`,
+        p_max: 5,
+        p_window_seconds: 600,
+      });
+      if (!error && allowed === false) {
+        res.status(429).json({ error: "Too many requests — please try again in a few minutes." });
+        return;
+      }
+    } catch (err) {
+      console.error("waitlist rate-limit check failed (allowing):", err);
+    }
+
+    // Only accept real variants — otherwise arbitrary junk rows accrue forever.
+    const { data: variant } = await supabaseAdmin
+      .from("inventory")
+      .select("cart_code")
+      .eq("cart_code", cartCode)
+      .maybeSingle();
+    if (!variant) {
+      res.status(400).json({ error: "Unknown product." });
+      return;
+    }
+
     const { error } = await supabaseAdmin
       .from("stock_waitlist")
       .upsert(

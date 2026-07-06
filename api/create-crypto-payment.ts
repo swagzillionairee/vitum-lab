@@ -123,7 +123,7 @@ export default async function handler(req: any, res: any) {
   const useTagada = process.env.TAGADA_CHECKOUT_ENABLED === "true";
 
   try {
-    const { items, discountCode, shipping, attestation } = req.body as {
+    const { items, discountCode, shipping, attestation, total } = req.body as {
       items: { name: string; dose: string; quantity: number; cartCode: string; price: number }[];
       total: number;
       discountCode?: string;
@@ -181,7 +181,9 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Validate stock for each paid item.
+    // Validate stock for each paid item. A missing inventory row counts as
+    // unavailable — every sellable variant has one (the storefront hides
+    // variants without a row), so its absence means "not sellable", not "∞".
     for (const item of paidItems) {
       const { data } = await supabaseAdmin
         .from("inventory")
@@ -189,7 +191,7 @@ export default async function handler(req: any, res: any) {
         .eq("cart_code", item.cartCode)
         .maybeSingle();
 
-      if (data && data.stock < item.quantity) {
+      if (!data || data.stock < item.quantity) {
         res.status(409).json({ error: `${item.name} ${item.dose} is out of stock.` });
         return;
       }
@@ -229,6 +231,23 @@ export default async function handler(req: any, res: any) {
       if (promoAlreadyRedeemed(prior ?? [], email, discountCodeNorm!)) {
         res.status(400).json({ error: "You've already used this promo code — it's limited to one use per customer." });
         return;
+      }
+
+      // Global max_uses guard including IN-FLIGHT orders: used_count only bumps
+      // on confirmation, so N distinct customers with pending (up to 24h) crypto
+      // invoices could all pass the plain cap check and blow past max_uses.
+      // Counting pending holders closes that window. (Slightly conservative: a
+      // pending order that later dies frees its slot via the hourly sweep.)
+      const { data: promoRow } = await supabaseAdmin
+        .from("promo_codes").select("max_uses, used_count").eq("code", discountCodeNorm!).maybeSingle();
+      if (promoRow?.max_uses != null) {
+        const { count: pendingCount } = await supabaseAdmin
+          .from("orders").select("id", { count: "exact", head: true })
+          .eq("discount_code", discountCodeNorm!).eq("status", "pending");
+        if ((Number(promoRow.used_count) || 0) + (pendingCount ?? 0) >= Number(promoRow.max_uses)) {
+          res.status(400).json({ error: "This promo code has reached its usage limit." });
+          return;
+        }
       }
     }
 
@@ -291,6 +310,21 @@ export default async function handler(req: any, res: any) {
     const balance = await getBalance(email);
     const { creditApplied, amountDue } = applyCredit(netAmount + shippingAmount, balance);
 
+    // The client sends the total it DISPLAYED — for wallets, the exact amount the
+    // customer authorized in the Google/Apple Pay sheet. If the server-computed
+    // amount due differs (stale catalog cache, a sale that ended mid-checkout, a
+    // credit balance the client didn't see), refuse rather than charge an amount
+    // the customer never agreed to. Tolerance 1¢ for rounding; absent → legacy skip.
+    const displayedTotal = Number(total);
+    if (Number.isFinite(displayedTotal) && Math.abs(displayedTotal - amountDue) > 0.01) {
+      await releaseDiscountRedemption(orderId);
+      res.status(409).json({
+        error: `Your order total is now $${amountDue.toFixed(2)} (it was $${displayedTotal.toFixed(2)} when the page loaded) — prices or your store credit changed. Please refresh and try again.`,
+        amountDue,
+      });
+      return;
+    }
+
     const description = paidItems
       .map((i) => `${i.name} ${i.dose} x${i.quantity}`)
       .join(", ");
@@ -334,7 +368,12 @@ export default async function handler(req: any, res: any) {
         return;
       }
       for (const item of paidItems) {
-        await supabaseAdmin.rpc("decrement_stock", { p_cart_code: item.cartCode, p_qty: item.quantity });
+        const { error: decErr } = await supabaseAdmin.rpc("decrement_stock", { p_cart_code: item.cartCode, p_qty: item.quantity });
+        // Order is already confirmed ($0 due) — never block on a decrement
+        // failure; log the oversell for reconciliation (mirrors fulfillment.ts).
+        if (decErr) {
+          console.error(`⚠️ OVERSOLD: decrement_stock failed for free order ${orderId} — ${item.cartCode} x${item.quantity}: ${decErr.message}`);
+        }
       }
       if (discountCodeNorm) {
         await supabaseAdmin.rpc("increment_promo_use", { p_code: discountCodeNorm }).then(() => {}, () => {});

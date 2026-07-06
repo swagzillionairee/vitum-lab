@@ -5,7 +5,7 @@
  * token is handed to Checkout.handlePay, which charges the exact server-computed
  * amountDue. 3DS/redirect + fulfillment are handled server-side.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Lock, Loader2 } from "lucide-react";
 import { useCardTokenization } from "@tagadapay/core-js/react";
 
@@ -46,6 +46,15 @@ export default function TagadaCardBox({
   const [card, setCard] = useState({ number: "", expiry: "", cvc: "" });
   const [tokenizing, setTokenizing] = useState(false);
 
+  // If the user switches payment method mid-tokenize, this box unmounts but the
+  // in-flight tokenize promise still resolves — it must NOT fire onPay then, or
+  // a card order gets created on top of whatever the user actually chose.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
   const inputBase =
     "border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent";
 
@@ -62,6 +71,7 @@ export default function TagadaCardBox({
         expiryDate: normalizeExpiry(card.expiry),
         cvc: card.cvc.trim(),
       });
+      if (!mounted.current) return; // user switched method mid-tokenize — drop it
       onPay(tagadaToken);
     } catch (e) {
       // The core-js SDK wraps the provider (BasisTheory) failure. Log the
