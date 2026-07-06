@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
-import { Check, Copy, ArrowRight, Zap, Share2, DollarSign, Loader2, Mail, Lock, LogOut } from "lucide-react";
+import { Check, Copy, ArrowRight, Zap, Share2, DollarSign, Loader2, Mail, ShieldCheck, LogOut } from "lucide-react";
 import SEO from "@/components/SEO";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
@@ -166,13 +166,13 @@ export default function Referral() {
           ) : !session ? (
             /* ── Signed-out: sign in to claim a code ─────────────────────── */
             <>
-              <div className="inline-flex items-center gap-1.5 bg-[oklch(0.95_0.03_260)] text-[oklch(0.40_0.14_260)] text-[0.6875rem] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full mb-4">
-                <Lock className="w-3 h-3" /> Locked to your account
+              <div className="inline-flex items-center gap-1.5 bg-[oklch(0.95_0.04_155)] text-[oklch(0.40_0.12_155)] text-[0.6875rem] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full mb-4">
+                <ShieldCheck className="w-3.5 h-3.5" /> Saved to your account
               </div>
               <h2 className="text-[1.5rem] font-bold text-[oklch(0.13_0.02_255)]">Sign In to Get Your Code</h2>
               <p className="text-[0.9375rem] text-[oklch(0.45_0.01_260)] mt-1.5 mb-6">
-                Your referral code is tied to your account so every order — and every dollar you earn — is tracked and
-                can never be lost. Sign in with Google or your email to grab it.
+                Signing in saves your code to your account, so every order — and every dollar you earn — is tracked
+                and always there when you come back. Continue with Google or your email to grab it.
               </p>
 
               {linkSent ? (
@@ -211,7 +211,7 @@ export default function Referral() {
               {signinErr && <p className="text-[0.8125rem] text-red-500 mt-3">{signinErr}</p>}
 
               <div className="flex flex-wrap gap-x-5 gap-y-2 mt-6">
-                {["Free forever", "No approval needed", "Tied to your account", `Gives buyers ${buyerDiscount}% off`].map((t) => (
+                {["Free forever", "No approval needed", "Saved to your account", `Gives buyers ${buyerDiscount}% off`].map((t) => (
                   <span key={t} className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.10_155)] font-medium">
                     <Check className="w-4 h-4 flex-shrink-0" /> {t}
                   </span>
