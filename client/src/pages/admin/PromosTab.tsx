@@ -401,6 +401,110 @@ function RewardsCard() {
   );
 }
 
+// ─── Self-serve referral program ───────────────────────────────────────────────
+function ReferralProgramCard() {
+  const [form, setForm] = useState<{ active: boolean; buyer_discount: string; bounty_amount: string; bounty_orders: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    const res = await authedFetch("/api/admin/referral-program");
+    if (res.ok) {
+      const d = await res.json();
+      setForm({
+        active: !!d.referral_program_active,
+        buyer_discount: String(d.referral_buyer_discount ?? 10),
+        bounty_amount: String(d.referral_bounty_amount ?? 100),
+        bounty_orders: String(d.referral_bounty_orders ?? 5),
+      });
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (active: boolean) => {
+    if (!form) return;
+    setErr(""); setMsg(""); setSaving(true);
+    const res = await authedFetch("/api/admin/referral-program", {
+      method: "PUT",
+      body: JSON.stringify({
+        active,
+        buyer_discount: Number(form.buyer_discount) || 0,
+        bounty_amount: Number(form.bounty_amount) || 0,
+        bounty_orders: Number(form.bounty_orders) || 1,
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) { setErr((await res.json().catch(() => ({}))).error ?? "Failed to save"); return; }
+    const d = await res.json();
+    setForm((f) => f && { ...f, active: !!d.referral_program_active });
+    setMsg(active ? "Referral program is live at /referral." : "Referral program turned off.");
+  };
+
+  const active = !!form?.active;
+
+  return (
+    <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
+      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Gift className="w-5 h-5 text-[oklch(0.35_0.15_260)]" />
+          <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Referral Program (self-serve)</h2>
+        </div>
+        <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${active ? "bg-[oklch(0.93_0.06_155)] text-[oklch(0.35_0.14_155)]" : "bg-[oklch(0.92_0.005_260)] text-[oklch(0.45_0.01_260)]"}`}>
+          {active ? "live" : "off"}
+        </span>
+      </div>
+      <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-5">
+        The public <span className="font-mono">/referral</span> page: anyone gets a code instantly (no approval), buyers get a % off,
+        and the referrer earns a flat bounty per N paid orders. Payouts are claimed by email and paid by you manually.
+        Separate from your curated Affiliates and the store-credit referral above.
+      </p>
+
+      {form === null ? (
+        <div className="py-6 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-[oklch(0.52_0.01_260)]" /></div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-end gap-2 bg-[oklch(0.98_0.002_260)] rounded-xl p-4">
+            <Field label="Buyer discount %">
+              <input type="number" min={0} max={100} value={form.buyer_discount}
+                onChange={(e) => setForm((f) => f && { ...f, buyer_discount: e.target.value })} className="input-sm w-24" />
+            </Field>
+            <Field label="Bounty $ per payout">
+              <input type="number" min={0} value={form.bounty_amount}
+                onChange={(e) => setForm((f) => f && { ...f, bounty_amount: e.target.value })} className="input-sm w-28" />
+            </Field>
+            <Field label="Paid orders per payout">
+              <input type="number" min={1} value={form.bounty_orders}
+                onChange={(e) => setForm((f) => f && { ...f, bounty_orders: e.target.value })} className="input-sm w-32" />
+            </Field>
+            {active ? (
+              <>
+                <button onClick={() => save(true)} disabled={saving} className="flex items-center gap-1.5 btn-primary text-[0.875rem] py-2 px-4 disabled:opacity-60">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Update
+                </button>
+                <button onClick={() => save(false)} disabled={saving} className="flex items-center gap-1.5 text-[0.875rem] font-semibold text-red-500 border border-red-200 py-2 px-4 rounded-lg hover:bg-red-50 disabled:opacity-60">
+                  <Power className="w-4 h-4" /> Turn off
+                </button>
+              </>
+            ) : (
+              <button onClick={() => save(true)} disabled={saving} className="flex items-center gap-1.5 btn-primary text-[0.875rem] py-2 px-4 disabled:opacity-60">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />} Turn on
+              </button>
+            )}
+          </div>
+          <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-3">
+            Current: buyers get <strong>{form.buyer_discount || 0}%</strong> off; referrer earns
+            <strong> ${form.bounty_amount || 0}</strong> per <strong>{form.bounty_orders || 0}</strong> paid orders.
+            Changing the buyer discount updates it on all existing referral codes.
+          </p>
+        </>
+      )}
+      {err && <p className="text-[0.8125rem] text-red-500 mt-3">{err}</p>}
+      {msg && <p className="text-[0.8125rem] text-[oklch(0.35_0.14_155)] mt-3 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> {msg}</p>}
+    </section>
+  );
+}
+
 // ─── Promo codes ───────────────────────────────────────────────────────────────
 export default function PromosTab() {
   const [promos, setPromos] = useState<PromoRow[] | null>(null);
@@ -460,6 +564,7 @@ export default function PromosTab() {
       <FeaturedBannerCard />
       <QuantityDiscountsCard />
       <RewardsCard />
+      <ReferralProgramCard />
 
       <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
         <div className="flex items-center gap-2 mb-2">

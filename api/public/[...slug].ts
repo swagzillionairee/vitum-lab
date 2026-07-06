@@ -122,10 +122,83 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               color: (s.featured_banner_color as string | null) ?? "#7c3aed",
             }
           : { active: false },
+      // Self-serve referral program config (drives the public /referral page).
+      referral_program: {
+        active: !!s?.referral_program_active,
+        buyer_discount: Number(s?.referral_buyer_discount ?? 10),
+        bounty_amount: Number(s?.referral_bounty_amount ?? 100),
+        bounty_orders: Number(s?.referral_bounty_orders ?? 5),
+      },
       // Whether card checkout (TagadaPay) is live — sourced from the single
       // server flag so the storefront shows the "Pay with card" option without a
       // separate client build flag to keep in sync.
       tagada_enabled: process.env.TAGADA_CHECKOUT_ENABLED === "true",
+    });
+  }
+
+  // ── /api/public/referral-signup — self-serve referral code (no auth/approval) ─
+  if (route === "referral-signup") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const chunks: Buffer[] = [];
+    for await (const chunk of req as any) chunks.push(Buffer.from(chunk));
+    let body: any;
+    try { body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"); } catch { return res.status(400).json({ error: "Invalid request." }); }
+    const name = String(body?.name ?? "").trim().slice(0, 60);
+    const email = String(body?.email ?? "").trim().toLowerCase();
+    if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Enter your name and a valid email." });
+
+    const { data: cfg } = await supabaseAdmin.from("store_settings").select("referral_program_active, referral_buyer_discount").maybeSingle();
+    if (!cfg?.referral_program_active) return res.status(403).json({ error: "The referral program isn't open right now." });
+
+    // Idempotent: re-signup with the same email returns the existing code.
+    const { data: existing } = await supabaseAdmin.from("affiliates").select("code").eq("is_referral", true).eq("email", email).maybeSingle();
+    if (existing) return res.status(200).json({ code: existing.code, existing: true });
+
+    // Generate a unique code from the first name (SARAH, SARAH2, …).
+    const base = ((name.split(/\s+/)[0] || name).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12)) || "REF";
+    const { data: taken } = await supabaseAdmin.from("affiliates").select("code").ilike("code", `${base}%`);
+    const takenSet = new Set((taken ?? []).map((r: any) => String(r.code).toUpperCase()));
+    let code = base;
+    let n = 2;
+    while (takenSet.has(code)) code = `${base}${n++}`;
+
+    const { error } = await supabaseAdmin.from("affiliates").insert({
+      code, name, email, is_referral: true, user_id: null,
+      discount_percent: Math.max(0, Math.min(100, Number(cfg.referral_buyer_discount) || 10)),
+      commission_percent: 0,
+    });
+    if (error) return res.status(400).json({ error: "Couldn't create your code — please try again." });
+    return res.status(200).json({ code, existing: false });
+  }
+
+  // ── /api/public/referral-stats — public code-based dashboard (no login) ─────
+  if (route === "referral-stats") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    const code = String(new URL(req.url ?? "", "http://x").searchParams.get("code") ?? "").trim().toUpperCase();
+    if (!code) return res.status(400).json({ error: "Enter your referral code." });
+    const { data: ref } = await supabaseAdmin.from("affiliates").select("id, code, name, discount_percent, is_referral").ilike("code", code).maybeSingle();
+    if (!ref || !ref.is_referral) return res.status(404).json({ error: "No referral code found — double-check the spelling." });
+    const { data: cfg } = await supabaseAdmin.from("store_settings").select("referral_bounty_amount, referral_bounty_orders").maybeSingle();
+    const bountyOrders = Math.max(1, Number(cfg?.referral_bounty_orders) || 5);
+    const bountyAmount = Math.max(0, Number(cfg?.referral_bounty_amount) || 100);
+    const { count } = await supabaseAdmin
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("affiliate_id", ref.id)
+      .in("status", ["confirmed", "finished"]);
+    const paidOrders = count ?? 0;
+    const payouts = Math.floor(paidOrders / bountyOrders);
+    return res.json({
+      code: ref.code,
+      name: ref.name ?? null,
+      buyer_discount: ref.discount_percent,
+      paid_orders: paidOrders,
+      bounty_orders: bountyOrders,
+      bounty_amount: bountyAmount,
+      earned: payouts * bountyAmount,
+      toward_next: paidOrders % bountyOrders,
+      remaining_to_next: bountyOrders - (paidOrders % bountyOrders),
+      claimable: paidOrders >= bountyOrders,
     });
   }
 
