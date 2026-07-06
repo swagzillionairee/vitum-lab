@@ -6,6 +6,7 @@ import { buyLabel, getTrackingStatus, shippoConfigured, shipFromConfigured, ship
 import { getRewardConfig, earnLoyalty, grantReferralReward } from "../_lib/credit.js";
 import { confirmPaidOrder, sendConfirmationEmails, ORDER_COLS } from "../_lib/fulfillment.js";
 import { getTagadaPaymentStatus } from "../_lib/tagada.js";
+import { squareConfigured } from "../_lib/square.js";
 import { VT_LOGO_PNG_B64 } from "../_lib/vt-logo.js";
 import { formatOrderId } from "../_lib/orderId.js";
 
@@ -396,7 +397,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── /api/admin/orders ────────────────────────────────────────────────────
   if (route === "orders") {
     const orderSelect =
-      "id, email, items, gross_amount, discount_amount, net_amount, shipping_amount, discount_code, discount_breakdown, credit_applied, referral_code, affiliate_id, commission_amount, status, fulfillment_status, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
+      "id, email, items, gross_amount, discount_amount, net_amount, shipping_amount, discount_code, discount_breakdown, credit_applied, referral_code, affiliate_id, commission_amount, status, fulfillment_status, payment_method, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, shipping_address, created_at, confirmed_at, emails_sent";
 
     // Sends an order email and reloads emails_sent so the response reflects the
     // new stamp. Email failures never fail the admin action.
@@ -443,7 +444,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "PATCH") {
       const body = req.body as {
         id?: string;
-        action?: "cancel" | "ship" | "buy_label" | "deliver" | "recheck" | "notes" | "resend_email";
+        action?: "cancel" | "ship" | "buy_label" | "deliver" | "recheck" | "notes" | "resend_email" | "mark_paid";
         reason?: string;
         tracking_number?: string;
         carrier?: string;
@@ -546,6 +547,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (error) return res.status(500).json({ error: "Failed to mark delivered" });
         await emailAndRefresh(data, "delivered");
         return res.json(await emailAndRefresh(data, "admin_delivered"));
+      }
+
+      // Manual-payment confirmation: the admin verified the Zelle/Cash App/Venmo/
+      // ACH transfer landed → confirm the order. Reuses the shared ATOMIC confirm
+      // path (pending→confirmed claim + stock + promo + loyalty/referral), so it
+      // can't double-fulfill and is a no-op if already confirmed.
+      if (action === "mark_paid") {
+        if (order.status !== "pending") return res.status(409).json({ error: "Only a pending order can be marked paid" });
+        const { data: full } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("id", id).maybeSingle();
+        if (!full) return res.status(404).json({ error: "Order not found" });
+        await confirmPaidOrder(full, { payCurrency: "USD", payAmount: order.net_amount, paymentId: null });
+        await sendConfirmationEmails(full);
+        const { data } = await supabaseAdmin.from("orders").select(orderSelect).eq("id", id).single();
+        return res.json(data);
       }
 
       if (action === "resend_email") {
@@ -864,6 +879,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // applies retroactively (checkout reads discount_percent per affiliate row).
       await supabaseAdmin.from("affiliates").update({ discount_percent: buyerDiscount }).eq("is_referral", true);
       return res.json(data);
+    }
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── /api/admin/payment-config — Square + manual (Zelle/Cash App/Venmo/ACH)
+  // + crypto method config. Handles are shown to customers, so keep them clean. ─
+  if (route === "payment-config") {
+    if (req.method === "GET") {
+      const { data, error } = await supabaseAdmin.from("store_settings").select("payment_config").maybeSingle();
+      if (error) return res.status(500).json({ error: "Failed to load payment config" });
+      return res.json({ payment_config: data?.payment_config ?? {}, square_configured: squareConfigured() });
+    }
+    if (req.method === "PUT") {
+      const b = (req.body?.payment_config ?? {}) as Record<string, any>;
+      const manual = (k: string) => ({
+        enabled: !!b[k]?.enabled,
+        handle: String(b[k]?.handle ?? "").slice(0, 200).trim(),
+        instructions: String(b[k]?.instructions ?? "").slice(0, 500),
+      });
+      const payment_config = {
+        square: { enabled: !!b.square?.enabled },
+        zelle: manual("zelle"),
+        cashapp: manual("cashapp"),
+        venmo: manual("venmo"),
+        ach: manual("ach"),
+        crypto: { enabled: b.crypto?.enabled !== false },
+      };
+      const { data, error } = await supabaseAdmin
+        .from("store_settings")
+        .upsert({ id: true, payment_config, updated_at: new Date().toISOString() }, { onConflict: "id" })
+        .select("payment_config")
+        .maybeSingle();
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json({ payment_config: data?.payment_config ?? payment_config, square_configured: squareConfigured() });
     }
     return res.status(405).json({ error: "Method not allowed" });
   }

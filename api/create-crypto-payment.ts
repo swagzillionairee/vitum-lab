@@ -7,9 +7,14 @@ import { buildOrderId } from "./_lib/orderId.js";
 import { requireUser } from "./_lib/requireUser.js";
 import { isAdminEmail } from "./_lib/requireAdmin.js";
 import { chargeCard } from "./_lib/tagada.js";
+import { chargeSquare, squareConfigured } from "./_lib/square.js";
 import { confirmPaidOrder, sendConfirmationEmails, ORDER_COLS } from "./_lib/fulfillment.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
+
+// Manual peer-to-peer methods: the order is placed as pending and the admin
+// confirms it in Admin → Orders once the transfer lands (no automated callback).
+const MANUAL_METHODS = ["zelle", "cashapp", "venmo", "ach"];
 
 const FREE_GIFT_CODE = "bac-water-free";
 const FREE_GIFT_THRESHOLD = 150; // paid subtotal that unlocks the free BAC Water
@@ -123,7 +128,8 @@ export default async function handler(req: any, res: any) {
   const useTagada = process.env.TAGADA_CHECKOUT_ENABLED === "true";
 
   try {
-    const { items, discountCode, shipping, attestation, total } = req.body as {
+    const { items, discountCode, shipping, attestation, total, paymentMethod } = req.body as {
+      paymentMethod?: string;
       items: { name: string; dose: string; quantity: number; cartCode: string; price: number }[];
       total: number;
       discountCode?: string;
@@ -399,11 +405,21 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
+    // Normalize the chosen payment method. A card token still routes to Tagada
+    // if that legacy flag is somehow on (it isn't — retired), else Square. No
+    // token + a manual method → awaiting-transfer order. Otherwise crypto.
+    const rawMethod = String(paymentMethod ?? "").toLowerCase();
+    const payMethod =
+      rawMethod === "square" || MANUAL_METHODS.includes(rawMethod) || rawMethod === "crypto"
+        ? rawMethod
+        : "crypto";
+
     // Persist pending order
     const { error: insertError } = await supabaseAdmin.from("orders").insert({
       id: orderId,
       email,
       status: "pending",
+      payment_method: payMethod,
       items: orderItems,
       gross_amount: grossAmount,
       discount_amount: discountAmount,
@@ -430,6 +446,64 @@ export default async function handler(req: any, res: any) {
       await supabaseAdmin.from("orders").delete().eq("id", orderId);
       await releaseDiscountRedemption(orderId);
       res.status(409).json({ error: "Your store credit balance changed — please review your order and try again." });
+      return;
+    }
+
+    const emailOrderBase = (): EmailOrder => ({
+      id: orderId, email, items: orderItems, gross_amount: grossAmount,
+      discount_amount: discountAmount, discount_code: discountCodeNorm,
+      net_amount: netAmount, shipping_amount: shippingAmount, credit_applied: creditApplied,
+      payment_method: payMethod, shipping_address: shipping, emails_sent: {},
+    });
+
+    // ── Square (live card processing) — charge the exact amountDue ───────────
+    // The client tokenizes the card with the Web Payments SDK and sends a
+    // single-use `squareToken` (source_id); we charge the server-computed
+    // amountDue via the Payments API (never a client price).
+    if (payMethod === "square") {
+      const squareToken = typeof (req.body as { squareToken?: unknown }).squareToken === "string"
+        ? (req.body as { squareToken: string }).squareToken
+        : "";
+      if (!squareToken || !squareConfigured()) {
+        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        await releaseDiscountRedemption(orderId);
+        res.status(400).json({ error: "Card payments aren't available right now. Please choose another method." });
+        return;
+      }
+      try {
+        const result = await chargeSquare({ sourceId: squareToken, amountDue, orderId, email });
+        await supabaseAdmin.from("orders").update({ payment_id: result.paymentId || null }).eq("id", orderId);
+        if (result.status === "succeeded") {
+          const { data: ord } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("id", orderId).maybeSingle();
+          if (ord) {
+            await confirmPaidOrder(ord, { payCurrency: "USD", payAmount: amountDue, paymentId: result.paymentId });
+            deferEmail(sendConfirmationEmails(ord));
+          }
+          res.status(200).json({ paid: true, orderId });
+          return;
+        }
+        // Declined — fail the order (releases reserved credit + the one-use slot).
+        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        await releaseDiscountRedemption(orderId);
+        res.status(402).json({ error: result.error });
+        return;
+      } catch (err) {
+        console.error("Square charge error:", err);
+        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
+        await releaseDiscountRedemption(orderId);
+        res.status(500).json({ error: "Card payment failed. Please try again." });
+        return;
+      }
+    }
+
+    // ── Manual peer-to-peer transfer (Zelle / Cash App / Venmo / bank ACH) ───
+    // No automated confirmation exists for these — the order stays pending with
+    // the send-to instructions shown to the customer, and the admin marks it
+    // paid in Admin → Orders once the money lands. Reserved credit/promo slots
+    // are held (like a crypto invoice) until it's confirmed or auto-expires (14d).
+    if (MANUAL_METHODS.includes(payMethod)) {
+      deferEmail(sendOrderEvent(emailOrderBase(), "order_created"));
+      res.status(200).json({ awaiting: true, method: payMethod, orderId });
       return;
     }
 

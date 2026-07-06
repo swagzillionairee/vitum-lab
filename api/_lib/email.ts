@@ -36,6 +36,7 @@ export interface EmailOrder {
   net_amount: number | string;
   shipping_amount?: number | string | null;
   credit_applied?: number | string | null;
+  payment_method?: string | null;
   shipping_address?: EmailAddress | null;
   tracking_number?: string | null;
   carrier?: string | null;
@@ -255,11 +256,33 @@ export function trackingUrl(carrier: string | null | undefined, tracking: string
 }
 
 // ─── Per-event content ───────────────────────────────────────────────────────
-function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { invoiceUrl?: string; wasPending?: boolean }, images?: Record<string, string>): { to: string; subject: string; html: string } {
+function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { invoiceUrl?: string; wasPending?: boolean; manual?: { label: string; handle: string; instructions: string } }, images?: Record<string, string>): { to: string; subject: string; html: string } {
   const shortId = formatOrderId(order.id);
 
   switch (event) {
     case "order_created":
+      if (opts?.manual) {
+        // Manual peer-to-peer transfer — include exactly where to send + the
+        // order number to put in the memo so we can match the payment.
+        const m = opts.manual;
+        const memoBox =
+          `<div style="background:#f0f9ff;border:1px solid #bae0f5;border-radius:10px;padding:16px;margin:0 0 20px;">` +
+          `<p style="margin:0 0 8px;font-size:13px;color:#2b5a72;">Send <strong>${money(orderTotal(order))}</strong> via <strong>${esc(m.label)}</strong> to:</p>` +
+          `<p style="margin:0 0 8px;font-size:18px;font-weight:700;font-family:monospace;color:#0b3d54;word-break:break-all;">${esc(m.handle)}</p>` +
+          (m.instructions ? `<p style="margin:0 0 8px;font-size:12px;color:#3a6b82;white-space:pre-line;">${esc(m.instructions)}</p>` : "") +
+          `<p style="margin:8px 0 0;font-size:12px;color:#3a6b82;border-top:1px solid #cfe6f2;padding-top:8px;">⚠️ Put your order number <strong style="font-family:monospace;">${esc(formatOrderId(order.id))}</strong> in the payment memo so we can match it. We ship as soon as it's received.</p>` +
+          `</div>`;
+        return {
+          to: order.email,
+          subject: `Order received — send your ${m.label} payment (${shortId})`,
+          html: layout(
+            pill("Awaiting Payment", "#fdf6e7", "#9a6b15") +
+            heading("We've received your order", `Your order is reserved. Complete your payment via ${esc(m.label)} using the details below and we'll confirm and ship as soon as it arrives.`) +
+            memoBox +
+            orderBox(order, images) + addressBox(order.shipping_address),
+          ),
+        };
+      }
       return {
         to: order.email,
         subject: `Order received — complete your payment (${shortId})`,
@@ -388,6 +411,17 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
  * Send an order lifecycle email exactly once (per orders.emails_sent), unless
  * force is set (admin resend). Returns true if a send actually happened.
  */
+const MANUAL_EMAIL_METHODS: Record<string, string> = { zelle: "Zelle", cashapp: "Cash App", venmo: "Venmo", ach: "bank transfer" };
+
+// Look up a manual method's send-to handle so the "order received" email can
+// include the payment details (the customer may have left the success page).
+async function manualHandle(method: string): Promise<{ label: string; handle: string; instructions: string } | null> {
+  const { data } = await supabaseAdmin.from("store_settings").select("payment_config").maybeSingle();
+  const m = (data?.payment_config as Record<string, { handle?: string; instructions?: string }> | null)?.[method];
+  if (m?.handle) return { label: MANUAL_EMAIL_METHODS[method] ?? method, handle: String(m.handle), instructions: String(m.instructions ?? "") };
+  return null;
+}
+
 export async function sendOrderEvent(
   order: EmailOrder,
   event: OrderEmailEvent,
@@ -396,7 +430,12 @@ export async function sendOrderEvent(
   if (!opts?.force && order.emails_sent?.[event]) return false;
   if (!order.email) return false;
   const images = await productImageMap().catch(() => ({}));
-  const { to, subject, html } = buildOrderEmail(order, event, opts, images);
+  // Manual-transfer "order received" email carries the send-to instructions.
+  let manual: { label: string; handle: string; instructions: string } | undefined;
+  if (event === "order_created" && order.payment_method && order.payment_method in MANUAL_EMAIL_METHODS) {
+    manual = (await manualHandle(order.payment_method).catch(() => null)) ?? undefined;
+  }
+  const { to, subject, html } = buildOrderEmail(order, event, { ...opts, manual }, images);
   await send(to, subject, html);
   await stampEmail(order.id, event);
   return true;

@@ -6,25 +6,45 @@
  *   promo code, and the "Continue to Payment" button (NowPayments invoice).
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowRight, Tag, Check, Loader2, ShoppingBag, CreditCard, Bitcoin, Wallet, Apple } from "lucide-react";
+import { ArrowRight, Tag, Check, Loader2, ShoppingBag, CreditCard, Bitcoin, Landmark, DollarSign, AtSign, Building2, Copy } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
 import { getPromoCode, clearPromoCode } from "@/lib/promo";
 import { quantityDiscountPercent, round2, shippingFee, type QuantityTier } from "@/lib/discounts";
-import { googlePayAvailable, applePayAvailable, payWithGooglePay, payWithApplePay } from "@/lib/wallets";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
-import TagadaCardBox from "@/components/TagadaCardBox";
-import GooglePayButton from "@/components/GooglePayButton";
+import SquareCardBox from "@/components/SquareCardBox";
 
-type PayMethod = "card" | "googlepay" | "applepay" | "crypto";
+type PayMethod = "square" | "zelle" | "cashapp" | "venmo" | "ach" | "crypto";
+const MANUAL_METHODS: PayMethod[] = ["zelle", "cashapp", "venmo", "ach"];
 
-// Card checkout via TagadaPay (client-side flag; server gates the charge behind
-// TAGADA_CHECKOUT_ENABLED). When off, checkout uses the NowPayments redirect.
-const TAGADA_ON = import.meta.env.VITE_TAGADA_CHECKOUT_ENABLED === "true";
+interface ManualCfg { enabled: boolean; handle: string; instructions: string }
+interface PaymentsCfg {
+  square: { enabled: boolean };
+  zelle: ManualCfg; cashapp: ManualCfg; venmo: ManualCfg; ach: ManualCfg;
+  crypto: { enabled: boolean };
+}
+
+// Display metadata per method (order = tile order). "memo" = where the customer
+// writes their order number so we can match the transfer.
+const METHOD_META: Record<PayMethod, { label: string; Icon: typeof CreditCard; memo: string }> = {
+  square:  { label: "Card",        Icon: CreditCard, memo: "" },
+  zelle:   { label: "Zelle",       Icon: Landmark,   memo: "memo / note" },
+  cashapp: { label: "Cash App",    Icon: DollarSign, memo: "note" },
+  venmo:   { label: "Venmo",       Icon: AtSign,     memo: "note" },
+  ach:     { label: "Bank (ACH)",  Icon: Building2,  memo: "transfer memo" },
+  crypto:  { label: "Crypto",      Icon: Bitcoin,    memo: "" },
+};
+
+function isMethodEnabled(p: PaymentsCfg | null, m: PayMethod): boolean {
+  if (!p) return false;
+  if (m === "square") return !!p.square?.enabled;
+  if (m === "crypto") return p.crypto?.enabled !== false;
+  return !!p[m]?.enabled && !!p[m]?.handle;
+}
 
 export default function Checkout() {
   const { items, subtotal, openCart, clearCart } = useCart();
@@ -48,21 +68,29 @@ export default function Checkout() {
   const [attested, setAttested] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  // Whether card checkout (TagadaPay) is live — from the server flag via
-  // /api/public/site, so the "Pay with card" option needs no separate client
-  // build flag. `payMethod === "card"` reveals the inline card fields.
-  const [serverCardEnabled, setServerCardEnabled] = useState(false);
-  const [payMethod, setPayMethod] = useState<PayMethod>("card");
-  // Native-wallet availability (device/browser-gated; probed via core-js).
-  const [gpayAvail, setGpayAvail] = useState(false);
-  const [appleAvail, setAppleAvail] = useState(false);
+  const [copiedHandle, setCopiedHandle] = useState(false);
+  // Enabled payment methods (Square + manual handles + crypto), from the admin
+  // config via /api/public/site. `payMethod` is the selected tile.
+  const [payments, setPayments] = useState<PaymentsCfg | null>(null);
+  const [payMethod, setPayMethod] = useState<PayMethod>("crypto");
 
-  // Quantity discount tiers (for the breakdown display; server is authoritative).
+  // Quantity tiers (display only) + payment method config.
   useEffect(() => {
     let stale = false;
     fetch("/api/public/site")
       .then((r) => r.json())
-      .then((d) => { if (!stale) { setTiers(d.quantity_tiers ?? []); setServerCardEnabled(!!d.tagada_enabled); } })
+      .then((d) => {
+        if (stale) return;
+        setTiers(d.quantity_tiers ?? []);
+        const p = d.payments as PaymentsCfg | undefined;
+        if (p) {
+          setPayments(p);
+          // Default to the first enabled method (Square first, crypto last).
+          const first = (["square", "zelle", "cashapp", "venmo", "ach", "crypto"] as PayMethod[])
+            .find((m) => isMethodEnabled(p, m));
+          if (first) setPayMethod(first);
+        }
+      })
       .catch(() => {});
     return () => { stale = true; };
   }, []);
@@ -184,29 +212,10 @@ export default function Checkout() {
   const creditApplied = round2(Math.min(creditBalance, netAfterDiscounts + shippingCost));
   const total = round2(netAfterDiscounts + shippingCost - creditApplied);
 
-  // Offer the "Pay with card" option when card checkout is live — signalled by
-  // the server flag (serverCardEnabled, via /api/public/site), the client build
-  // flag, OR the owner opt-in /checkout?tagada=1 (test card on prod without
-  // exposing it to real customers). Crypto (NowPayments) is always available.
-  const showTagada =
-    TAGADA_ON ||
-    serverCardEnabled ||
-    (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tagada") === "1");
-
-  // Probe Google Pay / Apple Pay availability once card checkout is on. Each
-  // resolves false on unsupported devices/browsers so the tile just hides.
-  useEffect(() => {
-    if (!showTagada) return;
-    let stale = false;
-    googlePayAvailable().then((ok) => { if (!stale) setGpayAvail(ok); });
-    applePayAvailable().then((ok) => { if (!stale) setAppleAvail(ok); });
-    return () => { stale = true; };
-  }, [showTagada]);
-
-  const handlePay = async (tagadaToken?: string) => {
-    // Re-entrancy guard: a wallet/tokenize callback resolving while another
-    // payment attempt is in flight (e.g. the user switched method mid-tokenize)
-    // must never fire a second order-creating POST.
+  const handlePay = async (squareToken?: string) => {
+    // Re-entrancy guard: a tokenize callback resolving while another payment
+    // attempt is in flight (e.g. the user switched method mid-tokenize) must
+    // never fire a second order-creating POST.
     if (busy) return;
     if (!email.trim() || !email.includes("@")) {
       setError("Please enter a valid email address.");
@@ -238,7 +247,8 @@ export default function Checkout() {
           affiliateId: promoApplied ? affiliateId : undefined,
           discountAmount: promoApplied ? discountAmount : undefined,
           attestation: attested,
-          tagadaToken,
+          paymentMethod: total <= 0 ? "crypto" : payMethod,
+          squareToken,
         }),
       });
       const data = await response.json();
@@ -253,28 +263,20 @@ export default function Checkout() {
         }).catch(() => {});
         clearPromoCode(); // consumed — don't auto-apply on the next order
         if (data.free) {
-          // $0 order (e.g. 100% promo) — already confirmed server-side, skip payment.
+          // $0 order (e.g. 100% promo) — already confirmed server-side.
           clearCart();
           navigate(`/order-success?order=${encodeURIComponent(data.orderId)}&free=1`);
-        } else if (data.tagada === "succeeded") {
-          // Card charged + confirmed server-side.
+        } else if (data.paid) {
+          // Card charged + confirmed server-side (Square).
           clearCart();
           navigate(`/order-success?order=${encodeURIComponent(data.orderId)}`);
-        } else if (data.tagada === "redirect") {
-          // 3DS challenge — Tagada returns to /order-success; the webhook confirms.
-          window.location.href = data.url;
-        } else if (data.tagada === "processing") {
-          // Payment accepted but settling asynchronously (Tagada "pending") — NOT
-          // declined. The webhook (or admin Re-check) confirms it; take the
-          // customer to the success page where the order shows as awaiting payment.
+        } else if (data.awaiting) {
+          // Manual transfer (Zelle/Cash App/Venmo/ACH) — order placed as pending;
+          // the success page shows where to send the money + the reference.
           clearCart();
-          navigate(`/order-success?order=${encodeURIComponent(data.orderId)}&processing=1`);
-        } else if (data.tagada === "test") {
-          // Admin opt-in test on prod (test key): the charge ran but the order is
-          // intentionally left pending (never shipped). Surface the raw result.
-          setError(`✓ Tagada test charge ran (result: ${data.result}). Order left PENDING — not shipped (test key). Check Admin → Orders / logs to validate.`);
+          navigate(`/order-success?order=${encodeURIComponent(data.orderId)}&awaiting=1&method=${encodeURIComponent(data.method)}&amt=${total.toFixed(2)}`);
         } else {
-          window.location.href = data.invoiceUrl; // NowPayments crypto fallback
+          window.location.href = data.invoiceUrl; // NowPayments crypto redirect
         }
       }
     } catch {
@@ -286,6 +288,16 @@ export default function Checkout() {
 
   const inputBase = "border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent";
   const inputClass = `${inputBase} w-full`;
+
+  // Enabled methods in tile order; the active manual method's config (if any).
+  const enabledMethods = (["square", "zelle", "cashapp", "venmo", "ach", "crypto"] as PayMethod[])
+    .filter((m) => isMethodEnabled(payments, m));
+  const activeManual = MANUAL_METHODS.includes(payMethod) && payments
+    ? (payments[payMethod as "zelle"] as ManualCfg)
+    : null;
+  const copyHandle = (h: string) => {
+    navigator.clipboard?.writeText(h).then(() => { setCopiedHandle(true); setTimeout(() => setCopiedHandle(false), 1500); }, () => {});
+  };
 
   if (loading || !session) {
     return (
@@ -448,98 +460,79 @@ export default function Checkout() {
               </span>
             </label>
 
-            {showTagada && total > 0 ? (
+            {total <= 0 ? (
+              <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
+                {busy ? "Processing…" : (<>Place Order <ArrowRight className="w-4 h-4" /></>)}
+              </button>
+            ) : enabledMethods.length === 0 ? (
+              <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] text-center py-2">
+                No payment methods are available right now. Please contact <a href="mailto:hello@vitumlab.com" className="text-[oklch(0.40_0.16_260)] font-semibold hover:underline">hello@vitumlab.com</a>.
+              </p>
+            ) : (
               <div className="space-y-3">
-                {/* Payment method selector — Card / Google Pay / Apple Pay / Crypto.
-                    Wallet tiles only appear on devices where they're available. */}
-                <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { id: "card", label: "Card", icon: <CreditCard className="w-4 h-4" /> },
-                    ...(gpayAvail ? [{ id: "googlepay", label: "Google Pay", icon: <Wallet className="w-4 h-4" /> }] : []),
-                    ...(appleAvail ? [{ id: "applepay", label: "Apple Pay", icon: <Apple className="w-4 h-4" /> }] : []),
-                    { id: "crypto", label: "Crypto", icon: <Bitcoin className="w-4 h-4" /> },
-                  ] as { id: PayMethod; label: string; icon: ReactNode }[]).map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      disabled={busy}
-                      onClick={() => { setPayMethod(m.id); setError(""); }}
-                      className={`flex items-center justify-center gap-2 rounded-xl border-2 py-2.5 text-[0.8125rem] font-semibold transition-colors ${
-                        payMethod === m.id
-                          ? "border-[oklch(0.40_0.16_260)] bg-[oklch(0.96_0.02_260)] text-[oklch(0.30_0.16_260)] dark:bg-[oklch(0.40_0.16_260)] dark:text-white dark:border-[oklch(0.40_0.16_260)]"
-                          : "border-[oklch(0.90_0.004_260)] text-[oklch(0.35_0.01_260)] hover:bg-[oklch(0.98_0.002_260)] dark:border-[oklch(0.30_0.01_260)] dark:text-[oklch(0.72_0.01_260)] dark:hover:bg-[oklch(0.22_0.01_260)]"
-                      }`}
-                    >
-                      {m.icon} {m.label}
-                    </button>
-                  ))}
+                {/* Payment method selector */}
+                <div className="grid grid-cols-3 gap-2">
+                  {enabledMethods.map((m) => {
+                    const { label, Icon } = METHOD_META[m];
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => { setPayMethod(m); setError(""); }}
+                        className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-2.5 text-[0.75rem] font-semibold transition-colors disabled:opacity-60 ${
+                          payMethod === m
+                            ? "border-[oklch(0.40_0.16_260)] bg-[oklch(0.96_0.02_260)] text-[oklch(0.30_0.16_260)] dark:bg-[oklch(0.40_0.16_260)] dark:text-white dark:border-[oklch(0.40_0.16_260)]"
+                            : "border-[oklch(0.90_0.004_260)] text-[oklch(0.35_0.01_260)] hover:bg-[oklch(0.98_0.002_260)] dark:border-[oklch(0.30_0.01_260)] dark:text-[oklch(0.72_0.01_260)] dark:hover:bg-[oklch(0.22_0.01_260)]"
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" /> {label}
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {/* Selected method's action */}
-                {payMethod === "card" && (
-                  <TagadaCardBox
-                    amountDue={total}
-                    disabled={busy || !attested}
-                    busy={busy}
-                    onPay={(token) => handlePay(token)}
-                    onError={setError}
-                  />
-                )}
-                {payMethod === "googlepay" && (
-                  busy ? (
-                    <div className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-black text-white text-[0.9375rem] font-semibold">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Processing…
-                    </div>
+                {/* Square — inline secure card fields */}
+                {payMethod === "square" && (
+                  attested ? (
+                    <SquareCardBox amountDue={total} disabled={busy || !attested} busy={busy} onPay={(t) => handlePay(t)} onError={setError} />
                   ) : (
-                    <GooglePayButton
-                      disabled={busy || !attested}
-                      onClick={() => {
-                        if (!attested) { setError("Please confirm the research-use acknowledgment to continue."); return; }
-                        setError("");
-                        payWithGooglePay(total, (t) => handlePay(t), setError);
-                      }}
-                    />
+                    <p className="text-[0.75rem] text-[oklch(0.52_0.01_260)] text-center py-2">Confirm the acknowledgment above to enter your card.</p>
                   )
                 )}
-                {payMethod === "applepay" && (
-                  <button
-                    onClick={() => {
-                      if (!attested) { setError("Please confirm the research-use acknowledgment to continue."); return; }
-                      setError("");
-                      payWithApplePay(total, (t) => handlePay(t), setError);
-                    }}
-                    disabled={busy || !attested}
-                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-black text-white text-[0.9375rem] font-semibold border border-white/10 hover:bg-[oklch(0.25_0_0)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {busy ? "Processing…" : (<><Apple className="w-4 h-4" /> Pay with Apple Pay</>)}
-                  </button>
+
+                {/* Manual transfer — show where to send, then place the order */}
+                {activeManual && (
+                  <div className="rounded-xl border border-[oklch(0.88_0.05_200)] bg-[oklch(0.97_0.02_200)] p-4 space-y-2.5">
+                    <p className="text-[0.8125rem] text-[oklch(0.30_0.06_200)]">
+                      Send <span className="font-bold">${total.toFixed(2)}</span> via <span className="font-semibold">{METHOD_META[payMethod].label}</span> to:
+                    </p>
+                    <div className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2.5 border border-[oklch(0.90_0.03_200)]">
+                      <span className="font-mono text-[0.9375rem] font-bold text-[oklch(0.20_0.04_200)] break-all">{activeManual.handle}</span>
+                      <button type="button" onClick={() => copyHandle(activeManual.handle)} className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.42_0.11_200)] flex-shrink-0 hover:underline">
+                        {copiedHandle ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                      </button>
+                    </div>
+                    {activeManual.instructions && (
+                      <p className="text-[0.75rem] text-[oklch(0.42_0.03_200)] whitespace-pre-line">{activeManual.instructions}</p>
+                    )}
+                    <p className="text-[0.75rem] text-[oklch(0.45_0.03_200)]">
+                      Place your order below, then include your <span className="font-semibold">order number</span> in the {METHOD_META[payMethod].memo} so we can match your payment. We ship as soon as it's received.
+                    </p>
+                    <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
+                      {busy ? "Placing order…" : (<>Place order — I'll send payment <ArrowRight className="w-4 h-4" /></>)}
+                    </button>
+                  </div>
                 )}
+
+                {/* Crypto — redirect to the NowPayments invoice */}
                 {payMethod === "crypto" && (
-                  <button
-                    onClick={() => handlePay()}
-                    disabled={busy || !attested}
-                    className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
+                  <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
                     {busy ? "Processing…" : (<>Continue with crypto <ArrowRight className="w-4 h-4" /></>)}
                   </button>
                 )}
               </div>
-            ) : (
-              <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
-                {busy ? "Processing…" : total <= 0 ? (<>Place Order <ArrowRight className="w-4 h-4" /></>) : (<>Continue to Payment <ArrowRight className="w-4 h-4" /></>)}
-              </button>
             )}
-            <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)] text-center">
-              {total <= 0
-                ? "No payment needed — covered by store credit."
-                : showTagada
-                  ? payMethod === "card"
-                    ? "Enter your card above — secured by TagadaPay · Finix. Not for human consumption."
-                    : payMethod === "crypto"
-                      ? "You'll continue to our crypto checkout. Not for human consumption."
-                      : "Secured by TagadaPay · Finix. Not for human consumption."
-                  : "Pay with crypto or card on the next step."}
-            </p>
             <p className="text-[0.625rem] text-center text-[oklch(0.70_0.01_260)]">
               Research use only — not for human consumption.
             </p>
