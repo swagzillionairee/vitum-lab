@@ -74,6 +74,16 @@ export default function AffiliatesTab({ onMutate }: { onMutate?: () => void }) {
     if (res.ok) loadAffiliates();
   };
 
+  const deleteAffiliate = async (a: AffiliateRow) => {
+    if (!confirm(`Delete affiliate "${a.name || a.code}" (${a.code})?\n\nThis removes the affiliate and their payout records. Past orders keep their history, but the code stops giving a discount. This can't be undone.`)) return;
+    setAffiliateBusy(true);
+    const res = await authedFetch("/api/admin/affiliates", { method: "DELETE", body: JSON.stringify({ id: a.id }) });
+    setAffiliateBusy(false);
+    if (!res.ok) { alert((await res.json().catch(() => ({}))).error ?? "Failed to delete affiliate"); return; }
+    await loadAffiliates();
+    onMutate?.();
+  };
+
   return (
     <section className="bg-white rounded-2xl shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] p-6">
       <div className="flex items-center justify-between mb-2">
@@ -141,6 +151,10 @@ export default function AffiliatesTab({ onMutate }: { onMutate?: () => void }) {
                           <button onClick={() => editAffiliate(a)}
                             className="flex items-center gap-1 text-[0.7rem] font-semibold text-[oklch(0.40_0.01_260)] border border-[oklch(0.85_0.004_260)] px-2 py-1 rounded-lg hover:bg-[oklch(0.96_0.003_260)]">
                             <Pencil className="w-3 h-3" /> Edit %
+                          </button>
+                          <button onClick={() => deleteAffiliate(a)} disabled={affiliateBusy}
+                            className="flex items-center gap-1 text-[0.7rem] font-semibold text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50 disabled:opacity-50" title="Delete affiliate">
+                            <Trash2 className="w-3 h-3" /> Delete
                           </button>
                         </div>
                       </td>

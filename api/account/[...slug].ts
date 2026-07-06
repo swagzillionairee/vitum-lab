@@ -125,13 +125,14 @@ export default async function handler(req: any, res: any) {
 
     const { data: cfg } = await supabaseAdmin
       .from("store_settings")
-      .select("referral_program_active, referral_buyer_discount, referral_bounty_amount, referral_bounty_orders")
+      .select("referral_program_active, referral_buyer_discount, referral_bounty_amount, referral_bounty_orders, referral_min_order")
       .maybeSingle();
     if (!cfg?.referral_program_active) { res.status(200).json({ active: false }); return; }
 
     const buyerDiscount = Math.max(0, Math.min(100, Number(cfg.referral_buyer_discount) || 10));
     const bountyOrders = Math.max(1, Number(cfg.referral_bounty_orders) || 5);
     const bountyAmount = Math.max(0, Number(cfg.referral_bounty_amount) || 100);
+    const minOrder = Math.max(0, Number(cfg.referral_min_order) || 0);
 
     // 0) Already a curated affiliate? The affiliates table is one-code-per-email,
     // so we can't mint a second (referral) code for this account — and they don't
@@ -200,13 +201,17 @@ export default async function handler(req: any, res: any) {
       ref = inserted;
     }
 
-    // Paid referrals = confirmed/finished orders that carried this code.
-    const { count } = await supabaseAdmin
+    // Qualifying referrals = confirmed/finished orders that carried this code,
+    // whose net value clears the minimum, placed by SOMEONE ELSE (a self-order by
+    // the referrer never counts — belt-and-suspenders with the checkout block).
+    const { data: refOrders } = await supabaseAdmin
       .from("orders")
-      .select("id", { count: "exact", head: true })
+      .select("email, net_amount")
       .eq("affiliate_id", ref.id)
       .in("status", ["confirmed", "finished"]);
-    const paidOrders = count ?? 0;
+    const paidOrders = (refOrders ?? []).filter(
+      (o) => Number(o.net_amount ?? 0) >= minOrder && (o.email ?? "").toLowerCase() !== user.email,
+    ).length;
     const payouts = Math.floor(paidOrders / bountyOrders);
     const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
 
@@ -215,6 +220,7 @@ export default async function handler(req: any, res: any) {
       code: ref.code,
       link: `${baseUrl}/?ref=${ref.code}`,
       buyer_discount: buyerDiscount,
+      min_order: minOrder,
       paid_orders: paidOrders,
       bounty_orders: bountyOrders,
       bounty_amount: bountyAmount,

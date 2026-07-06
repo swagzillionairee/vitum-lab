@@ -843,10 +843,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "GET") {
       const { data, error } = await supabaseAdmin
         .from("store_settings")
-        .select("referral_program_active, referral_buyer_discount, referral_bounty_amount, referral_bounty_orders")
+        .select("referral_program_active, referral_buyer_discount, referral_bounty_amount, referral_bounty_orders, referral_min_order")
         .maybeSingle();
       if (error) return res.status(500).json({ error: "Failed to load referral config" });
-      return res.json(data ?? { referral_program_active: false, referral_buyer_discount: 10, referral_bounty_amount: 100, referral_bounty_orders: 5 });
+      return res.json(data ?? { referral_program_active: false, referral_buyer_discount: 10, referral_bounty_amount: 100, referral_bounty_orders: 5, referral_min_order: 0 });
     }
     if (req.method === "PUT") {
       const b = req.body ?? {};
@@ -854,6 +854,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const buyerDiscount = Math.max(0, Math.min(100, Math.round(Number(b.buyer_discount) || 0)));
       const bountyAmount = Math.max(0, Number(b.bounty_amount) || 0);
       const bountyOrders = Math.max(1, Math.round(Number(b.bounty_orders) || 1));
+      const minOrder = Math.max(0, Number(b.min_order) || 0);
       const { data, error } = await supabaseAdmin
         .from("store_settings")
         .upsert(
@@ -863,11 +864,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             referral_buyer_discount: buyerDiscount,
             referral_bounty_amount: bountyAmount,
             referral_bounty_orders: bountyOrders,
+            referral_min_order: minOrder,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "id" },
         )
-        .select("referral_program_active, referral_buyer_discount, referral_bounty_amount, referral_bounty_orders")
+        .select("referral_program_active, referral_buyer_discount, referral_bounty_amount, referral_bounty_orders, referral_min_order")
         .maybeSingle();
       if (error) return res.status(400).json({ error: error.message });
       // Re-sync the buyer discount onto every existing referral code so a change
@@ -950,6 +952,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { data, error } = await supabaseAdmin.from("affiliates").update(allowed).eq("id", id).select().single();
       if (error) return res.status(400).json({ error: error.message });
       return res.json(data);
+    }
+
+    if (req.method === "DELETE") {
+      const { id } = req.body ?? {};
+      if (!id) return res.status(400).json({ error: "id required" });
+      // Curated affiliates only (the tab never lists self-serve referral codes).
+      // affiliate_payouts cascades; orders keep their affiliate_id/commission
+      // history (no FK) so past revenue reporting is unaffected.
+      const { error } = await supabaseAdmin.from("affiliates").delete().eq("id", id).eq("is_referral", false);
+      if (error) return res.status(400).json({ error: error.message });
+      return res.json({ ok: true });
     }
 
     return res.status(405).json({ error: "Method not allowed" });
