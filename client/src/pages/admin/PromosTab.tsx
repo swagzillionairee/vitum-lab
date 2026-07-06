@@ -325,7 +325,7 @@ function FeaturedBannerCard() {
 
 // ─── Self-serve referral program ───────────────────────────────────────────────
 function ReferralProgramCard() {
-  const [form, setForm] = useState<{ active: boolean; buyer_discount: string; bounty_amount: string; bounty_orders: string } | null>(null);
+  const [form, setForm] = useState<{ active: boolean; buyer_discount: string; bounty_amount: string; bounty_orders: string; min_order: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
@@ -339,6 +339,7 @@ function ReferralProgramCard() {
         buyer_discount: String(d.referral_buyer_discount ?? 10),
         bounty_amount: String(d.referral_bounty_amount ?? 100),
         bounty_orders: String(d.referral_bounty_orders ?? 5),
+        min_order: String(d.referral_min_order ?? 0),
       });
     }
   }, []);
@@ -354,6 +355,7 @@ function ReferralProgramCard() {
         buyer_discount: Number(form.buyer_discount) || 0,
         bounty_amount: Number(form.bounty_amount) || 0,
         bounty_orders: Number(form.bounty_orders) || 1,
+        min_order: Number(form.min_order) || 0,
       }),
     });
     setSaving(false);
@@ -377,9 +379,9 @@ function ReferralProgramCard() {
         </span>
       </div>
       <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-5">
-        The public <span className="font-mono">/referral</span> page: anyone gets a code instantly (no approval), buyers get a % off,
-        and the referrer earns a flat bounty per N paid orders. Payouts are claimed by email and paid by you manually.
-        Separate from your curated Affiliates and the store-credit referral above.
+        The public <span className="font-mono">/referral</span> page: customers sign in to get a code (tied to their account), buyers get a % off,
+        and the referrer earns a flat bounty per N paid orders. Only orders at or above the minimum count. Payouts are claimed by email and paid by you manually.
+        Separate from your curated Affiliates.
       </p>
 
       {form === null ? (
@@ -399,6 +401,10 @@ function ReferralProgramCard() {
               <input type="number" min={1} value={form.bounty_orders}
                 onChange={(e) => setForm((f) => f && { ...f, bounty_orders: e.target.value })} className="input-sm w-32" />
             </Field>
+            <Field label="Min qualifying order $">
+              <input type="number" min={0} value={form.min_order}
+                onChange={(e) => setForm((f) => f && { ...f, min_order: e.target.value })} className="input-sm w-32" />
+            </Field>
             {active ? (
               <>
                 <button onClick={() => save(true)} disabled={saving} className="flex items-center gap-1.5 btn-primary text-[0.875rem] py-2 px-4 disabled:opacity-60">
@@ -416,7 +422,8 @@ function ReferralProgramCard() {
           </div>
           <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-3">
             Current: buyers get <strong>{form.buyer_discount || 0}%</strong> off; referrer earns
-            <strong> ${form.bounty_amount || 0}</strong> per <strong>{form.bounty_orders || 0}</strong> paid orders.
+            <strong> ${form.bounty_amount || 0}</strong> per <strong>{form.bounty_orders || 0}</strong> paid orders
+            {Number(form.min_order) > 0 ? <> of <strong>${form.min_order}+</strong> each</> : null}.
             Changing the buyer discount updates it on all existing referral codes.
           </p>
         </>

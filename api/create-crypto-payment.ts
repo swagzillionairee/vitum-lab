@@ -58,7 +58,7 @@ async function loadCatalog(): Promise<Record<string, { name: string; dose: strin
  * A code is either an affiliate code (sets affiliate + commission) or a row
  * in promo_codes (validated for active/expiry/uses/min-subtotal).
  */
-async function resolveDiscount(code: string, gross: number, email: string, cfg: RewardConfig): Promise<
+async function resolveDiscount(code: string, gross: number, email: string, userId: string, cfg: RewardConfig): Promise<
   | { kind: "affiliate"; percent: number; affiliateId: string; commissionPercent: number }
   | { kind: "promo"; percent: number }
   | { kind: "referral"; amountOff: number; referrerEmail: string }
@@ -69,13 +69,18 @@ async function resolveDiscount(code: string, gross: number, email: string, cfg: 
 
   const { data: aff } = await supabaseAdmin
     .from("affiliates")
-    .select("id, discount_percent, commission_percent, is_referral, email")
+    .select("id, discount_percent, commission_percent, is_referral, email, user_id")
     .eq("code", normalized)
     .maybeSingle();
   if (aff) {
     // Self-serve referral codes can't be redeemed by the person who created them
-    // (anti-self-referral: no farming your own discount + payout).
-    if (aff.is_referral && (aff.email || "").toLowerCase() === email.toLowerCase()) return null;
+    // (anti-self-referral: no farming your own discount + payout). Block on either
+    // the account (user_id) or the email — the code is locked to both.
+    if (aff.is_referral) {
+      const sameEmail = (aff.email || "").toLowerCase() === email.toLowerCase();
+      const sameAccount = !!aff.user_id && aff.user_id === userId;
+      if (sameEmail || sameAccount) return null;
+    }
     return { kind: "affiliate", percent: aff.discount_percent, affiliateId: aff.id, commissionPercent: aff.commission_percent };
   }
 
@@ -204,7 +209,7 @@ export default async function handler(req: any, res: any) {
     const cfg = await getRewardConfig();
 
     // Recompute discount + commission server-side from the code itself.
-    const discount = discountCode ? await resolveDiscount(discountCode, grossAmount, email, cfg) : null;
+    const discount = discountCode ? await resolveDiscount(discountCode, grossAmount, email, user.id, cfg) : null;
     if (discountCode && !discount) {
       res.status(400).json({ error: "That code is invalid, expired, or not eligible." });
       return;

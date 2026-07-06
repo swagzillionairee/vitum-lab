@@ -128,6 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         buyer_discount: Number(s?.referral_buyer_discount ?? 10),
         bounty_amount: Number(s?.referral_bounty_amount ?? 100),
         bounty_orders: Number(s?.referral_bounty_orders ?? 5),
+        min_order: Number(s?.referral_min_order ?? 0),
       },
       // Whether card checkout (TagadaPay) is live — sourced from the single
       // server flag so the storefront shows the "Pay with card" option without a

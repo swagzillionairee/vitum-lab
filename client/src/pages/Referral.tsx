@@ -17,9 +17,9 @@ import { authedFetch } from "@/lib/api";
 
 const CLAIM_EMAIL = "orders@vitumlab.com";
 
-interface ReferralConfig { active: boolean; buyer_discount: number; bounty_amount: number; bounty_orders: number; }
+interface ReferralConfig { active: boolean; buyer_discount: number; bounty_amount: number; bounty_orders: number; min_order: number; }
 interface Stats {
-  active: boolean; code: string; link: string; buyer_discount: number;
+  active: boolean; code: string; link: string; buyer_discount: number; min_order: number;
   paid_orders: number; bounty_orders: number; bounty_amount: number;
   earned: number; toward_next: number; remaining_to_next: number; claimable: boolean;
   already_affiliate?: boolean; affiliate_code?: string;
@@ -44,8 +44,8 @@ export default function Referral() {
   useEffect(() => {
     fetch("/api/public/site")
       .then((r) => r.json())
-      .then((d) => setCfg(d.referral_program ?? { active: false, buyer_discount: 10, bounty_amount: 100, bounty_orders: 5 }))
-      .catch(() => setCfg({ active: false, buyer_discount: 10, bounty_amount: 100, bounty_orders: 5 }));
+      .then((d) => setCfg(d.referral_program ?? { active: false, buyer_discount: 10, bounty_amount: 100, bounty_orders: 5, min_order: 0 }))
+      .catch(() => setCfg({ active: false, buyer_discount: 10, bounty_amount: 100, bounty_orders: 5, min_order: 0 }));
   }, []);
 
   const loadStats = useCallback(async () => {
@@ -91,6 +91,7 @@ export default function Referral() {
   const bountyAmount = cfg?.bounty_amount ?? 100;
   const bountyOrders = cfg?.bounty_orders ?? 5;
   const buyerDiscount = cfg?.buyer_discount ?? 10;
+  const minOrder = cfg?.min_order ?? 0;
 
   const payoutsDue = stats ? Math.floor(stats.paid_orders / stats.bounty_orders) : 0;
   const claimHref = stats
@@ -273,7 +274,10 @@ export default function Referral() {
                     {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
                   </button>
                 </div>
-                <p className="text-[0.8125rem] text-[oklch(0.42_0.03_200)] mt-3">Share it anywhere. Buyers enter it at checkout for {stats.buyer_discount}% off — and it counts toward your ${stats.bounty_amount}.</p>
+                <p className="text-[0.8125rem] text-[oklch(0.42_0.03_200)] mt-3">
+                  Share it anywhere. Buyers enter it at checkout for {stats.buyer_discount}% off — and every paid order
+                  {(stats.min_order ?? 0) > 0 ? <> of <strong>${stats.min_order}+</strong></> : null} counts toward your ${stats.bounty_amount}.
+                </p>
               </div>
 
               {/* Stats */}
@@ -391,7 +395,9 @@ export default function Referral() {
               { q: "What does my referral get?", a: `Anyone who enters your code at checkout gets ${buyerDiscount}% off their entire order. That's a real discount that makes people actually want to use your code.` },
               { q: "Does my code expire?", a: "Never. Post it once in a forum — if someone finds it six months later and orders, you get the credit." },
               { q: "Do I need a website or audience?", a: "Not at all. Some of our top earners just leave helpful comments in 2–3 Reddit communities. If you post about peptides anywhere online, you have everything you need." },
-              { q: "Is there a minimum order size for referrals to count?", a: "No minimum. Any paid order with your code counts — single vials, kits, anything. As long as it's paid and your code was entered, it counts." },
+              { q: "Is there a minimum order size for referrals to count?", a: minOrder > 0
+                ? `Yes — a referred order must total at least $${minOrder} (after any discounts) to count toward your bounty. It also has to be a real customer other than you; self-orders don't count.`
+                : "Any paid order with your code counts — as long as it's placed by someone other than you and your code was entered. (Self-orders never count.)" },
             ].map((f) => (
               <details key={f.q} className="group bg-[oklch(0.98_0.003_260)] rounded-2xl border border-[oklch(0.93_0.004_260)] p-5">
                 <summary className="flex items-center justify-between cursor-pointer list-none text-[0.9375rem] font-semibold text-[oklch(0.13_0.02_255)]">
