@@ -35,11 +35,23 @@ export default async function handler(req: any, res: any) {
   try {
     const { data: aff, error } = await supabaseAdmin
       .from("affiliates")
-      .select("id, code, discount_percent")
+      .select("id, code, discount_percent, is_referral, email, user_id")
       .eq("code", normalized)
       .maybeSingle();
     if (error) throw error;
     if (aff) {
+      // Self-serve referral codes can't be redeemed by the person they belong to
+      // (anti-self-referral). Mirror the checkout guard: block on the account OR
+      // the email — the code is locked to both. Reject in the UI so it never
+      // even applies, rather than only failing at the final charge.
+      if (aff.is_referral) {
+        const sameEmail = (aff.email || "").toLowerCase() === email.toLowerCase();
+        const sameAccount = !!aff.user_id && aff.user_id === user.id;
+        if (sameEmail || sameAccount) {
+          res.status(400).json({ valid: false, error: "You can't use your own referral code." });
+          return;
+        }
+      }
       res.status(200).json({ valid: true, discountPct: aff.discount_percent, affiliateId: aff.id });
       return;
     }

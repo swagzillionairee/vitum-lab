@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, sendAffiliateCommission, type EmailOrder } from "./_lib/email.js";
 import { paidIpnAction } from "./_lib/orderLifecycle.js";
-import { confirmPaidOrder } from "./_lib/fulfillment.js";
+import { confirmPaidOrder, refundClawback } from "./_lib/fulfillment.js";
 
 function sortKeys(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;
@@ -15,7 +15,7 @@ function sortKeys(obj: unknown): unknown {
 }
 
 const ORDER_COLS =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, credit_applied, referral_code, shipping_address, status, affiliate_id, commission_amount, emails_sent, admin_notes";
+  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, credit_applied, referral_code, shipping_address, status, fulfillment_status, affiliate_id, commission_amount, emails_sent, admin_notes";
 
 // Email the attributed affiliate their commission (once, via emails_sent).
 async function notifyAffiliate(order: any) {
@@ -131,6 +131,16 @@ export default async function handler(req: any, res: any) {
         await sendOrderEvent(order as EmailOrder, "failed");
       } catch (err) {
         console.error("Failed to process failed payment:", err);
+      }
+    }
+
+    // A refund on an already-confirmed order → claw it back (revert to cancelled
+    // so rewards, commission, and referral credit are reversed). Idempotent.
+    if (status === "refunded" && (order.status === "confirmed" || order.status === "finished")) {
+      try {
+        await refundClawback(order, `Refunded via NowPayments (IPN "${status}")`);
+      } catch (err) {
+        console.error("Failed to process refund clawback:", err);
       }
     }
 

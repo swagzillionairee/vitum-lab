@@ -380,8 +380,8 @@ function ReferralProgramCard() {
       </div>
       <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-5">
         The public <span className="font-mono">/referral</span> page: customers sign in to get a code (tied to their account), buyers get a % off,
-        and the referrer earns a flat bounty per N paid orders. Only orders at or above the minimum count. Payouts are claimed by email and paid by you manually.
-        Separate from your curated Affiliates.
+        and the referrer earns a flat bounty per N <em>unique</em> referred customers. Only orders at or above the minimum count, one per customer, and
+        refunds are clawed back automatically. Payouts are claimed by email and paid by you manually. Separate from your curated Affiliates.
       </p>
 
       {form === null ? (
@@ -397,9 +397,9 @@ function ReferralProgramCard() {
               <input type="number" min={0} value={form.bounty_amount}
                 onChange={(e) => setForm((f) => f && { ...f, bounty_amount: e.target.value })} className="input-sm w-28" />
             </Field>
-            <Field label="Paid orders per payout">
+            <Field label="Referred customers per payout">
               <input type="number" min={1} value={form.bounty_orders}
-                onChange={(e) => setForm((f) => f && { ...f, bounty_orders: e.target.value })} className="input-sm w-32" />
+                onChange={(e) => setForm((f) => f && { ...f, bounty_orders: e.target.value })} className="input-sm w-40" />
             </Field>
             <Field label="Min qualifying order $">
               <input type="number" min={0} value={form.min_order}
@@ -422,8 +422,8 @@ function ReferralProgramCard() {
           </div>
           <p className="text-[0.75rem] text-[oklch(0.55_0.01_260)] mt-3">
             Current: buyers get <strong>{form.buyer_discount || 0}%</strong> off; referrer earns
-            <strong> ${form.bounty_amount || 0}</strong> per <strong>{form.bounty_orders || 0}</strong> paid orders
-            {Number(form.min_order) > 0 ? <> of <strong>${form.min_order}+</strong> each</> : null}.
+            <strong> ${form.bounty_amount || 0}</strong> per <strong>{form.bounty_orders || 0}</strong> unique referred customers
+            {Number(form.min_order) > 0 ? <> (orders <strong>${form.min_order}+</strong>)</> : null}.
             Changing the buyer discount updates it on all existing referral codes.
           </p>
         </>

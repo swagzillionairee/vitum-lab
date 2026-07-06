@@ -2,8 +2,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { isSitewideActive } from "../_lib/pricing.js";
 import { paidIpnAction } from "../_lib/orderLifecycle.js";
-import { isTagadaPaidEvent, verifyTagadaWebhook, TAGADA_SIG_HEADER } from "../_lib/tagada.js";
-import { ORDER_COLS, confirmPaidOrder, sendConfirmationEmails, recordLatePayment, type PaymentMeta } from "../_lib/fulfillment.js";
+import { isTagadaPaidEvent, isTagadaRefundEvent, verifyTagadaWebhook, TAGADA_SIG_HEADER } from "../_lib/tagada.js";
+import { ORDER_COLS, confirmPaidOrder, sendConfirmationEmails, recordLatePayment, refundClawback, type PaymentMeta } from "../_lib/fulfillment.js";
 
 // bodyParser off so the Tagada webhook can read the raw body for signature
 // verification. The GET routes below don't use req.body, so this is harmless.
@@ -47,7 +47,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const tagadaId = data?.order?.id ?? data?.payment?.id ?? data?.id ?? null;
     console.log(`ℹ️  Tagada webhook — ${type} (order ${ourOrderId ?? "?"} / tagada ${tagadaId ?? "?"})`);
 
-    if (!isTagadaPaidEvent(type)) return res.status(200).json({ received: true });
+    const isRefund = isTagadaRefundEvent(type);
+    if (!isTagadaPaidEvent(type) && !isRefund) return res.status(200).json({ received: true });
 
     let order: any = null;
     if (ourOrderId) {
@@ -59,6 +60,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       order = o;
     }
     if (!order) return res.status(200).json({ received: true });
+
+    // Refund/chargeback → revert the order to cancelled so rewards, affiliate
+    // commission, and the referral bounty are all clawed back (they exclude
+    // cancelled orders). Idempotent across retries.
+    if (isRefund) {
+      try {
+        await refundClawback(order, `Refunded via TagadaPay ("${type}")`);
+      } catch (err) {
+        console.error("Tagada refund clawback error:", err);
+      }
+      return res.status(200).json({ received: true });
+    }
 
     const meta: PaymentMeta = {
       payCurrency: data?.currency ?? "USD",
