@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { requireUser } from "../_lib/requireUser.js";
 import { getBalance, getOrCreateReferralCode } from "../_lib/credit.js";
+import { sendOrderEvent, type EmailOrder } from "../_lib/email.js";
 
 /**
  * Handles all /api/account/* routes for the logged-in customer:
@@ -267,6 +268,29 @@ export default async function handler(req: any, res: any) {
       remaining_to_next: bountyOrders - (paidOrders % bountyOrders),
       claimable: paidOrders >= bountyOrders,
     });
+    return;
+  }
+
+  // ── POST /api/account/payment-sent — the customer tapped "I've Sent the
+  // Payment" on a manual transfer. Alert the payment inbox to verify + mark it
+  // paid. Scoped to the customer's OWN pending manual order; idempotent. ───────
+  if (route === "payment-sent") {
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const orderId = String((req.body as { orderId?: string })?.orderId ?? "").trim();
+    if (!orderId) { res.status(400).json({ error: "orderId is required" }); return; }
+
+    const { data: order } = await supabaseAdmin
+      .from("orders")
+      .select("id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, credit_applied, payment_method, shipping_address, status, emails_sent")
+      .eq("id", orderId)
+      .maybeSingle();
+    // Own order only (no cross-customer probing), pending + a manual method.
+    if (!order || (order.email ?? "").toLowerCase() !== user.email) { res.status(404).json({ error: "Order not found" }); return; }
+    const MANUAL = ["zelle", "cashapp", "venmo", "ach"];
+    if (order.status === "pending" && MANUAL.includes(order.payment_method ?? "")) {
+      await sendOrderEvent(order as EmailOrder, "admin_payment_claimed").catch((err) => console.error("payment-claimed email failed:", err));
+    }
+    res.status(200).json({ ok: true });
     return;
   }
 
