@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowRight, Tag, Check, Loader2, ShoppingBag, CreditCard, Bitcoin, Landmark, DollarSign, AtSign, Building2, Copy } from "lucide-react";
+import { ArrowRight, Tag, Check, Loader2, ShoppingBag, CreditCard, Bitcoin, Landmark, DollarSign, AtSign, Building2, Zap, ShieldCheck, CircleSlash } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
@@ -17,6 +17,16 @@ import { quantityDiscountPercent, round2, shippingFee, type QuantityTier } from 
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
 import SquareCardBox from "@/components/SquareCardBox";
+import ManualPaymentModal, { type ManualModalData } from "@/components/ManualPaymentModal";
+
+interface Sitewide { active: boolean; percent?: number; label?: string | null; ends_at?: string | null }
+
+function saleRemaining(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return d > 0 ? `${d}d ${pad(h)}h ${pad(m)}m ${pad(sec)}s` : `${pad(h)}h ${pad(m)}m ${pad(sec)}s`;
+}
 
 type PayMethod = "square" | "zelle" | "cashapp" | "venmo" | "ach" | "crypto";
 const MANUAL_METHODS: PayMethod[] = ["zelle", "cashapp", "venmo", "ach"];
@@ -68,13 +78,16 @@ export default function Checkout() {
   const [attested, setAttested] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [copiedHandle, setCopiedHandle] = useState(false);
   // Enabled payment methods (Square + manual handles + crypto), from the admin
   // config via /api/public/site. `payMethod` is the selected tile.
   const [payments, setPayments] = useState<PaymentsCfg | null>(null);
   const [payMethod, setPayMethod] = useState<PayMethod>("crypto");
+  const [sale, setSale] = useState<Sitewide | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  // Post-order "send your payment" modal for the manual methods.
+  const [modalData, setModalData] = useState<ManualModalData | null>(null);
 
-  // Quantity tiers (display only) + payment method config.
+  // Quantity tiers (display only) + payment method config + site-wide sale.
   useEffect(() => {
     let stale = false;
     fetch("/api/public/site")
@@ -82,6 +95,7 @@ export default function Checkout() {
       .then((d) => {
         if (stale) return;
         setTiers(d.quantity_tiers ?? []);
+        setSale(d.sitewide ?? { active: false });
         const p = d.payments as PaymentsCfg | undefined;
         if (p) {
           setPayments(p);
@@ -94,6 +108,14 @@ export default function Checkout() {
       .catch(() => {});
     return () => { stale = true; };
   }, []);
+
+  // Tick the sale countdown once a second while a sale with an end date runs.
+  const saleEndsAt = sale?.ends_at ? new Date(sale.ends_at).getTime() : null;
+  useEffect(() => {
+    if (!sale?.active || !saleEndsAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [sale?.active, saleEndsAt]);
 
   // Store-credit balance (auto-applied at checkout; server is authoritative).
   useEffect(() => {
@@ -271,10 +293,19 @@ export default function Checkout() {
           clearCart();
           navigate(`/order-success?order=${encodeURIComponent(data.orderId)}`);
         } else if (data.awaiting) {
-          // Manual transfer (Zelle/Cash App/Venmo/ACH) — order placed as pending;
-          // the success page shows where to send the money + the reference.
+          // Manual transfer (Zelle/Cash App/Venmo/ACH) — the order is placed as
+          // pending; open the "send your payment" modal with the real order # as
+          // the reference. The cart clears now (the order exists); if they close
+          // the modal, the order + instructions still live in their email/account.
           clearCart();
-          navigate(`/order-success?order=${encodeURIComponent(data.orderId)}&awaiting=1&method=${encodeURIComponent(data.method)}&amt=${total.toFixed(2)}`);
+          const cfg = payments?.[data.method as "venmo"] as ManualCfg | undefined;
+          setModalData({
+            method: data.method,
+            handle: cfg?.handle ?? "",
+            instructions: cfg?.instructions ?? "",
+            amount: total.toFixed(2),
+            orderId: data.orderId,
+          });
         } else {
           window.location.href = data.invoiceUrl; // NowPayments crypto redirect
         }
@@ -289,15 +320,10 @@ export default function Checkout() {
   const inputBase = "border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent";
   const inputClass = `${inputBase} w-full`;
 
-  // Enabled methods in tile order; the active manual method's config (if any).
+  // Enabled methods in tile order.
   const enabledMethods = (["square", "zelle", "cashapp", "venmo", "ach", "crypto"] as PayMethod[])
     .filter((m) => isMethodEnabled(payments, m));
-  const activeManual = MANUAL_METHODS.includes(payMethod) && payments
-    ? (payments[payMethod as "zelle"] as ManualCfg)
-    : null;
-  const copyHandle = (h: string) => {
-    navigator.clipboard?.writeText(h).then(() => { setCopiedHandle(true); setTimeout(() => setCopiedHandle(false), 1500); }, () => {});
-  };
+  const saleActive = !!sale?.active && (!saleEndsAt || saleEndsAt > now);
 
   if (loading || !session) {
     return (
@@ -470,23 +496,36 @@ export default function Checkout() {
               </p>
             ) : (
               <div className="space-y-3">
+                {/* Site-wide sale — "prices locked in" reassurance + countdown */}
+                {saleActive && (
+                  <div className="rounded-xl border border-[oklch(0.85_0.06_240)] bg-[oklch(0.97_0.02_240)] px-4 py-3 flex items-center gap-3">
+                    <span className="text-[1.25rem]">☀️</span>
+                    <div>
+                      <p className="text-[0.875rem] font-bold text-[oklch(0.40_0.14_250)]">Sale prices locked in</p>
+                      {saleEndsAt && <p className="text-[0.75rem] text-[oklch(0.50_0.02_250)]">Ends in <span className="font-bold tabular-nums">{saleRemaining(saleEndsAt - now)}</span></p>}
+                    </div>
+                  </div>
+                )}
+
                 {/* Payment method selector */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className={`grid gap-2 ${enabledMethods.length >= 4 ? "grid-cols-4" : enabledMethods.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
                   {enabledMethods.map((m) => {
                     const { label, Icon } = METHOD_META[m];
+                    const selected = payMethod === m;
                     return (
                       <button
                         key={m}
                         type="button"
                         disabled={busy}
                         onClick={() => { setPayMethod(m); setError(""); }}
-                        className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-2.5 text-[0.75rem] font-semibold transition-colors disabled:opacity-60 ${
-                          payMethod === m
+                        className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-3 px-1 text-[0.8125rem] font-semibold transition-colors disabled:opacity-60 ${
+                          selected
                             ? "border-[oklch(0.40_0.16_260)] bg-[oklch(0.96_0.02_260)] text-[oklch(0.30_0.16_260)] dark:bg-[oklch(0.40_0.16_260)] dark:text-white dark:border-[oklch(0.40_0.16_260)]"
                             : "border-[oklch(0.90_0.004_260)] text-[oklch(0.35_0.01_260)] hover:bg-[oklch(0.98_0.002_260)] dark:border-[oklch(0.30_0.01_260)] dark:text-[oklch(0.72_0.01_260)] dark:hover:bg-[oklch(0.22_0.01_260)]"
                         }`}
                       >
                         <Icon className="w-4 h-4" /> {label}
+                        {m === "ach" && <span className="text-[0.5625rem] font-medium text-[oklch(0.45_0.12_155)] leading-none">No card fees</span>}
                       </button>
                     );
                   })}
@@ -501,28 +540,35 @@ export default function Checkout() {
                   )
                 )}
 
-                {/* Manual transfer — show where to send, then place the order */}
-                {activeManual && (
-                  <div className="rounded-xl border border-[oklch(0.88_0.05_200)] bg-[oklch(0.97_0.02_200)] p-4 space-y-2.5">
-                    <p className="text-[0.8125rem] text-[oklch(0.30_0.06_200)]">
-                      Send <span className="font-bold">${total.toFixed(2)}</span> via <span className="font-semibold">{METHOD_META[payMethod].label}</span> to:
-                    </p>
-                    <div className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2.5 border border-[oklch(0.90_0.03_200)]">
-                      <span className="font-mono text-[0.9375rem] font-bold text-[oklch(0.20_0.04_200)] break-all">{activeManual.handle}</span>
-                      <button type="button" onClick={() => copyHandle(activeManual.handle)} className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.42_0.11_200)] flex-shrink-0 hover:underline">
-                        {copiedHandle ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
-                      </button>
+                {/* Bank / ACH — trust badges + how-it-works, then place the order */}
+                {payMethod === "ach" && (
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { Icon: Landmark, text: "Direct Bank Transfer" },
+                        { Icon: Zap, text: "Same-Day Clearing" },
+                        { Icon: ShieldCheck, text: "Bank-Level Security" },
+                        { Icon: CircleSlash, text: "No Card Fees" },
+                      ].map((b) => (
+                        <span key={b.text} className="flex items-center gap-1.5 rounded-lg border border-[oklch(0.85_0.06_155)] bg-[oklch(0.98_0.02_155)] px-2.5 py-1.5 text-[0.75rem] font-semibold text-[oklch(0.40_0.12_155)]">
+                          <b.Icon className="w-3.5 h-3.5 flex-shrink-0" /> {b.text}
+                        </span>
+                      ))}
                     </div>
-                    {activeManual.instructions && (
-                      <p className="text-[0.75rem] text-[oklch(0.42_0.03_200)] whitespace-pre-line">{activeManual.instructions}</p>
-                    )}
-                    <p className="text-[0.75rem] text-[oklch(0.45_0.03_200)]">
-                      Place your order below, then include your <span className="font-semibold">order number</span> in the {METHOD_META[payMethod].memo} so we can match your payment. We ship as soon as it's received.
-                    </p>
-                    <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
-                      {busy ? "Placing order…" : (<>Place order — I'll send payment <ArrowRight className="w-4 h-4" /></>)}
+                    <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl text-white text-[0.9375rem] font-bold bg-[oklch(0.42_0.13_155)] hover:bg-[oklch(0.37_0.13_155)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                      {busy ? "Placing order…" : (<><Building2 className="w-4 h-4" /> Pay with Bank</>)}
                     </button>
+                    <div className="rounded-xl border border-[oklch(0.88_0.05_155)] bg-[oklch(0.98_0.02_155)] px-4 py-3 text-[0.75rem] text-[oklch(0.38_0.10_155)] leading-relaxed">
+                      <span className="font-bold">How it works:</span> Place your order, then send the bank transfer to the details we provide — include your order number in the memo. Use a US checking account with available funds. We confirm and ship as soon as it clears.
+                    </div>
                   </div>
+                )}
+
+                {/* Manual wallets (Venmo / Cash App / Zelle) — place order → modal */}
+                {MANUAL_METHODS.includes(payMethod) && payMethod !== "ach" && (
+                  <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
+                    {busy ? "Placing order…" : (<>Pay with {METHOD_META[payMethod].label} <ArrowRight className="w-4 h-4" /></>)}
+                  </button>
                 )}
 
                 {/* Crypto — redirect to the NowPayments invoice */}
@@ -539,6 +585,15 @@ export default function Checkout() {
           </div>
         </div>
       </div>
+
+      {/* "Send your payment" modal — appears after a manual order is placed */}
+      {modalData && (
+        <ManualPaymentModal
+          data={modalData}
+          onSent={() => { navigate(`/order-success?order=${encodeURIComponent(modalData.orderId)}&awaiting=1&method=${encodeURIComponent(modalData.method)}&amt=${modalData.amount}`); }}
+          onClose={() => { navigate(`/order-success?order=${encodeURIComponent(modalData.orderId)}&awaiting=1&method=${encodeURIComponent(modalData.method)}&amt=${modalData.amount}`); }}
+        />
+      )}
     </div>
   );
 }
