@@ -48,7 +48,7 @@ export interface EmailOrder {
 export type OrderEmailEvent =
   | "order_created" | "confirmed" | "shipped" | "delivered"
   | "cancelled" | "failed" | "admin_new_order" | "admin_delivered"
-  | "admin_late_payment" | "followup";
+  | "admin_late_payment" | "admin_payment_claimed" | "followup";
 
 // ─── Transport / env ─────────────────────────────────────────────────────────
 let _transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
@@ -67,6 +67,10 @@ function transporter() {
 const baseUrl = () => process.env.BASE_URL || "https://vitumlab.com";
 const ordersInbox = () => process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
 const deliveredInbox = () => process.env.DELIVERED_EMAIL || process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
+// Where "customer says they sent a manual transfer" alerts go.
+const paymentInbox = () => process.env.PAYMENT_EMAIL || "payment@vitumlab.com";
+
+const MANUAL_LABELS: Record<string, string> = { zelle: "Zelle", cashapp: "Cash App", venmo: "Venmo", ach: "Bank transfer (ACH)" };
 
 async function send(to: string, subject: string, html: string) {
   await transporter().sendMail({ from: `"Vitum Lab" <${process.env.GMAIL_USER}>`, to, subject, html });
@@ -373,6 +377,22 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
         html: layout(
           pill("Order Delivered", "#edfaf3", "#1a7a4a") +
           heading(`Order ${shortId} was delivered`, `Customer: ${esc(order.email)}<br>${order.tracking_number ? `Tracking: ${esc(order.carrier || "USPS")} ${esc(order.tracking_number)}<br>` : ""}Ship to: ${shipTo}`) +
+          orderBox(order, images) +
+          button("Open Admin → Orders", `${baseUrl()}/admin`),
+        ),
+      };
+    }
+    case "admin_payment_claimed": {
+      const method = MANUAL_LABELS[order.payment_method ?? ""] ?? "manual transfer";
+      return {
+        to: paymentInbox(),
+        subject: `🔔 Payment sent — verify ${method} ${money(orderTotal(order))} — ${shortId}`,
+        html: layout(
+          pill("Payment Reported — Verify", "#eaf1fd", "#2c5fdb") +
+          heading(
+            `Customer says they sent ${money(orderTotal(order))} via ${esc(method)}`,
+            `${esc(order.email)} placed order ${shortId} and tapped "I've Sent the Payment". Check your ${esc(method)} account for <strong>${money(orderTotal(order))}</strong> with <strong>${shortId}</strong> in the note, then Mark paid to confirm + ship.`,
+          ) +
           orderBox(order, images) +
           button("Open Admin → Orders", `${baseUrl()}/admin`),
         ),

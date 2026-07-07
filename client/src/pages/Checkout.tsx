@@ -592,12 +592,22 @@ export default function Checkout() {
           Dismissing it (either button) clears the now-placed cart and takes the
           customer to the success page, which repeats the payment instructions. */}
       {modalData && (() => {
-        const done = () => {
-          const d = modalData;
+        const go = (d: ManualModalData) => {
           clearCart();
           navigate(`/order-success?order=${encodeURIComponent(d.orderId)}&awaiting=1&method=${encodeURIComponent(d.method)}&amt=${d.amount}`);
         };
-        return <ManualPaymentModal data={modalData} onSent={done} onClose={done} />;
+        const onSent = () => {
+          const d = modalData;
+          // Tell the payment inbox to verify this transfer (fire-and-forget;
+          // keepalive lets it finish through the navigation).
+          void authedFetch("/api/account/payment-sent", {
+            method: "POST",
+            body: JSON.stringify({ orderId: d.orderId }),
+            keepalive: true,
+          }).catch(() => {});
+          go(d);
+        };
+        return <ManualPaymentModal data={modalData} onSent={onSent} onClose={() => go(modalData)} />;
       })()}
     </div>
   );

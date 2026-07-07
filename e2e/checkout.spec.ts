@@ -64,6 +64,18 @@ async function mockApi(page: Page, capture: { body?: unknown }) {
     }
     if (url.includes("/api/products")) return json([]);
     if (url.includes("/api/inventory")) return json({});
+    if (url.includes("/api/public/site")) return json({
+      sitewide: { active: false },
+      quantity_tiers: [],
+      payments: {
+        square: { enabled: false },
+        zelle: { enabled: false, handle: "", instructions: "" },
+        cashapp: { enabled: false, handle: "", instructions: "" },
+        venmo: { enabled: false, handle: "", instructions: "" },
+        ach: { enabled: false, handle: "", instructions: "" },
+        crypto: { enabled: true },
+      },
+    });
     return json({});
   });
 }
@@ -101,8 +113,10 @@ test("customer can fill checkout, apply a promo, and submit", async ({ page }) =
   await expect(page.getByText("$15.00")).toBeVisible();
   await expect(page.getByText("$131.10")).toBeVisible();
 
-  // Submit → lands on the in-app success page for the $0/"free" path.
-  await page.getByRole("button", { name: /Continue to Payment/i }).click();
+  // Attest, then submit via the (only enabled) crypto method — the mock returns
+  // a "free" order so the app navigates to /order-success in-app.
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: /Continue with crypto/i }).click();
   await page.waitForURL(/\/order-success/);
 
   // The submitted payload is correct.

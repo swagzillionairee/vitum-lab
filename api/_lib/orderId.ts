@@ -1,18 +1,21 @@
 import { customAlphabet } from "nanoid";
 
-// Order numbers are a plain 20-digit random string, stored as the orders PK.
-// 10^20 keyspace — collisions are astronomically unlikely at this store's scale.
-const genOrderDigits = customAlphabet("0123456789", 20);
+// Order numbers are 3 letters + 6 digits (e.g. "KFD837291"), stored as the
+// orders PK — short enough to type into a Venmo/Cash App memo. Letters exclude
+// I/O (confusable with 1/0). Keyspace 24^3 × 10^6 ≈ 1.4×10^10 — a PK collision
+// is negligible at this store's scale and fails the insert (never overwrites).
+const genLetters = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ", 3);
+const genDigits = customAlphabet("0123456789", 6);
 
-/** A fresh order number: 20 random digits. */
+/** A fresh order number: 3 letters + 6 digits. */
 export function buildOrderId(): string {
-  return genOrderDigits();
+  return `${genLetters()}${genDigits()}`;
 }
 
 /**
- * Display form of an order number. New IDs are already a clean 20-digit string
- * (returned as-is). Legacy IDs were "{id}--{base64url(email)}", so only the part
- * before the separator is shown.
+ * Display form of an order number. New IDs (letters+digits) are returned as-is.
+ * Legacy IDs were "{id}--{base64url(email)}", so only the part before the
+ * separator is shown; plain 20-digit legacy IDs also pass through unchanged.
  */
 export function formatOrderId(id: string): string {
   const raw = String(id ?? "");
