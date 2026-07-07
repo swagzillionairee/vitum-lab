@@ -295,9 +295,9 @@ export default function Checkout() {
         } else if (data.awaiting) {
           // Manual transfer (Zelle/Cash App/Venmo/ACH) — the order is placed as
           // pending; open the "send your payment" modal with the real order # as
-          // the reference. The cart clears now (the order exists); if they close
-          // the modal, the order + instructions still live in their email/account.
-          clearCart();
+          // the reference. Do NOT clear the cart yet — the empty-cart screen would
+          // replace the whole page (this component) and the modal with it. The
+          // cart is cleared when the modal is dismissed, right before navigating.
           const cfg = payments?.[data.method as "venmo"] as ManualCfg | undefined;
           setModalData({
             method: data.method,
@@ -333,7 +333,9 @@ export default function Checkout() {
     );
   }
 
-  if (items.length === 0) {
+  // Empty-cart screen — but NOT while the manual-payment modal is open (it renders
+  // over this page; clearing the cart mustn't yank it away mid-instructions).
+  if (items.length === 0 && !modalData) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
         <SEO title="Checkout" description="Complete your Vitum Lab order." />
@@ -586,14 +588,17 @@ export default function Checkout() {
         </div>
       </div>
 
-      {/* "Send your payment" modal — appears after a manual order is placed */}
-      {modalData && (
-        <ManualPaymentModal
-          data={modalData}
-          onSent={() => { navigate(`/order-success?order=${encodeURIComponent(modalData.orderId)}&awaiting=1&method=${encodeURIComponent(modalData.method)}&amt=${modalData.amount}`); }}
-          onClose={() => { navigate(`/order-success?order=${encodeURIComponent(modalData.orderId)}&awaiting=1&method=${encodeURIComponent(modalData.method)}&amt=${modalData.amount}`); }}
-        />
-      )}
+      {/* "Send your payment" modal — appears after a manual order is placed.
+          Dismissing it (either button) clears the now-placed cart and takes the
+          customer to the success page, which repeats the payment instructions. */}
+      {modalData && (() => {
+        const done = () => {
+          const d = modalData;
+          clearCart();
+          navigate(`/order-success?order=${encodeURIComponent(d.orderId)}&awaiting=1&method=${encodeURIComponent(d.method)}&amt=${d.amount}`);
+        };
+        return <ManualPaymentModal data={modalData} onSent={done} onClose={done} />;
+      })()}
     </div>
   );
 }

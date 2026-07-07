@@ -115,3 +115,53 @@ test("customer can fill checkout, apply a promo, and submit", async ({ page }) =
   expect(capture.body.shipping.line1).toBe("123 Lab St");
   expect(capture.body.shipping.state).toBe("TX");
 });
+
+test("manual method (Venmo) shows the payment-instructions modal, not the empty cart", async ({ page }) => {
+  await seedBrowser(page);
+
+  // Base mocks, then override /api/public/site (Venmo enabled) + the charge
+  // (returns an awaiting-manual order). Later routes take priority in Playwright.
+  await mockApi(page, {});
+  await page.route("**/api/public/site**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      sitewide: { active: false },
+      quantity_tiers: [],
+      payments: {
+        square: { enabled: false },
+        zelle: { enabled: false, handle: "", instructions: "" },
+        cashapp: { enabled: false, handle: "", instructions: "" },
+        venmo: { enabled: true, handle: "@vitumlab-pay", instructions: "" },
+        ach: { enabled: false, handle: "", instructions: "" },
+        crypto: { enabled: false },
+      },
+    }) }),
+  );
+  await page.route("**/api/create-crypto-payment", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      awaiting: true, method: "venmo", orderId: "12345678901234567890",
+    }) }),
+  );
+
+  await page.goto("/checkout");
+  await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
+
+  await page.getByPlaceholder("Full name").fill("Jane Researcher");
+  await page.getByPlaceholder("Street address").fill("123 Lab St");
+  await page.getByPlaceholder("City").fill("Austin");
+  await page.getByPlaceholder("State").fill("TX");
+  await page.getByPlaceholder("ZIP").fill("78701");
+  // Required research-use attestation.
+  await page.getByRole("checkbox").check();
+
+  // Select Venmo and place the order.
+  await page.getByRole("button", { name: "Venmo", exact: false }).first().click();
+  await page.getByRole("button", { name: /Pay with Venmo/i }).click();
+
+  // The modal must appear (NOT the empty-cart screen).
+  await expect(page.getByText("Complete your Venmo payment in 3 steps")).toBeVisible();
+  await expect(page.getByText("@vitumlab-pay")).toBeVisible();
+  await expect(page.getByText("12345678901234567890")).toBeVisible();
+  await expect(page.getByText(/Missing order ID = automatic refund/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /I've Sent the Payment/i })).toBeVisible();
+  await expect(page.getByText("Your cart is empty")).toHaveCount(0);
+});
