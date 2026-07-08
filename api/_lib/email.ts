@@ -67,8 +67,11 @@ function transporter() {
 const baseUrl = () => process.env.BASE_URL || "https://vitumlab.com";
 const ordersInbox = () => process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
 const deliveredInbox = () => process.env.DELIVERED_EMAIL || process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
-// Where "customer says they sent a manual transfer" alerts go.
-const paymentInbox = () => process.env.PAYMENT_EMAIL || "payment@vitumlab.com";
+// Where "customer says they sent a manual transfer" alerts go. Falls back to
+// the orders inbox / the authed Gmail sender (both real, monitored mailboxes) —
+// NOT a hardcoded payment@ address, which black-holes the alert unless that
+// mailbox is actually provisioned. Set PAYMENT_EMAIL to route these elsewhere.
+const paymentInbox = () => process.env.PAYMENT_EMAIL || process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
 
 const MANUAL_LABELS: Record<string, string> = { zelle: "Zelle", cashapp: "Cash App", venmo: "Venmo", ach: "Bank transfer (ACH)" };
 
