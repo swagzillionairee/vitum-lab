@@ -17,7 +17,7 @@ const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 const MANUAL_METHODS = ["zelle", "cashapp", "venmo", "ach"];
 
 const FREE_GIFT_CODE = "bac-water-free";
-const FREE_GIFT_THRESHOLD = 150; // paid subtotal that unlocks the free BAC Water
+const FREE_GIFT_THRESHOLD = 100; // paid subtotal that unlocks the free BAC Water
 
 /**
  * Authoritative per-variant prices, keyed by cartCode, read from the products
@@ -503,7 +503,10 @@ export default async function handler(req: any, res: any) {
     // are held (like a crypto invoice) until it's confirmed or auto-expires (14d).
     if (MANUAL_METHODS.includes(payMethod)) {
       deferEmail(sendOrderEvent(emailOrderBase(), "order_created"));
-      res.status(200).json({ awaiting: true, method: payMethod, orderId });
+      // The order auto-expires 4 days after creation (mirrors expire_stale_orders);
+      // the client shows a live countdown from this.
+      const expiresAt = new Date(Date.now() + 4 * 24 * 3600 * 1000).toISOString();
+      res.status(200).json({ awaiting: true, method: payMethod, orderId, expiresAt });
       return;
     }
 

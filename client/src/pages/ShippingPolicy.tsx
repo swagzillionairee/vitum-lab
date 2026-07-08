@@ -4,7 +4,7 @@ import SEO from "@/components/SEO";
 export default function ShippingPolicy() {
   return (
     <>
-    <SEO title="Shipping & Returns" description="Vitum Lab shipping policy: USPS Priority Mail padded envelopes, 2-day East Coast / 3-day West Coast delivery, free shipping on orders over $150." />
+    <SEO title="Shipping & Returns" description="Vitum Lab shipping policy: USPS Priority Mail padded envelopes, 2-day East Coast / 3-day West Coast delivery, free shipping on orders over $100." />
     <LegalPage title="Shipping Policy" lastUpdated="May 2025">
       <h2>Shipping Method</h2>
       <p>
@@ -26,12 +26,12 @@ export default function ShippingPolicy() {
 
       <h2>Free Shipping Promotion</h2>
       <p>
-        Orders totaling <strong>$150 or more</strong> qualify for free shipping. Orders below this threshold are subject to a flat <strong>$15</strong> shipping rate, displayed at checkout. The $150 threshold is determined by your item subtotal <strong>before any discount codes or store credit are applied</strong>, so a discount never affects your free-shipping eligibility. Free shipping applies to domestic U.S. orders only.
+        Orders totaling <strong>$100 or more</strong> qualify for free shipping. Orders below this threshold are subject to a flat <strong>$15</strong> shipping rate, displayed at checkout. The $100 threshold is determined by your item subtotal <strong>before any discount codes or store credit are applied</strong>, so a discount never affects your free-shipping eligibility. Free shipping applies to domestic U.S. orders only.
       </p>
 
       <h2>Complimentary BAC Water</h2>
       <p>
-        Orders of $150 or more will automatically include a complimentary <strong>10mL Bacteriostatic Water (BAC Water)</strong> vial at no additional charge. This offer applies while supplies last and may be modified or discontinued at any time.
+        Orders of $100 or more will automatically include a complimentary <strong>10mL Bacteriostatic Water (BAC Water)</strong> vial at no additional charge. This offer applies while supplies last and may be modified or discontinued at any time.
       </p>
 
       <h2>Product Stability During Transit</h2>

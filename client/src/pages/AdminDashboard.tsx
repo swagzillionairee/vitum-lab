@@ -60,6 +60,7 @@ export default function AdminDashboard() {
   const [orderSearch, setOrderSearch] = useState("");
   const [orderStatus, setOrderStatus] = useState("");
   const [orderFulfillment, setOrderFulfillment] = useState("");
+  const [orderAwaiting, setOrderAwaiting] = useState(false);
   const [copiedOrder, setCopiedOrder] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,11 +70,12 @@ export default function AdminDashboard() {
   const orderQueryString = useCallback((overrides?: Record<string, string>) => {
     const params = new URLSearchParams({ page: String(orderPage), perPage: String(ORDERS_PER_PAGE) });
     if (orderSearch.trim()) params.set("search", orderSearch.trim());
-    if (orderStatus) params.set("status", orderStatus);
+    if (orderAwaiting) params.set("awaiting", "1");
+    else if (orderStatus) params.set("status", orderStatus);
     if (orderFulfillment) params.set("fulfillment", orderFulfillment);
     for (const [k, v] of Object.entries(overrides ?? {})) params.set(k, v);
     return params.toString();
-  }, [orderPage, orderSearch, orderStatus, orderFulfillment]);
+  }, [orderPage, orderSearch, orderStatus, orderFulfillment, orderAwaiting]);
 
   const loadOrders = useCallback(async () => {
     if (!session) return;
@@ -191,7 +193,7 @@ export default function AdminDashboard() {
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
 
   // Drop any selection when the visible set changes (page / filters / search).
-  useEffect(() => { setSelectedOrders(new Set()); }, [orderPage, orderStatus, orderFulfillment, orderSearch]);
+  useEffect(() => { setSelectedOrders(new Set()); }, [orderPage, orderStatus, orderFulfillment, orderSearch, orderAwaiting]);
 
   const toggleOrderSelected = (id: string) =>
     setSelectedOrders((prev) => {
@@ -447,10 +449,10 @@ export default function AdminDashboard() {
                   <button onClick={() => { setOrderStatus(""); setOrderFulfillment("unfulfilled"); setOrderPage(1); setTab("orders"); }}
                     className="text-[oklch(0.40_0.16_260)] font-semibold hover:underline">Paid &amp; unshipped →</button>
                 </Kpi>
-                <Kpi icon={Clock} label="Pending Payment" value={summary.pendingPayment}
-                  tone={summary.pendingPayment > 0 ? "warn" : "neutral"}>
-                  <button onClick={() => { setOrderFulfillment(""); setOrderStatus("pending"); setOrderPage(1); setTab("orders"); }}
-                    className="text-[oklch(0.40_0.16_260)] font-semibold hover:underline">Awaiting crypto →</button>
+                <Kpi icon={Clock} label="Awaiting Payment" value={summary.awaitingManual ?? 0}
+                  tone={(summary.awaitingManual ?? 0) > 0 ? "warn" : "neutral"}>
+                  <button onClick={() => { setOrderFulfillment(""); setOrderStatus(""); setOrderAwaiting(true); setOrderPage(1); setTab("orders"); }}
+                    className="text-[oklch(0.40_0.16_260)] font-semibold hover:underline">Verify &amp; mark paid →</button>
                 </Kpi>
                 <Kpi icon={AlertTriangle} label="Low Stock" value={summary.lowStock.length}
                   tone={summary.outOfStockCount > 0 ? "urgent" : summary.lowStock.length > 0 ? "warn" : "good"}>
@@ -748,7 +750,7 @@ export default function AdminDashboard() {
                 className="flex-1 min-w-[180px] border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2 text-[0.8125rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)]"
               />
               <select
-                value={orderStatus} onChange={(e) => { setOrderStatus(e.target.value); setOrderPage(1); }}
+                value={orderAwaiting ? "" : orderStatus} onChange={(e) => { setOrderStatus(e.target.value); setOrderAwaiting(false); setOrderPage(1); }}
                 className="border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2 text-[0.8125rem] bg-white focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)]"
               >
                 <option value="">All payments</option>
@@ -767,6 +769,17 @@ export default function AdminDashboard() {
                 <option value="shipped">Shipped</option>
                 <option value="delivered">Delivered</option>
               </select>
+              <button
+                type="button"
+                onClick={() => { setOrderAwaiting((v) => !v); setOrderStatus(""); setOrderPage(1); }}
+                className={`rounded-lg px-3 py-2 text-[0.8125rem] font-semibold border transition-colors ${
+                  orderAwaiting
+                    ? "bg-[oklch(0.42_0.14_155)] text-white border-[oklch(0.42_0.14_155)]"
+                    : "bg-white text-[oklch(0.40_0.12_155)] border-[oklch(0.80_0.06_155)] hover:bg-[oklch(0.97_0.02_155)]"
+                }`}
+              >
+                Awaiting payment
+              </button>
             </div>
 
             {/* Bulk action bar (appears when one or more orders are selected) */}

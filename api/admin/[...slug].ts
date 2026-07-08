@@ -157,7 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     type SummaryOrder = {
       status: string; fulfillment_status: string | null; net_amount: number | string;
       items: OrderItem[] | null; created_at: string;
-      email: string | null; affiliate_id: string | null;
+      email: string | null; affiliate_id: string | null; payment_method: string | null;
       commission_amount: number | string | null; cancel_reason: string | null;
     };
 
@@ -166,7 +166,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // sellers once the store passes 1000 orders. Newest-first ordering is preserved.
     // (If orders ever reach the tens of thousands, move these aggregates into SQL.)
     const ORDER_COLS =
-      "status, fulfillment_status, net_amount, items, created_at, email, affiliate_id, commission_amount, cancel_reason";
+      "status, fulfillment_status, net_amount, items, created_at, email, affiliate_id, payment_method, commission_amount, cancel_reason";
     const ORDERS_PAGE = 1000;
     const fetchAllOrders = async (): Promise<SummaryOrder[]> => {
       const all: SummaryOrder[] = [];
@@ -214,6 +214,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const ordersToFulfill = paid.filter((o) => (o.fulfillment_status ?? "unfulfilled") === "unfulfilled").length;
     const pendingPayment = rows.filter((o) => o.status === "pending").length;
+    // Manual transfers awaiting the admin's verify + Mark paid.
+    const awaitingManual = rows.filter(
+      (o) => o.status === "pending" && ["zelle", "cashapp", "venmo", "ach"].includes(o.payment_method ?? ""),
+    ).length;
     const ordersThisWeek = rows.filter((o) => o.created_at >= since7).length;
     const aov = paid.length > 0 ? revenueAll / paid.length : 0;
 
@@ -329,7 +333,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json({
       revenue30, revenueAll, paidOrders: paid.length, aov,
       netProfitAll, netProfit30,
-      ordersToFulfill, pendingPayment, ordersThisWeek,
+      ordersToFulfill, pendingPayment, awaitingManual, ordersThisWeek,
       lowStock, outOfStockCount, lowStockThreshold: LOW_STOCK_THRESHOLD,
       topProducts, recentOrders,
       dailyRevenue,
@@ -424,6 +428,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const search = ((req.query?.search as string) || "").replace(/[,()*\\]/g, " ").trim();
       const statusFilter = (req.query?.status as string) || "";
       const fulfillmentFilter = (req.query?.fulfillment as string) || "";
+      // "awaiting=1" → pending orders on a manual method (the ones the admin
+      // must verify + Mark paid). Overrides the status filter when set.
+      const awaitingFilter = (req.query?.awaiting as string) === "1";
       const from = (page - 1) * perPage;
 
       let query = supabaseAdmin
@@ -432,7 +439,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .order("created_at", { ascending: false });
 
       if (search) query = query.or(`email.ilike.%${search}%,id.ilike.%${search}%`);
-      if (statusFilter) query = query.eq("status", statusFilter);
+      if (awaitingFilter) {
+        query = query.eq("status", "pending").in("payment_method", ["zelle", "cashapp", "venmo", "ach"]);
+      } else if (statusFilter) {
+        query = query.eq("status", statusFilter);
+      }
       if (fulfillmentFilter) query = query.eq("fulfillment_status", fulfillmentFilter);
 
       const { data, error, count } = await query.range(from, from + perPage - 1);

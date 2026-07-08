@@ -20,16 +20,16 @@ import {
 
 describe("shippingFee", () => {
   it("charges the flat fee under the free-shipping threshold", () => {
-    expect(shippingFee(129)).toBe(SHIPPING_FEE);
-    expect(shippingFee(149.99)).toBe(SHIPPING_FEE);
+    expect(shippingFee(69)).toBe(SHIPPING_FEE);
+    expect(shippingFee(99.99)).toBe(SHIPPING_FEE);
   });
   it("is free at and above the threshold", () => {
     expect(shippingFee(FREE_SHIPPING_THRESHOLD)).toBe(0);
     expect(shippingFee(500)).toBe(0);
   });
   it("uses the pre-discount subtotal, so a promo can't re-trigger the fee", () => {
-    // $160 cart with a 100%-off promo still ships free.
-    expect(shippingFee(160)).toBe(0);
+    // $129 cart with a 100%-off promo still ships free.
+    expect(shippingFee(129)).toBe(0);
   });
   it("coerces junk to the fee (a $0/invalid subtotal is below the threshold)", () => {
     expect(shippingFee(NaN)).toBe(SHIPPING_FEE);
