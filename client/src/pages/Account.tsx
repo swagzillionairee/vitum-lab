@@ -7,7 +7,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useLocation, Link } from "wouter";
-import { Package, LogOut, Loader2, HelpCircle, RotateCcw, Wallet } from "lucide-react";
+import { Package, LogOut, Loader2, HelpCircle, RotateCcw, Wallet, Copy, Check, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatOrderId } from "@/lib/orders";
@@ -24,6 +24,8 @@ interface Order {
   items: OrderItem[];
   net_amount: number;
   shipping_amount?: number | null;
+  credit_applied?: number | null;
+  payment_method?: string | null;
   status: string;
   fulfillment_status: string | null;
   tracking_number: string | null;
@@ -59,9 +61,35 @@ export default function Account() {
   const [fetching, setFetching] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [credit, setCredit] = useState<number | null>(null);
+  // Payment handles (for the "complete your payment" panel on pending manual
+  // orders) + per-order UI state.
+  const [payments, setPayments] = useState<Record<string, { handle?: string; instructions?: string }> | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [sentIds, setSentIds] = useState<Record<string, "sending" | "sent">>({});
   const { products } = useProducts();
   const { isAvailable } = useInventory();
   const { addItem, closeCart } = useCart();
+
+  useEffect(() => {
+    fetch("/api/public/site").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.payments) setPayments(d.payments); }).catch(() => {});
+  }, []);
+
+  const MANUAL_LABEL: Record<string, { label: string; memo: string }> = {
+    zelle: { label: "Zelle", memo: "memo / note" },
+    cashapp: { label: "Cash App", memo: "note" },
+    venmo: { label: "Venmo", memo: "note" },
+    ach: { label: "bank transfer", memo: "transfer memo" },
+  };
+  const copyText = (text: string, key: string) => {
+    navigator.clipboard?.writeText(text).then(() => { setCopiedKey(key); setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1500); }, () => {});
+  };
+  const markSent = (id: string) => {
+    if (sentIds[id]) return;
+    setSentIds((s) => ({ ...s, [id]: "sending" }));
+    authedFetch("/api/account/payment-sent", { method: "POST", body: JSON.stringify({ orderId: id }) })
+      .then(() => setSentIds((s) => ({ ...s, [id]: "sent" })))
+      .catch(() => setSentIds((s) => ({ ...s, [id]: "sent" })));
+  };
 
   useEffect(() => {
     if (!loading && !session) navigate("/login");
@@ -214,6 +242,44 @@ export default function Account() {
                     <li key={i}>{it.name} {it.dose} × {it.quantity}</li>
                   ))}
                 </ul>
+
+                {/* Complete-your-payment panel — pending manual transfers only */}
+                {o.status === "pending" && ["zelle", "cashapp", "venmo", "ach"].includes(o.payment_method ?? "") && (() => {
+                  const m = o.payment_method as string;
+                  const info = MANUAL_LABEL[m] ?? { label: m, memo: "note" };
+                  const handle = payments?.[m]?.handle ?? "";
+                  const amountDue = (Number(o.net_amount) + Number(o.shipping_amount ?? 0) - Number(o.credit_applied ?? 0)).toFixed(2);
+                  const sent = sentIds[o.id];
+                  return (
+                    <div className="mb-3 rounded-xl border border-[oklch(0.88_0.05_200)] bg-[oklch(0.97_0.02_200)] p-4 space-y-2.5">
+                      <p className="text-[0.8125rem] text-[oklch(0.30_0.06_200)]">
+                        Send <span className="font-bold">${amountDue}</span> via <span className="font-semibold">{info.label}</span>{handle ? " to:" : "."}
+                      </p>
+                      {handle && (
+                        <div className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-[oklch(0.90_0.03_200)]">
+                          <span className="font-mono text-[0.875rem] font-bold text-[oklch(0.20_0.04_200)] break-all">{handle}</span>
+                          <button onClick={() => copyText(handle, `h-${o.id}`)} className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.42_0.11_200)] flex-shrink-0 hover:underline">
+                            {copiedKey === `h-${o.id}` ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                          </button>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-[oklch(0.90_0.03_200)]">
+                        <span><span className="text-[0.6875rem] uppercase tracking-wide text-[oklch(0.45_0.03_200)]">Put in {info.memo}: </span><span className="font-mono text-[0.875rem] font-bold text-[oklch(0.20_0.04_200)] break-all">{formatOrderId(o.id)}</span></span>
+                        <button onClick={() => copyText(formatOrderId(o.id), `o-${o.id}`)} className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.42_0.11_200)] flex-shrink-0 hover:underline">
+                          {copiedKey === `o-${o.id}` ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                        </button>
+                      </div>
+                      {sent === "sent" ? (
+                        <p className="flex items-center justify-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.35_0.12_155)] py-1"><CheckCircle2 className="w-4 h-4" /> Thanks! We'll confirm once it lands.</p>
+                      ) : (
+                        <button onClick={() => markSent(o.id)} disabled={sent === "sending"} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-[oklch(0.42_0.14_155)] text-white text-[0.875rem] font-bold hover:bg-[oklch(0.37_0.14_155)] transition-colors disabled:opacity-60">
+                          <CheckCircle2 className="w-4 h-4" /> {sent === "sending" ? "Sending…" : "I've Sent the Payment"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div className="flex items-center justify-between border-t border-[oklch(0.95_0.003_260)] pt-3">
                   <span className="text-[0.8125rem] text-[oklch(0.52_0.01_260)]">
                     Total <span className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)] ml-1">${(Number(o.net_amount) + Number(o.shipping_amount ?? 0)).toFixed(2)}</span>

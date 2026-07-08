@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { CheckCircle2, ArrowRight, Copy, Check, Clock } from "lucide-react";
 import SEO from "@/components/SEO";
+import { authedFetch } from "@/lib/api";
 
 interface ManualCfg { enabled: boolean; handle: string; instructions: string }
 
@@ -20,6 +21,7 @@ export default function OrderSuccess() {
   const [amount, setAmount] = useState("");
   const [handle, setHandle] = useState<ManualCfg | null>(null);
   const [copied, setCopied] = useState<"order" | "handle" | null>(null);
+  const [sentState, setSentState] = useState<"idle" | "sending" | "sent">("idle");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -47,6 +49,16 @@ export default function OrderSuccess() {
 
   const label = METHOD_LABEL[method]?.label ?? "your selected method";
   const memo = METHOD_LABEL[method]?.memo ?? "memo";
+
+  // "I've sent the payment" from the success page (in case they closed the
+  // checkout modal) — same alert-the-payment-inbox call as the modal button.
+  const markSent = () => {
+    if (sentState !== "idle" || !orderId) return;
+    setSentState("sending");
+    authedFetch("/api/account/payment-sent", { method: "POST", body: JSON.stringify({ orderId }) })
+      .then(() => setSentState("sent"))
+      .catch(() => setSentState("sent")); // best-effort; the order is already placed
+  };
 
   return (
     <div className="min-h-screen bg-[oklch(0.98_0.002_260)] flex items-center justify-center px-6 py-12">
@@ -115,6 +127,24 @@ export default function OrderSuccess() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* "I've sent the payment" — lets a customer who closed the checkout
+            modal still ping us to verify their transfer. */}
+        {awaiting && (
+          sentState === "sent" ? (
+            <div className="flex items-center justify-center gap-2 mb-6 rounded-xl bg-[oklch(0.96_0.03_155)] border border-[oklch(0.85_0.06_155)] px-4 py-3 text-[0.875rem] font-semibold text-[oklch(0.35_0.12_155)]">
+              <CheckCircle2 className="w-4 h-4" /> Thanks! We'll confirm once your payment lands.
+            </div>
+          ) : (
+            <button
+              onClick={markSent}
+              disabled={sentState === "sending"}
+              className="flex items-center justify-center gap-2 w-full mb-6 py-3.5 rounded-xl bg-[oklch(0.42_0.14_155)] text-white text-[0.9375rem] font-bold hover:bg-[oklch(0.37_0.14_155)] transition-colors disabled:opacity-60"
+            >
+              <CheckCircle2 className="w-5 h-5" /> {sentState === "sending" ? "Sending…" : "I've Sent the Payment"}
+            </button>
+          )
         )}
 
         <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-8">
