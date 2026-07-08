@@ -227,7 +227,7 @@ export default function Checkout() {
     : 0;
   const discountAmount = round2(qtyDiscount + codeDiscount);
   const netAfterDiscounts = round2(subtotal - discountAmount);
-  // Flat $15 shipping under $150 (pre-discount basis), free above.
+  // Flat $15 shipping under $100 (pre-discount basis), free above.
   const shippingCost = shippingFee(subtotal);
   // Store credit auto-applies as tender (covering shipping too), reducing the
   // amount due (server is authoritative).
@@ -305,6 +305,7 @@ export default function Checkout() {
             instructions: cfg?.instructions ?? "",
             amount: total.toFixed(2),
             orderId: data.orderId,
+            expiresAt: data.expiresAt,
           });
         } else {
           window.location.href = data.invoiceUrl; // NowPayments crypto redirect
@@ -465,7 +466,7 @@ export default function Checkout() {
                 )}
               </div>
               <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)] leading-snug">
-                Free shipping on orders of $150+, based on your subtotal before discounts.
+                Free shipping on orders of $100+, based on your subtotal before discounts.
               </p>
               <div className="flex justify-between items-center border-t border-[oklch(0.93_0.004_260)] pt-2">
                 <span className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)]">Total</span>
@@ -594,7 +595,8 @@ export default function Checkout() {
       {modalData && (() => {
         const go = (d: ManualModalData) => {
           clearCart();
-          navigate(`/order-success?order=${encodeURIComponent(d.orderId)}&awaiting=1&method=${encodeURIComponent(d.method)}&amt=${d.amount}`);
+          const exp = d.expiresAt ? `&exp=${encodeURIComponent(d.expiresAt)}` : "";
+          navigate(`/order-success?order=${encodeURIComponent(d.orderId)}&awaiting=1&method=${encodeURIComponent(d.method)}&amt=${d.amount}${exp}`);
         };
         const onSent = () => {
           const d = modalData;

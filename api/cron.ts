@@ -97,11 +97,11 @@ export default async function handler(req: any, res: any) {
   try {
     // 1. Expire stale pending orders (mirrors the expire_stale_orders pg_cron
     // fn). Automated invoices (crypto/square/legacy-null) die at 24h; manual
-    // transfers the admin verifies (Zelle/Cash App/Venmo/ACH) get 14 days.
+    // transfers the admin verifies (Zelle/Cash App/Venmo/ACH) get 4 days.
     const MANUAL_METHODS = ["zelle", "cashapp", "venmo", "ach"];
     const nowIso = new Date().toISOString();
     const cutoff24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const cutoff14d = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
+    const cutoffManual = new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString();
     const expired: any[] = [];
     // Automated: crypto/square, or legacy rows with no payment_method.
     const { data: autoExpired } = await supabaseAdmin
@@ -117,7 +117,7 @@ export default async function handler(req: any, res: any) {
       .from("orders")
       .update({ status: "cancelled", cancelled_at: nowIso, cancel_reason: "auto-expired: payment not received in time" })
       .eq("status", "pending")
-      .lt("created_at", cutoff14d)
+      .lt("created_at", cutoffManual)
       .in("payment_method", MANUAL_METHODS)
       .select(ORDER_COLS);
     expired.push(...(manualExpired ?? []));

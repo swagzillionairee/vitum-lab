@@ -108,10 +108,10 @@ test("customer can fill checkout, apply a promo, and submit", async ({ page }) =
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByText("Promo code applied!")).toBeVisible();
 
-  // 10% off $129 = $12.90, + $15 flat shipping (under $150) → total $131.10.
+  // 10% off $129 = $12.90; $129 clears the $100 free-shipping threshold, so
+  // shipping is $0 → total $116.10.
   await expect(page.getByText(/10%/)).toBeVisible();
-  await expect(page.getByText("$15.00")).toBeVisible();
-  await expect(page.getByText("$131.10")).toBeVisible();
+  await expect(page.getByText("$116.10")).toBeVisible();
 
   // Attest, then submit via the (only enabled) crypto method — the mock returns
   // a "free" order so the app navigates to /order-success in-app.
@@ -124,8 +124,10 @@ test("customer can fill checkout, apply a promo, and submit", async ({ page }) =
   // The order email is now derived server-side from the JWT, not sent in the body.
   expect(capture.body.email).toBeUndefined();
   expect(capture.body.discountCode).toBe("SAVE10");
-  expect(capture.body.items).toHaveLength(1);
-  expect(capture.body.items[0].cartCode).toBe("retatrutide-10mg");
+  // $129 clears the $100 threshold, so the free BAC Water rides along (server
+  // re-derives it authoritatively regardless).
+  expect(capture.body.items.some((i: { cartCode: string }) => i.cartCode === "retatrutide-10mg")).toBe(true);
+  expect(capture.body.items.some((i: { cartCode: string }) => i.cartCode === "bac-water-free")).toBe(true);
   expect(capture.body.shipping.line1).toBe("123 Lab St");
   expect(capture.body.shipping.state).toBe("TX");
 });

@@ -2,7 +2,7 @@
  * CartContext.tsx — Vitum Lab
  * Global cart state: items, quantities, drawer open/close
  * Persists to sessionStorage so cart survives page navigation
- * Auto-adds free BAC Water when subtotal crosses $150
+ * Auto-adds free BAC Water when subtotal crosses $100
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
@@ -36,7 +36,7 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null);
 
 const SESSION_KEY = "vitum_cart";
-const FREE_SHIPPING_THRESHOLD = 150;
+const FREE_SHIPPING_THRESHOLD = 100;
 
 const FREE_BAC_WATER: Omit<CartItem, "quantity"> = {
   id: "free-bac-water",
@@ -135,7 +135,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (qualifies && !freeGift) {
       setItems((prev) => [...prev, { ...FREE_BAC_WATER, quantity: 1 }]);
       toast.success("🎉 Free BAC Water added to your cart!", {
-        description: "You've unlocked free shipping + a free BAC Water.",
+        description: "Free shipping + a free BAC Water on orders over $100.",
         duration: 4000,
       });
     } else if (!qualifies && freeGift) {

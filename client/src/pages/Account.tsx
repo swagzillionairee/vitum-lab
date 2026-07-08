@@ -66,6 +66,7 @@ export default function Account() {
   const [payments, setPayments] = useState<Record<string, { handle?: string; instructions?: string }> | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [sentIds, setSentIds] = useState<Record<string, "sending" | "sent">>({});
+  const [nowTs, setNowTs] = useState(() => Date.now());
   const { products } = useProducts();
   const { isAvailable } = useInventory();
   const { addItem, closeCart } = useCart();
@@ -73,6 +74,13 @@ export default function Account() {
   useEffect(() => {
     fetch("/api/public/site").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.payments) setPayments(d.payments); }).catch(() => {});
   }, []);
+
+  // Tick a countdown for pending manual orders (expire 4 days after placement).
+  useEffect(() => {
+    const t = setInterval(() => setNowTs(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const MANUAL_EXPIRY_MS = 4 * 24 * 3600 * 1000;
 
   const MANUAL_LABEL: Record<string, { label: string; memo: string }> = {
     zelle: { label: "Zelle", memo: "memo / note" },
@@ -250,11 +258,16 @@ export default function Account() {
                   const handle = payments?.[m]?.handle ?? "";
                   const amountDue = (Number(o.net_amount) + Number(o.shipping_amount ?? 0) - Number(o.credit_applied ?? 0)).toFixed(2);
                   const sent = sentIds[o.id];
+                  const remain = new Date(o.created_at).getTime() + MANUAL_EXPIRY_MS - nowTs;
+                  const cd = remain > 0 ? `${Math.floor(remain / 86400000)}d ${Math.floor((remain % 86400000) / 3600000)}h` : null;
                   return (
                     <div className="mb-3 rounded-xl border border-[oklch(0.88_0.05_200)] bg-[oklch(0.97_0.02_200)] p-4 space-y-2.5">
-                      <p className="text-[0.8125rem] text-[oklch(0.30_0.06_200)]">
-                        Send <span className="font-bold">${amountDue}</span> via <span className="font-semibold">{info.label}</span>{handle ? " to:" : "."}
-                      </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[0.8125rem] text-[oklch(0.30_0.06_200)]">
+                          Send <span className="font-bold">${amountDue}</span> via <span className="font-semibold">{info.label}</span>{handle ? " to:" : "."}
+                        </p>
+                        {cd && <span className="flex-shrink-0 text-[0.6875rem] font-semibold text-[oklch(0.50_0.12_70)] whitespace-nowrap">expires in {cd}</span>}
+                      </div>
                       {handle && (
                         <div className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-[oklch(0.90_0.03_200)]">
                           <span className="font-mono text-[0.875rem] font-bold text-[oklch(0.20_0.04_200)] break-all">{handle}</span>

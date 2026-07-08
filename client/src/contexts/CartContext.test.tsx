@@ -19,21 +19,22 @@ afterEach(() => cleanup());
 describe("CartContext", () => {
   it("adds an item and computes the subtotal", () => {
     const { result } = renderHook(() => useCart(), { wrapper });
-    act(() => result.current.addItem(item()));
+    // $69 stays under the $100 free-gift threshold (no auto-added gift here).
+    act(() => result.current.addItem(item({ id: "ghk50", price: 69, cartCode: "ghk-cu-50mg" })));
     expect(result.current.totalItems).toBe(1);
-    expect(result.current.subtotal).toBe(129);
+    expect(result.current.subtotal).toBe(69);
   });
 
   it("increments quantity when the same item is added again", () => {
     const { result } = renderHook(() => useCart(), { wrapper });
-    // $50 × 2 stays under the $150 free-gift threshold (no auto-added gift).
-    act(() => result.current.addItem(item({ id: "x", price: 50, cartCode: "x" })));
-    act(() => result.current.addItem(item({ id: "x", price: 50, cartCode: "x" })));
+    // $40 × 2 stays under the $100 free-gift threshold (no auto-added gift).
+    act(() => result.current.addItem(item({ id: "x", price: 40, cartCode: "x" })));
+    act(() => result.current.addItem(item({ id: "x", price: 40, cartCode: "x" })));
     expect(result.current.totalItems).toBe(2);
-    expect(result.current.subtotal).toBe(100);
+    expect(result.current.subtotal).toBe(80);
   });
 
-  it("auto-adds a single free BAC Water at the $150 threshold, capped at qty 1", () => {
+  it("auto-adds a single free BAC Water at the $100 threshold, capped at qty 1", () => {
     const { result } = renderHook(() => useCart(), { wrapper });
     act(() => result.current.addItem(item({ id: "r30", price: 249, cartCode: "retatrutide-30mg" })));
     const gift = result.current.items.find((i) => i.cartCode === "bac-water-free");
@@ -44,7 +45,7 @@ describe("CartContext", () => {
     expect(result.current.subtotal).toBe(249);
   });
 
-  it("removes the free gift once the paid subtotal drops back below $150", () => {
+  it("removes the free gift once the paid subtotal drops back below $100", () => {
     const { result } = renderHook(() => useCart(), { wrapper });
     act(() => result.current.addItem(item({ id: "big", price: 160, cartCode: "big" })));
     expect(result.current.items.some((i) => i.cartCode === "bac-water-free")).toBe(true);

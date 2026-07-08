@@ -27,7 +27,7 @@ const values = [
   {
     icon: <Truck className="w-6 h-6" />,
     title: "Researcher-First Logistics",
-    body: "Fast delivery via USPS Priority Mail padded envelopes — 2 days avg. to East Coast, 3 days to Central & West Coast. Free shipping and a complimentary BAC Water on orders over $150.",
+    body: "Fast delivery via USPS Priority Mail padded envelopes — 2 days avg. to East Coast, 3 days to Central & West Coast. Free shipping and a complimentary BAC Water on orders over $100.",
   },
 ];
 

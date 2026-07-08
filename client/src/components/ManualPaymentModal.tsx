@@ -14,6 +14,7 @@ export interface ManualModalData {
   instructions: string;
   amount: string;      // formatted, e.g. "211.85"
   orderId: string;     // the reference to put in the memo
+  expiresAt?: string;  // ISO — when the reservation auto-expires (countdown)
 }
 
 const UI: Record<string, {

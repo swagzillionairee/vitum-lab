@@ -153,6 +153,7 @@ export interface Summary {
   aov: number;
   ordersToFulfill: number;
   pendingPayment: number;
+  awaitingManual?: number;
   ordersThisWeek: number;
   lowStock: { cartCode: string; stock: number }[];
   outOfStockCount: number;

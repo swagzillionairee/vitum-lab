@@ -22,6 +22,8 @@ export default function OrderSuccess() {
   const [handle, setHandle] = useState<ManualCfg | null>(null);
   const [copied, setCopied] = useState<"order" | "handle" | null>(null);
   const [sentState, setSentState] = useState<"idle" | "sending" | "sent">("idle");
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -32,6 +34,9 @@ export default function OrderSuccess() {
     const m = params.get("method") ?? "";
     setMethod(m);
     setAmount(params.get("amt") ?? "");
+    const exp = params.get("exp");
+    const expMs = exp ? new Date(exp).getTime() : NaN;
+    if (Number.isFinite(expMs)) setExpiresAt(expMs);
     // For a manual transfer, pull the send-to handle from the public config.
     if (isAwaiting && m) {
       fetch("/api/public/site")
@@ -47,8 +52,19 @@ export default function OrderSuccess() {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  // Tick a countdown to the reservation's expiry (minute resolution).
+  useEffect(() => {
+    if (!awaiting || !expiresAt) return;
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, [awaiting, expiresAt]);
+
   const label = METHOD_LABEL[method]?.label ?? "your selected method";
   const memo = METHOD_LABEL[method]?.memo ?? "memo";
+  const remainMs = expiresAt ? expiresAt - now : null;
+  const countdown = remainMs != null && remainMs > 0
+    ? `${Math.floor(remainMs / 86400000)}d ${Math.floor((remainMs % 86400000) / 3600000)}h`
+    : null;
 
   // "I've sent the payment" from the success page (in case they closed the
   // checkout modal) — same alert-the-payment-inbox call as the modal button.
@@ -82,6 +98,13 @@ export default function OrderSuccess() {
               ? "Your order is confirmed and is being prepared for shipment. A confirmation email is on its way."
               : "Your payment is being confirmed. This usually takes a few minutes."}
         </p>
+
+        {/* Reservation countdown */}
+        {awaiting && countdown && (
+          <div className="inline-flex items-center gap-1.5 mb-6 rounded-full bg-[oklch(0.95_0.04_85)] px-3.5 py-1.5 text-[0.8125rem] font-semibold text-[oklch(0.45_0.12_70)]">
+            <Clock className="w-3.5 h-3.5" /> Reserved — expires in {countdown}
+          </div>
+        )}
 
         {/* Manual-payment instructions */}
         {awaiting && (

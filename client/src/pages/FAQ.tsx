@@ -44,7 +44,7 @@ const faqCategories = [
       },
       {
         q: "What payment methods do you accept?",
-        a: "All payments are processed securely through NOWPayments. At checkout you can pay with cryptocurrency, or use a credit/debit card or Apple Pay, which is converted to crypto automatically. Payments are confirmed before order fulfillment.",
+        a: "At checkout you can pay by Venmo, Cash App, or cryptocurrency. For Venmo and Cash App, you'll see the account to send to along with your order number — include that order number in the payment note so we can match it, and we'll confirm by email once it arrives (usually within minutes). Cryptocurrency is confirmed automatically. Card and bank (ACH) options are coming soon.",
       },
       {
         q: "Can I place a bulk or institutional order?",
@@ -65,7 +65,7 @@ const faqCategories = [
       },
       {
         q: "Do you offer free shipping?",
-        a: "Yes — orders over $150 receive free shipping and a complimentary 10mL BAC Water vial. The free BAC Water is automatically added to your cart when you reach the threshold. Orders under $150 ship for a flat $15 rate. The $150 threshold is based on your subtotal before discounts, so a promo code never affects free-shipping eligibility.",
+        a: "Yes — orders over $100 receive free shipping and a complimentary 10mL BAC Water vial. The free BAC Water is automatically added to your cart when you reach the threshold. Orders under $100 ship for a flat $15 rate. The $100 threshold is based on your subtotal before discounts, so a promo code never affects free-shipping eligibility.",
       },
       {
         q: "Do you ship internationally?",
