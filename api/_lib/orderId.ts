@@ -1,15 +1,17 @@
 import { customAlphabet } from "nanoid";
 
-// Order numbers are 3 letters + 6 digits (e.g. "KFD837291"), stored as the
-// orders PK — short enough to type into a Venmo/Cash App memo. Letters exclude
-// I/O (confusable with 1/0). Keyspace 24^3 × 10^6 ≈ 1.4×10^10 — a PK collision
-// is negligible at this store's scale and fails the insert (never overwrites).
+// Order numbers are 3 letters + a dash + 6 digits (e.g. "KFD-837291"), stored as
+// the orders PK — short + readable enough to type into a Venmo/Cash App memo. The
+// dash is part of the stored id, so what's displayed, copied, typed, and matched
+// are all the exact same string. Letters exclude I/O (confusable with 1/0).
+// Keyspace 24^3 × 10^6 ≈ 1.4×10^10 — a PK collision is negligible at this store's
+// scale and fails the insert (never overwrites).
 const genLetters = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ", 3);
 const genDigits = customAlphabet("0123456789", 6);
 
-/** A fresh order number: 3 letters + 6 digits. */
+/** A fresh order number: 3 letters + dash + 6 digits (e.g. "KFD-837291"). */
 export function buildOrderId(): string {
-  return `${genLetters()}${genDigits()}`;
+  return `${genLetters()}-${genDigits()}`;
 }
 
 /**
