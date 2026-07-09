@@ -71,7 +71,21 @@ const deliveredInbox = () => process.env.DELIVERED_EMAIL || process.env.ORDERS_E
 // the orders inbox / the authed Gmail sender (both real, monitored mailboxes) —
 // NOT a hardcoded payment@ address, which black-holes the alert unless that
 // mailbox is actually provisioned. Set PAYMENT_EMAIL to route these elsewhere.
-const paymentInbox = () => process.env.PAYMENT_EMAIL || process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
+const paymentInbox = () => {
+  const dedicated = process.env.PAYMENT_EMAIL;
+  const to = dedicated || process.env.ORDERS_EMAIL || process.env.GMAIL_USER!;
+  // Surface the misroute risk: without PAYMENT_EMAIL, "I've Sent the Payment"
+  // verify alerts land in the orders/hello inbox instead of a dedicated
+  // payment@ mailbox. Log so it's obvious in the function output why they went
+  // there (and which fallback caught them).
+  if (!dedicated) {
+    console.warn(
+      `PAYMENT_EMAIL unset — routing manual-transfer verify alert to fallback inbox (${to}). ` +
+        `Set PAYMENT_EMAIL to a provisioned mailbox to route these elsewhere.`,
+    );
+  }
+  return to;
+};
 
 const MANUAL_LABELS: Record<string, string> = { zelle: "Zelle", cashapp: "Cash App", venmo: "Venmo", ach: "Bank transfer (ACH)" };
 
