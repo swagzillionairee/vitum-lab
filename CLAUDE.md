@@ -4,7 +4,7 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 
 ## What This Project Is
 
-Vitum Lab (`vitumlab.com`) is a research-peptide e-commerce site (Retatrutide/GLP-3 (R), GHK-Cu, NAD+, BAC Water). **Payments: TagadaPay primary** (cards + Google Pay + Apple Pay, card processing on Finix, peptide-approved, settles to the merchant's own bank) **+ NowPayments crypto fallback.** Deployed on Vercel; Supabase for inventory/orders/affiliates.
+Vitum Lab (`vitumlab.com`) is a research-peptide e-commerce site (Retatrutide/GLP-3 (R), GHK-Cu, NAD+, BAC Water). **Payments: three methods, one checkout — Square (live card processing) + manual peer-to-peer transfers (Zelle · Cash App · Venmo · bank ACH, admin-verified) + NowPayments crypto.** (TagadaPay was the former card processor; its code is dormant/retired — see Payments.) Deployed on Vercel; Supabase for inventory/orders/affiliates.
 
 **Stack:** React 19 + TypeScript + Tailwind CSS v4 (oklch color space) + wouter routing + Vite. Local dev serves `/api/*` via `vitePluginLocalApi` in `vite.config.ts`; production uses Vercel serverless functions (`/api/*.ts`).
 
@@ -37,7 +37,9 @@ client/src/
                     ProductModal.tsx, and self-contained ShippingTab/CustomersTab/PromosTab/AffiliatesTab.
                     Parent AdminDashboard.tsx keeps Overview/Products/Inventory/Orders + loadData + order state.
   components/       Navbar, Footer, CartDrawer, OrderTimeline, AddressAutocomplete, SEO,
-                    TagadaCardBox.tsx (in-browser card tokenization), GooglePayButton.tsx (official GPay button), …
+                    SquareCardBox.tsx (in-browser Square card tokenization → single-use source_id),
+                    ManualPaymentModal.tsx (Zelle/Cash App/Venmo/ACH "send your payment" modal),
+                    TagadaCardBox.tsx + GooglePayButton.tsx (DORMANT — legacy Tagada card/wallet UI), …
   lib/
     products.ts     Static fallback catalog — authoritative data is Supabase `products` via /api/products (useProducts)
     supabase.ts     Browser Supabase client (anon key)
@@ -45,8 +47,8 @@ client/src/
     promo.ts        Capture/persist a shared ?code=/?ref=/?promo= code (strips only those params; preserves others)
     orders.ts       formatOrderId
     discounts.ts    quantityDiscountPercent/round2/shippingFee — client mirror of the checkout math
-    wallets.ts      Google Pay / Apple Pay via core-js (availability probes + payWithGooglePay/payWithApplePay →
-                    base64 TagadaToken). Google Pay env decoupled via VITE_GOOGLE_PAY_SANDBOX.
+    wallets.ts      (DORMANT) Google Pay / Apple Pay via Tagada core-js — retired with the Tagada card flow; not wired
+                    into the current checkout.
   contexts/         CartContext (sessionStorage; free gift capped at qty 1; reconcileCartPrices re-syncs to live catalog),
                     ThemeContext (dark mode), AuthContext (Supabase Auth)
   hooks/
@@ -55,10 +57,12 @@ client/src/
 
 api/                Vercel serverless functions — ALL relative imports MUST use .js extensions (ESM)
   inventory.ts                GET → {cartCode: stock}; POST → join back-in-stock waitlist (public)
-  create-crypto-payment.ts    POST (REQUIRES auth) — the ONE checkout charge endpoint. Order email = JWT email (never
-                              the body). Server-authoritative re-pricing + stacked discounts + store credit; enforces
-                              promo one-use. Routes the charge: a `tagadaToken` (card OR wallet) → Tagada chargeCard;
-                              no token → NowPayments invoice; $0 due → confirm immediately (skip both).
+  create-crypto-payment.ts    POST (REQUIRES auth) — the ONE checkout charge endpoint (legacy filename). Order email =
+                              JWT email (never the body). Server-authoritative re-pricing + stacked discounts + store
+                              credit; enforces promo one-use. Routes by `paymentMethod`: $0 due → confirm immediately;
+                              `squareToken` (method "square") → chargeSquare (live card, sync); a manual method
+                              (zelle/cashapp/venmo/ach) → pending "awaiting transfer" order (admin confirms); else →
+                              NowPayments crypto invoice. (A gated-off dormant Tagada branch remains.)
   nowpayments-webhook.ts      POST (raw body, HMAC-verified) — confirmed/failed emails, promo use count
   validate-discount.ts        POST (REQUIRES auth) — early UI validation of affiliate/promo codes
   contact.ts                  POST (rate-limited 5/10min/IP)
@@ -68,32 +72,42 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                               + Shippo delivery polling → delivered/follow-up emails + affiliate statements (1st @15:00). CRON_SECRET.
   admin/[...slug].ts          Catch-all /api/admin/*: summary, inventory (PATCH 0→stock emails waitlist), orders GET +
                               PATCH actions, products CRUD, upload, affiliates, payouts, promos, site-promo,
-                              quantity-tiers, rewards, order-pdfs (4×6 labels/slips via pdf-lib), waitlist, users,
-                              shipments, register-tagada-webhook (→ TAGADA_WEBHOOK_SECRET), tagada-products.
-                              Order PATCH actions: cancel (restocks paid + email), ship, deliver, recheck (reconciles a
-                              pending order vs its processor — Tagada via payments.retrieve, else NowPayments), notes,
-                              resend_email. DELETE → hard delete (no restock; single + bulk).
+                              quantity-tiers, rewards, payment-config GET/PUT (Admin → Payments: toggle methods + edit
+                              Zelle/Cash App/Venmo/ACH handles; reports square_configured), order-pdfs (4×6 labels/slips
+                              via pdf-lib), waitlist, users, shipments. (Dormant: register-tagada-webhook, tagada-products.)
+                              Order PATCH actions: cancel (restocks paid + email), ship, deliver, mark_paid (manual transfer
+                              landed → confirm + fulfil via confirmPaidOrder), recheck (reconciles a pending order vs
+                              NowPayments; dormant Tagada branch by admin_notes), notes, resend_email. DELETE → hard delete
+                              (no restock; single + bulk).
   affiliate/[...slug].ts      Catch-all /api/affiliate/* (stats, orders)
-  account/[...slug].ts        Catch-all /api/account/*: orders, profile GET/PUT (saved shipping address), credit, referral
-  public/[...slug].ts         Catch-all /api/public/* (no auth): site GET (sale banner config + quantity_tiers +
-                              tagada_enabled), track GET ?order=&email=, tagada-webhook POST (raw-body, signature-verified;
-                              order/paid|payment/succeeded → confirm via _lib/fulfillment.ts) — bodyParser off
+  account/[...slug].ts        Catch-all /api/account/*: orders, profile GET/PUT (saved shipping address), credit, referral,
+                              payment-sent POST (customer tapped "I've Sent the Payment" on their OWN pending manual order
+                              → alerts the payment inbox; idempotent)
+  public/[...slug].ts         Catch-all /api/public/* (no auth): site GET (sale banner + quantity_tiers + `payments` offer
+                              via buildPayments — enabled Square/manual/crypto methods + manual handles/instructions),
+                              track GET ?order=&email=, tagada-webhook POST (raw-body, signature-verified — DORMANT, no
+                              Tagada orders exist) — bodyParser off
   _lib/
     supabase-admin.ts  Service-role Supabase client
-    orderId.ts         buildOrderId — random 20-digit IDs
+    orderId.ts         buildOrderId — 3 letters + dash + 6 digits (e.g. "KFD-837291", nanoid); formatOrderId (legacy IDs)
     vt-logo.ts         Base64 logo for packing-slip PDFs
     email.ts           ALL transactional email (one Gmail transport + branded layout, idempotent via orders.emails_sent);
-                       40px product thumbnails; deferEmail() = waitUntil with local fallback
+                       40px product thumbnails; deferEmail() = waitUntil with local fallback. Inbox resolvers fall back to
+                       REAL mailboxes: ordersInbox = ORDERS_EMAIL||GMAIL_USER; paymentInbox = PAYMENT_EMAIL||ORDERS_EMAIL||
+                       GMAIL_USER (the admin_payment_claimed manual-transfer alert). Manual-method emails inject the send-to
+                       handle from store_settings.payment_config.
     shippo.ts          USPS labels (buyLabel, 4×6 PDF) + getTrackingStatus + validateAddress; token decides test/live
     pricing.ts         Pure order math + promo validation (gross/discount/net/commission, applyCredit, isPromoUsable,
                        sitewideSalePrice, promoAlreadyRedeemed, computeStackedDiscounts, shippingFee) — unit-tested
     credit.ts          Store credit ledger + loyalty + referrals (getBalance, reserveCredit, earnLoyalty,
                        grantReferralReward, reserveDiscountRedemption, getRewardConfig)
     orderLifecycle.ts  paidIpnAction — pure paid-IPN classifier (pending→fulfill, confirmed→resend, dead→late_payment) — tested
-    tagada.ts          verifyTagadaWebhook (HMAC-SHA256) + isTagadaPaidEvent — tested; node-SDK bootstrap
-                       (tagadaClient/registerTagadaWebhook/listTagadaProducts); chargeCard (createFromToken →
-                       payments.process the exact amountDue in cents); getTagadaPaymentStatus (payments.retrieve →
-                       paid|authorized|failed|refunded|pending, powers the Tagada-aware Re-check). SDK lazily imported.
+    square.ts          chargeSquare — Square Payments API (raw REST, no SDK): charges the exact amountDue (cents) against a
+                       Web-Payments source_id; idempotency key = order id; autocomplete:true; confirms ONLY on a COMPLETED
+                       capture (refuses APPROVED holds); maps decline codes to safe copy. squareConfigured() gates the card tile.
+    tagada.ts          (DORMANT — Tagada retired) verifyTagadaWebhook (HMAC) + isTagadaPaidEvent still unit-tested; chargeCard/
+                       getTagadaPaymentStatus/registerTagadaWebhook/listTagadaProducts retained but unreachable (no Tagada
+                       token is collected client-side anymore).
     fulfillment.ts     Shared confirm-paid-order steps (stock, emails, loyalty/referral, late-payment) — all idempotent
     requireUser/requireAdmin/requireAffiliate.ts  JWT validation (reject unverified email); admins/affiliates table checks
 
@@ -108,7 +122,7 @@ supabase/migrations/  SQL migrations
 **Key data flow:**
 1. Cart lives in `CartContext` (sessionStorage); `CartItem.cartCode` is the inventory key.
 2. Checkout **requires sign-in** (else routes to `/login?redirect=<full path+query>` — the query string is preserved). `/checkout` = 2/3 contact+shipping (Google Places autocomplete) + 1/3 order summary. The payment area is a **method selector** (see Payments).
-3. Order ID = random **20-digit** number (`buildOrderId`); customer email in `orders.email`. `formatOrderId` renders it (legacy IDs were `{alnum}--{base64url(email)}` → shows the part before `--`).
+3. Order ID = **3 letters + dash + 6 digits** (`buildOrderId`, e.g. `KFD-837291`, nanoid; the dash is part of the stored PK — short enough to type into a Venmo/Cash App memo). Customer email in `orders.email`. `formatOrderId` renders it (legacy 20-digit IDs and `{alnum}--{base64url(email)}` IDs pass through / show the part before `--`).
 4. Discounts resolved **server-side** in `create-crypto-payment` (client amounts ignored). **Stacking** (`computeStackedDiscounts`): site-wide sale baked into item prices → quantity tier % → one code (promo/affiliate % or referral flat $). **Store credit** then applies as tender, reducing cash `amountDue` (reserved in the ledger at order creation). Each line recorded in `orders.discount_breakdown`.
 5. Confirmation decrements stock, sends confirmed + admin emails, earns loyalty + grants referral reward — all idempotent (`_lib/fulfillment.ts`), via the webhook/IPN or the admin Re-check.
 
@@ -116,18 +130,23 @@ supabase/migrations/  SQL migrations
 
 ## Payments
 
-Two processors, one checkout, **server-authoritative pricing preserved** — we charge the exact server-computed `amountDue` (stacked discounts + store credit intact), never a client price.
+**Three methods, one checkout, server-authoritative pricing** — the server always charges/records the exact server-computed `amountDue` (stacked discounts + store credit intact), never a client price. Which methods appear is driven by `store_settings.payment_config`, surfaced (no client rebuild) via `/api/public/site` → `payments` (`buildPayments`).
 
-**Checkout method selector (`Checkout.tsx`):** **Card · Google Pay · Apple Pay · Crypto.**
-- Card/wallet tiles appear when card checkout is enabled — the **server flag `TAGADA_CHECKOUT_ENABLED`**, surfaced via `/api/public/site` (`tagada_enabled`), so flipping it needs **no client rebuild** (`VITE_TAGADA_CHECKOUT_ENABLED` / `?tagada=1` are fallbacks). Wallet tiles appear only where the device supports them (`lib/wallets.ts` probes core-js `isGooglePayAvailable`/`isApplePayAvailable`). Crypto is always available.
-- **Card:** `TagadaCardBox.tsx` tokenizes the PAN in-browser via `@tagadapay/core-js` (raw PAN never hits our server) → base64 `tagadaToken`. Expiry is normalized to `MM/YY` before tokenizing (the SDK validator rejects spaces).
-- **Wallets:** selecting Google Pay / Apple Pay opens the native sheet (`startGooglePaySession`/`startApplePaySession`, BasisTheory-tokenized) → `createTagadaDigitalWalletToken` → base64 `tagadaToken`. The **Google Pay button is the official one** (`GooglePayButton.tsx` via pay.js `PaymentsClient.createButton` — a custom button fails Google's brand review).
+**Checkout method selector (`Checkout.tsx`):** **Card (Square) · Zelle · Cash App · Venmo · Bank transfer (ACH) · Crypto.** A tile shows only when offered: **Square** when enabled AND the server has credentials (`squareConfigured()`); a **manual** method when enabled AND it has a handle; **crypto** defaults on. Handles + instructions come from `payment_config` (Admin → Payments).
 
-**Charge (server, `create-crypto-payment.ts` → `chargeCard` in `tagada.ts`):** a request with a `tagadaToken` (card OR wallet) charges via Tagada `paymentInstruments.createFromToken` → `payments.process` the exact `amountDue` in **cents**, when card checkout is permitted (flag on ⇒ live for all; else admin-only, test key — the owner opt-in test). **No token → NowPayments** (so the crypto button always works, and a flag/token mismatch never surfaces "Card details are required"). `chargeCard` confirms on a real **capture** (`captured`/`succeeded`/`paid`), **refuses** a bare `authorized` hold, and treats **`pending`** as **async settlement** (order left pending with `payment_id` stored; the webhook or admin Re-check confirms on settlement — same as the crypto flow). **$0 due** (100%-off / full store credit) confirms immediately, skips both processors.
+**1. Square (live cards).** `SquareCardBox.tsx` tokenizes the card in-browser with the Web Payments SDK (raw PAN never touches our server) → single-use `squareToken` (`source_id`). The server (`chargeSquare` in `_lib/square.ts`) charges the exact `amountDue` (cents) via the Square Payments API, idempotency-keyed on the order id, `autocomplete:true`. Confirms **only** on a `COMPLETED` capture (refuses a bare `APPROVED` hold); decline codes map to customer-safe copy. **Synchronous — no webhook.**
 
-**Confirm/reconcile:** the Tagada webhook (`/api/public/tagada-webhook`, `order/paid`|`payment/succeeded`, signature-verified, **mandatory amount-guard** captured==amountDue in cents) and the NowPayments IPN both confirm via the shared idempotent `_lib/fulfillment.ts`. Admin **Re-check** is processor-aware: a Tagada order reconciles via `getTagadaPaymentStatus` (`payments.retrieve`, amount-guarded), else NowPayments.
+**2. Manual peer-to-peer (Zelle / Cash App / Venmo / bank ACH).** No processor, no automated callback: the order is placed **pending** with `payment_method` set and the send-to handle shown (`ManualPaymentModal.tsx` + the order-success "awaiting" state with a live countdown). The customer sends the money out-of-band, puts the **order number in the memo**, and taps **"I've Sent the Payment"** → `POST /api/account/payment-sent` (own pending manual order only) emails the **payment inbox** (`admin_payment_claimed`). The admin verifies the money landed and clicks **Mark Paid** in Admin → Orders (`mark_paid` → shared `confirmPaidOrder`). Reserved store credit / one-use promo slots are held until confirmed or auto-expiry (**4 days**).
 
-**Go-live env (Vercel → Env Vars → redeploy):** LIVE `TAGADA_API_KEY` + `TAGADA_CHECKOUT_ENABLED=true` + **`VITE_TAGADA_ENV=production`** (⚠️ picks the BasisTheory tokenization vault; left at `development` a real card fails client-side with "Failed to tokenize card"). **Google Pay:** `VITE_GOOGLE_PAY_MERCHANT_ID` + Google Pay Business Console approval; keep `VITE_GOOGLE_PAY_SANDBOX=true` until approved (production Google Pay errors `OR_BIBED_11` before approval — decoupled from the card env so cards can be live while Google Pay stays in test). **Apple Pay:** needs the domain registered with Apple Pay via Tagada/Finix + Safari/iOS. **Live charges landing `pending`** usually mean the Tagada store/processor isn't fully activated yet.
+**3. Crypto (NowPayments).** No card token + a non-manual method → a NowPayments hosted invoice; the IPN (`/api/nowpayments-webhook`, HMAC-verified, amount-guarded) confirms via the shared idempotent `_lib/fulfillment.ts`. Auto-expiry **24h**.
+
+**$0 due** (100%-off / full store credit): confirmed immediately, skips every processor.
+
+**Confirm/reconcile:** Square confirms inline; crypto via the NowPayments IPN; manual via admin **Mark Paid** — all funnel through the idempotent `_lib/fulfillment.ts` (stock, emails, loyalty/referral). Admin **Re-check** reconciles a pending order against NowPayments (a dormant Tagada branch keyed on `admin_notes` remains, but no Tagada orders exist).
+
+**Go-live env (Vercel → redeploy):** live `SQUARE_ACCESS_TOKEN` + `SQUARE_LOCATION_ID` + `SQUARE_ENVIRONMENT=production` and matching `VITE_SQUARE_APPLICATION_ID`/`VITE_SQUARE_LOCATION_ID`/`VITE_SQUARE_ENVIRONMENT=production` (client + server envs must match), then enable Square in Admin → Payments. Add each Zelle/Cash App/Venmo/ACH handle in Admin → Payments to expose that tile.
+
+**TagadaPay is retired.** The former card processor's code is dormant, not deleted: `_lib/tagada.ts`, the gated-off Tagada branch in `create-crypto-payment.ts`, `tagada-webhook` in `api/public`, `TagadaCardBox.tsx`/`GooglePayButton.tsx`/`lib/wallets.ts`, and the `register-tagada-webhook`/`tagada-products` admin routes. Nothing collects a Tagada token client-side anymore, so those paths never fire.
 
 *NowPayments' own invoice page also offers a card/Apple-Pay on-ramp (Guardarian/Banxa) — pending NowPayments review; storefront copy left as-is by owner decision.*
 
@@ -145,7 +164,7 @@ Two processors, one checkout, **server-authoritative pricing preserved** — we 
 | `nad-500mg` | $129 | stock = 0 |
 | `bac-water-10ml` | $15 | |
 
-Free gift `bac-water-free` ($0) auto-added when subtotal ≥ $150 — **capped at qty 1** (CartContext pins it). Skip stock checks for it.
+Free gift `bac-water-free` ($0) auto-added when subtotal ≥ $100 — **capped at qty 1** (CartContext pins it). Skip stock checks for it. Flat **$15 shipping**, free at **$100+** (`SHIPPING_FEE`/`FREE_SHIPPING_THRESHOLD` — server `_lib/pricing.ts` + client `lib/discounts.ts` mirror; pre-discount basis).
 
 ---
 
@@ -154,11 +173,11 @@ Free gift `bac-water-free` ($0) auto-added when subtotal ≥ $150 — **capped a
 **Project ID:** `mddgtvwcwsmlbwiafdvq` (us-west-2)
 
 - `inventory(cart_code PK, stock INT CHECK ≥0, is_active BOOL, updated_at)` — availability is **stock-driven** (`stock=0` disables Add to Cart). `is_active` retained but unused.
-- `orders(id PK, email, items JSONB, shipping_address JSONB, gross_amount, discount_amount, net_amount, shipping_amount, discount_code, discount_breakdown JSONB, credit_applied, referral_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed/cancelled, fulfillment_status CHECK IN unfulfilled/shipped/delivered, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, confirmed_at, created_at, emails_sent JSONB)` — `status` = payment lifecycle, `fulfillment_status` = shipping (orthogonal). `emails_sent` = `{event: ISO ts}` idempotency log.
+- `orders(id PK, email, items JSONB, shipping_address JSONB, gross_amount, discount_amount, net_amount, shipping_amount, discount_code, discount_breakdown JSONB, credit_applied, referral_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed/cancelled, payment_method (crypto|square|zelle|cashapp|venmo|ach|null), fulfillment_status CHECK IN unfulfilled/shipped/delivered, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, confirmed_at, created_at, emails_sent JSONB)` — `status` = payment lifecycle, `fulfillment_status` = shipping (orthogonal), `payment_method` drives the admin Mark-Paid flow + the method-aware auto-expiry. `emails_sent` = `{event: ISO ts}` idempotency log.
 - `affiliates(id UUID PK, user_id→auth.users, code UNIQUE, discount_percent, commission_percent, name, email, created_at)`
 - `affiliate_payouts(id UUID PK, affiliate_id→affiliates, amount>0, note, created_at)` — owed = Σ commission on paid orders − Σ payouts.
 - `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, starts_at, expires_at, is_active, created_at)` — **one use per customer** (`promoAlreadyRedeemed`; affiliate codes unlimited). `used_count` bumps on confirmation via `increment_promo_use`.
-- `store_settings(id BOOL PK singleton, sitewide_active, sitewide_percent 1-99, sitewide_label, sitewide_starts_at, sitewide_ends_at, quantity_tiers JSONB [{min_qty,percent}], loyalty_percent, referral_referee_amount, referral_referrer_amount, referral_min_subtotal, updated_at)` — site-wide sale + quantity tiers + loyalty/referral config. Managed via admin PUTs. Service-role only.
+- `store_settings(id BOOL PK singleton, sitewide_active, sitewide_percent 1-99, sitewide_label, sitewide_starts_at, sitewide_ends_at, quantity_tiers JSONB [{min_qty,percent}], loyalty_percent, referral_referee_amount, referral_referrer_amount, referral_min_subtotal, payment_config JSONB, featured-banner cols, updated_at)` — site-wide sale + quantity tiers + loyalty/referral + **`payment_config`** (per-method `{enabled, handle, instructions}` for square/zelle/cashapp/venmo/ach/crypto; drives the `/api/public/site` payment offer, edited in Admin → Payments). Managed via admin PUTs. Service-role only.
 - `store_credit_ledger(id UUID PK, email, amount [+earned/−redeemed], reason loyalty|referral|redemption|manual, order_id, created_at)` — **balance derived** via `store_credit_balance(email)` RPC, which **excludes entries tied to cancelled/failed orders** (dead order auto-refunds reserved credit AND claws back earned loyalty/referral, no explicit writes). Idempotent via unique (order_id, reason).
 - `referral_codes(code PK, email UNIQUE, created_at)` — one per customer (lazily created).
 - `stock_waitlist(id UUID PK, cart_code, email, created_at, notified_at, UNIQUE(cart_code,email))` — back-in-stock signups.
@@ -167,7 +186,7 @@ Free gift `bac-water-free` ($0) auto-added when subtotal ≥ $150 — **capped a
 
 **Key RPCs:** `decrement_stock`/`increment_stock` (atomic, raise on insufficient); `increment_promo_use`; `store_credit_balance` (excludes dead-order entries); `reserve_store_credit` (atomic check-and-reserve under advisory lock; idempotent per order); `reserve_discount_redemption`/`release_discount_redemption`/`sweep_discount_redemptions`; `rate_limit_hit`.
 
-**Scheduled jobs (pg_cron):** `expire-stale-orders` hourly (pending >24h → cancelled). `email-cron` hourly → pg_net POST to `/api/cron` (CRON_SECRET) which also expires + emails cancellations (idempotent).
+**Scheduled jobs (pg_cron):** `expire-stale-orders` hourly, **method-aware** (`public.expire_stale_orders()`): automated invoices (crypto/square/legacy null) die at **24h**, manual transfers (zelle/cashapp/venmo/ach) at **4 days** — expiry → cancelled, releasing reserved store credit. `email-cron` hourly → pg_net POST to `/api/cron` (CRON_SECRET) which also expires + emails cancellations (idempotent).
 
 **RLS:** `inventory` anon-read; `products` anon-read where `is_active`; `affiliates` own-row; everything else (`orders`, `admins`, `affiliate_payouts`, `promo_codes`, `store_settings`, `store_credit_ledger`, `referral_codes`, `stock_waitlist`, `discount_redemptions`, `rate_limits`) is service-role only (RLS on, zero policies = deny-all). Verified live (July 2026 audit).
 
@@ -179,17 +198,19 @@ Free gift `bac-water-free` ($0) auto-added when subtotal ≥ $150 — **capped a
 # Server (Vercel; SUPABASE_URL + SERVICE_ROLE_KEY auto-injected by the connector)
 SUPABASE_URL= / SUPABASE_SERVICE_ROLE_KEY=
 NOWPAYMENTS_API_KEY= / NOWPAYMENTS_IPN_SECRET=
-TAGADA_API_KEY=                     # server key (node-sdk). LIVE key for real card charges.
-VITE_TAGADA_STORE_ID=store_7c0679de63c3
-TAGADA_WEBHOOK_SECRET=              # from register-tagada-webhook (webhook verify fails closed if unset)
-TAGADA_WEBHOOK_SIG_HEADER=tagada-signature
-TAGADA_CHECKOUT_ENABLED=            # "true" → card checkout on (drives the card/wallet tiles via /api/public/site)
-VITE_TAGADA_CHECKOUT_ENABLED=       # optional client fallback for the above
-VITE_TAGADA_ENV=development         # core-js env: development(test) | production. Picks the BasisTheory vault; MUST be
-                                    # "production" for a LIVE TAGADA_API_KEY (else "Failed to tokenize card"). VITE_ → redeploy.
-VITE_GOOGLE_PAY_MERCHANT_ID=        # Google Pay Business Console merchant id — required for PRODUCTION Google Pay
-VITE_GOOGLE_PAY_SANDBOX=            # "true" → Google Pay in TEST even when cards are live; keep "true" until Google
-                                    # approves the integration (production errors OR_BIBED_11 pre-approval)
+# Square (live card processing) — server charge + VITE_ client tokenization (envs must match)
+SQUARE_ACCESS_TOKEN=                # server access token (production or sandbox)
+SQUARE_LOCATION_ID=                 # location the payment is attributed to
+SQUARE_ENVIRONMENT=sandbox          # "production" | "sandbox" (default sandbox)
+VITE_SQUARE_APPLICATION_ID=         # Web Payments SDK app id (in-browser card tokenization)
+VITE_SQUARE_LOCATION_ID=            # client location id
+VITE_SQUARE_ENVIRONMENT=sandbox     # "production" | "sandbox" — must match SQUARE_ENVIRONMENT; VITE_ → redeploy
+PAYMENT_EMAIL=                      # OPTIONAL — inbox for "I've Sent the Payment" manual-transfer alerts. Falls back to
+                                    # ORDERS_EMAIL → GMAIL_USER (real, monitored). Leave UNSET unless a payment@ mailbox is
+                                    # actually provisioned (an unprovisioned address black-holes the alert).
+# Manual P2P handles (Zelle/Cash App/Venmo/ACH) are NOT env vars — they live in store_settings.payment_config,
+#   edited in Admin → Payments (a method shows at checkout only when enabled AND it has a handle).
+# TagadaPay is RETIRED — its TAGADA_*/VITE_TAGADA_*/VITE_GOOGLE_PAY_* vars are no longer read by the live flow.
 GMAIL_USER=hello@vitumlab.com / GMAIL_APP_PASSWORD=
 BASE_URL=https://vitumlab.com
 ORDERS_EMAIL=orders@vitumlab.com    # admin new-paid-order alerts (falls back to GMAIL_USER)
@@ -247,16 +268,17 @@ Customer login is the single entry point (admins land on `/admin` automatically 
 
 - **`vercel.json` SPA rewrite** uses a negative lookahead `/((?!api/).*)` so `/api/*` reaches functions instead of `index.html`. Don't change to `(.*)`.
 - **`api/` isn't type-checked by `pnpm check`** — ESM extension errors surface only on Vercel; test against the preview.
-- **Customer-facing payment copy must be processor-agnostic.** The store accepts card (TagadaPay) + crypto (NowPayments); the shared order-status pages (`OrderSuccess.tsx`, `OrderCancel.tsx`) say "your payment" — never "crypto payment", "on the blockchain", "coin selected". `OrderSuccess` reads `?free=1`/`?processing=1` for tone but stays method-neutral. The **only** places naming a method are the checkout method-selector tiles/buttons and the FAQ payment answer (owner-decision copy — leave as-is).
+- **Customer-facing payment copy must be processor-agnostic.** The store accepts card (Square) + manual P2P (Zelle/Cash App/Venmo/ACH) + crypto (NowPayments); the shared order-status pages (`OrderSuccess.tsx`, `OrderCancel.tsx`) say "your payment" — never name a processor/"blockchain"/"coin". `OrderSuccess` reads `?free=1`/`?awaiting=1` (+ `method`/`amt`/`exp`) for tone + manual send-to instructions, but its confirmed/processing copy stays method-neutral. The **only** places naming a method are the checkout method-selector tiles, the manual-payment modal, and the FAQ payment answer (owner-decision copy — leave as-is).
 
 ---
 
 ## Shipped Features (all built + live unless noted)
 
+- **Payments (3 methods, 1 checkout)** — Square live cards (Web Payments SDK tokenization → synchronous server charge), manual P2P (Zelle/Cash App/Venmo/ACH: order placed pending + send-to instructions/modal; customer "I've Sent the Payment" pings the payment inbox; admin **Mark Paid** confirms), and NowPayments crypto. Method offer + manual handles configured in Admin → Payments (`store_settings.payment_config`). See **Payments** above.
 - **Products** — Supabase `products` table, Admin → Products; images in `product-images` Storage bucket.
 - **Admin dashboard** — Overview KPIs (revenue 30d/all-time, net profit = net − commission, orders-to-fulfill, low-stock, AOV, top sellers, repeat-customer rate), daily revenue chart (10/30/60/90d), affiliate commissions-owed breakdown. Backed by `GET /api/admin/summary` (pages 1000 rows at a time).
 - **Transactional emails** (`_lib/email.ts`, idempotent via `orders.emails_sent`) — welcome, order-received, confirmed + admin new-order alert, shipped, delivered + admin alert, cancelled/expired, failed, affiliate commission (per paid order), affiliate monthly statement (cron 1st @15:00 UTC), post-delivery follow-up (7d). Per-order email log + Resend buttons in Admin → Orders.
-- **Order management** — Admin → Orders: cancel (restocks paid), ship, buy label, deliver, recheck, notes, per-row **Delete** (hard, no restock) + **bulk select** (re-check / buy labels / mark delivered / cancel / delete) + combined **Label PDF** & **Packing slips** (4×6, via `pdf-lib`, `POST /api/admin/order-pdfs`).
+- **Order management** — Admin → Orders: cancel (restocks paid), ship, buy label, deliver, **Mark Paid** (manual transfer landed → confirm + fulfil), recheck, notes, per-row **Delete** (hard, no restock) + **bulk select** (re-check / buy labels / mark delivered / cancel / delete) + combined **Label PDF** & **Packing slips** (4×6, via `pdf-lib`, `POST /api/admin/order-pdfs`). An awaiting-payment KPI + Orders filter surfaces pending manual transfers; each order shows a payment-method badge.
 - **Shipping (Shippo, USPS)** — `buy_label` → Priority Mail Flat Rate Padded Envelope, 4×6 PDF; stores label/tracking, sets shipped, emails. **Auto-delivery:** `/api/cron` polls tracking → marks delivered + emails. Token decides test/live (currently TEST → sample labels).
 - **Discounts** — general **promo codes** (Admin → Promos, one-use per customer), **affiliate codes** (unlimited, discount + commission), **site-wide sale** (% off with schedule + storefront countdown `SaleBanner`; clears per-variant sale prices), **tiered quantity discounts** (min-qty → %). Stack server-side via `computeStackedDiscounts`; only one code per order.
 - **Loyalty / store credit + referrals** — store-credit wallet (`store_credit_ledger`, derived balance); loyalty % back on paid orders; referral link (`/?ref=CODE`) gives a new referee $ off first order + credits the referrer once the referee pays cash. Auto-applies as tender at checkout. Config in Admin → Promos → Loyalty & Referrals.
@@ -273,10 +295,12 @@ Customer login is the single entry point (admins land on `/admin` automatically 
 
 ## Open / Outstanding
 
-**Payments go-live (owner dashboard actions):** flip the live Tagada env (above); for Google Pay, finish Business Console approval + set `VITE_GOOGLE_PAY_MERCHANT_ID` + confirm Tagada/Finix has production Google Pay enabled, then `VITE_GOOGLE_PAY_SANDBOX=false`; for Apple Pay, register the domain via Tagada/Finix. Swap `SHIPPO_API_KEY` to live for real postage.
+**Payments go-live (owner dashboard actions):** set live `SQUARE_ACCESS_TOKEN` + `SQUARE_LOCATION_ID` + `SQUARE_ENVIRONMENT=production` and the matching `VITE_SQUARE_*` (redeploy), then enable Square in Admin → Payments. Add each manual handle (Zelle/Cash App/Venmo/ACH) in Admin → Payments to expose it. Optionally provision a `payment@vitumlab.com` mailbox (Google Workspace user/alias/group) + set `PAYMENT_EMAIL` to route manual-transfer alerts there instead of the hello@ inbox. Swap `SHIPPO_API_KEY` to live for real postage.
 
-**Sales tax:** the checkout has no tax line. If PA sales tax is added later it's a `create-crypto-payment` pricing change (Tagada's own tax rates don't affect our headless flat-amount charge). Owner to confirm obligation with a tax pro.
+**Tagada cleanup (code, deferred — safe to delete when convenient):** TagadaPay is retired but its code lingers, dormant — `api/_lib/tagada.ts` (+ `tagada.test.ts`), the gated-off Tagada branch in `create-crypto-payment.ts`, `tagada-webhook` in `api/public`, the `register-tagada-webhook`/`tagada-products` admin routes, and `TagadaCardBox.tsx`/`GooglePayButton.tsx`/`lib/wallets.ts`. Nothing collects a Tagada token client-side anymore, so none of it fires.
 
-**Security — outstanding owner actions (dashboards, not code):** (1) Supabase Auth → confirm "Confirm email" ON + enable leaked-password protection; (2) Google Cloud → restrict `VITE_GOOGLE_MAPS_API_KEY` by HTTP referrer; (3) move `pg_net` out of the `public` schema. *Deferred code follow-ups:* CSP header (needs per-source enumeration for Maps/Supabase/Tagada); admin products PATCH column allowlist; admin upload content-type/size validation; stop logging raw customer emails.
+**Sales tax:** the checkout has no tax line. If PA sales tax is added later it's a `create-crypto-payment` pricing change (the processors' own tax rates don't affect our headless flat-amount charge). Owner to confirm obligation with a tax pro.
+
+**Security — outstanding owner actions (dashboards, not code):** (1) Supabase Auth → confirm "Confirm email" ON + enable leaked-password protection; (2) Google Cloud → restrict `VITE_GOOGLE_MAPS_API_KEY` by HTTP referrer; (3) move `pg_net` out of the `public` schema. *Deferred code follow-ups:* CSP header (needs per-source enumeration for Maps/Supabase/Square); admin products PATCH column allowlist; admin upload content-type/size validation; stop logging raw customer emails.
 
 **Testing:** Vitest unit/component + a Playwright checkout e2e. Next: more coverage + CI to run `pnpm test` on PRs.
