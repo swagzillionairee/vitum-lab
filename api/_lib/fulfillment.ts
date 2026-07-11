@@ -1,8 +1,8 @@
 /*
  * fulfillment.ts — shared order-fulfillment steps for a confirmed payment,
- * used by the Tagada webhook (api/public/tagada-webhook). The NowPayments
- * webhook still has an equivalent inline copy. Every step is idempotent so
- * duplicate webhooks are safe.
+ * used by the Square charge (api/create-crypto-payment) and the admin Mark
+ * Paid / Re-check paths. The NowPayments webhook still has an equivalent inline
+ * copy. Every step is idempotent so duplicate confirmations are safe.
  */
 import { supabaseAdmin } from "./supabase-admin.js";
 import { sendOrderEvent, sendAffiliateCommission, type EmailOrder } from "./email.js";
@@ -49,7 +49,7 @@ export async function confirmPaidOrder(order: any, meta: PaymentMeta): Promise<b
   // Atomically CLAIM the pending→confirmed transition. Only the caller that flips
   // the row (WHERE status='pending') runs the side effects below, so a synchronous
   // confirm racing its own webhook — or a processor firing two paid callbacks in
-  // parallel (NowPayments confirmed+finished, a Tagada retry) — can't double-
+  // parallel (NowPayments confirmed+finished) — can't double-
   // decrement stock or double-count the promo. A losing/duplicate call updates 0
   // rows and returns early; confirmation emails are sent separately and stay
   // idempotent via orders.emails_sent.

@@ -100,7 +100,7 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
-      // Amount-guard (mirror of the Tagada webhook's): the invoice was created
+      // Amount-guard: the invoice was created
       // with price_amount = the order's server-computed amountDue in USD. If the
       // IPN's fiat amount doesn't match the order's due (net + shipping − credit),
       // flag for review instead of fulfilling — defense-in-depth against a

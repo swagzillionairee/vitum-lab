@@ -5,8 +5,6 @@ import { getBalance, reserveCredit, reserveDiscountRedemption, releaseDiscountRe
 import { validateAddress } from "./_lib/shippo.js";
 import { buildOrderId } from "./_lib/orderId.js";
 import { requireUser } from "./_lib/requireUser.js";
-import { isAdminEmail } from "./_lib/requireAdmin.js";
-import { chargeCard } from "./_lib/tagada.js";
 import { chargeSquare, squareConfigured } from "./_lib/square.js";
 import { confirmPaidOrder, sendConfirmationEmails, ORDER_COLS } from "./_lib/fulfillment.js";
 
@@ -125,7 +123,6 @@ export default async function handler(req: any, res: any) {
     return;
   }
   const email = user.email;
-  const useTagada = process.env.TAGADA_CHECKOUT_ENABLED === "true";
 
   try {
     const { items, discountCode, shipping, attestation, total, paymentMethod } = req.body as {
@@ -316,8 +313,7 @@ export default async function handler(req: any, res: any) {
     const balance = await getBalance(email);
     const { creditApplied, amountDue } = applyCredit(netAmount + shippingAmount, balance);
 
-    // The client sends the total it DISPLAYED — for wallets, the exact amount the
-    // customer authorized in the Google/Apple Pay sheet. If the server-computed
+    // The client sends the total it DISPLAYED at checkout. If the server-computed
     // amount due differs (stale catalog cache, a sale that ended mid-checkout, a
     // credit balance the client didn't see), refuse rather than charge an amount
     // the customer never agreed to. Tolerance 1¢ for rounding; absent → legacy skip.
@@ -405,9 +401,8 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Normalize the chosen payment method. A card token still routes to Tagada
-    // if that legacy flag is somehow on (it isn't — retired), else Square. No
-    // token + a manual method → awaiting-transfer order. Otherwise crypto.
+    // Normalize the chosen payment method. A card token → Square. No token + a
+    // manual method → awaiting-transfer order. Otherwise crypto.
     const rawMethod = String(paymentMethod ?? "").toLowerCase();
     const payMethod =
       rawMethod === "square" || MANUAL_METHODS.includes(rawMethod) || rawMethod === "crypto"
@@ -508,121 +503,6 @@ export default async function handler(req: any, res: any) {
       const expiresAt = new Date(Date.now() + 4 * 24 * 3600 * 1000).toISOString();
       res.status(200).json({ awaiting: true, method: payMethod, orderId, expiresAt });
       return;
-    }
-
-    // ── TagadaPay (primary card processor) — charge the exact amountDue ──────
-    // The client tokenizes the card with core-js and sends `tagadaToken`; we charge
-    // the server-computed amountDue via payments.process (never a client price).
-    //
-    // Gating (prevents free-goods abuse):
-    //  • Global flag TAGADA_CHECKOUT_ENABLED on ⇒ LIVE: charge and confirm on
-    //    success (the webhook is the idempotent backup).
-    //  • Otherwise this is the owner opt-in test (/checkout?tagada=1). It is
-    //    restricted to an ADMIN — a bare ?tagada=1 no longer works for customers,
-    //    who fall through to NowPayments — and because TAGADA_API_KEY is a TEST
-    //    key in this mode, a "successful" charge is NEVER confirmed/fulfilled (a
-    //    test-mode capture collects no money). We record the result for the owner
-    //    to validate and leave the order pending (it auto-expires, freeing credit).
-    const tagadaToken = typeof (req.body as { tagadaToken?: unknown }).tagadaToken === "string"
-      ? (req.body as { tagadaToken: string }).tagadaToken
-      : "";
-    // Charge via Tagada ONLY when the client actually collected a card token
-    // ("Pay with card"). With no token we fall through to NowPayments ("Pay with
-    // crypto") even when the global flag is on — so the crypto button always
-    // works and we never demand card details we didn't collect. A token charges
-    // LIVE when the flag is on, otherwise it's the admin opt-in test (test key,
-    // which never confirms/ships).
-    let chargeViaTagada = false;
-    let tagadaLive = false;
-    if (tagadaToken) {
-      if (useTagada) {
-        chargeViaTagada = true;
-        tagadaLive = true;
-      } else if (await isAdminEmail(email)) {
-        chargeViaTagada = true; // admin opt-in test on prod (test key)
-      }
-    }
-    if (chargeViaTagada) {
-      try {
-        const result = await chargeCard({
-          amountDue,
-          tagadaToken,
-          email,
-          returnUrl: `${baseUrl}/order-success?order=${orderId}`,
-        });
-
-        if (!tagadaLive) {
-          // Owner test on prod with a TEST key: do NOT confirm/ship, and do NOT
-          // store payment_id (so the webhook can't match + confirm it either).
-          // Record the raw result so the owner can validate the charge mechanics
-          // (status casing, 3DS redirect field). The order stays pending.
-          const note =
-            `Tagada admin TEST charge — NOT confirmed (test key). result=${result.status}` +
-            (result.status === "redirect" ? ` redirectUrl=${result.url}` : "") +
-            ` paymentId=${result.paymentId || "?"}`;
-          await supabaseAdmin.from("orders").update({ admin_notes: note }).eq("id", orderId);
-          // Not a real redemption — free the one-use slot so a later real customer
-          // isn't blocked while this admin test order sits pending.
-          await releaseDiscountRedemption(orderId);
-          res.status(200).json({ tagada: "test", orderId, result: result.status });
-          return;
-        }
-
-        await supabaseAdmin.from("orders").update({ payment_id: result.paymentId || null }).eq("id", orderId);
-
-        if (result.status === "succeeded") {
-          // Confirm now (stock, emails, loyalty/referral). The webhook is the
-          // idempotent backup — it sees status=confirmed and only resends emails.
-          const { data: ord } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("id", orderId).maybeSingle();
-          if (ord) {
-            await confirmPaidOrder(ord, { payCurrency: "USD", payAmount: amountDue, paymentId: result.paymentId });
-            deferEmail(sendConfirmationEmails(ord));
-          }
-          res.status(200).json({ tagada: "succeeded", orderId });
-          return;
-        }
-        if (result.status === "redirect") {
-          // 3DS — the client redirects; the webhook confirms on return.
-          const emailOrder: EmailOrder = {
-            id: orderId, email, items: orderItems, gross_amount: grossAmount,
-            discount_amount: discountAmount, discount_code: discountCodeNorm,
-            net_amount: netAmount, shipping_amount: shippingAmount,
-            shipping_address: shipping, emails_sent: {},
-          };
-          deferEmail(sendOrderEvent(emailOrder, "order_created"));
-          res.status(200).json({ tagada: "redirect", url: result.url, orderId });
-          return;
-        }
-        if (result.status === "processing") {
-          // Async settlement (Tagada returned "pending"): the charge is accepted
-          // but not final. Leave the order PENDING — do NOT confirm and do NOT
-          // fail it. payment_id is already stored above, so the webhook
-          // (order/paid | payment/succeeded) confirms it on settlement, and the
-          // Tagada-aware admin Re-check can reconcile it manually. Send the
-          // "order received" email meanwhile.
-          const emailOrder: EmailOrder = {
-            id: orderId, email, items: orderItems, gross_amount: grossAmount,
-            discount_amount: discountAmount, discount_code: discountCodeNorm,
-            net_amount: netAmount, shipping_amount: shippingAmount,
-            shipping_address: shipping, emails_sent: {},
-          };
-          deferEmail(sendOrderEvent(emailOrder, "order_created"));
-          res.status(200).json({ tagada: "processing", orderId });
-          return;
-        }
-        // Declined / failed — fail the order (releases the reserved credit +
-        // the one-use code slot so the customer can retry).
-        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
-        await releaseDiscountRedemption(orderId);
-        res.status(402).json({ error: result.error });
-        return;
-      } catch (err) {
-        console.error("Tagada charge error:", err);
-        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
-        await releaseDiscountRedemption(orderId);
-        res.status(500).json({ error: "Card payment failed. Please try again." });
-        return;
-      }
     }
 
     // Create the NowPayments hosted invoice; hand the client the invoice URL to
