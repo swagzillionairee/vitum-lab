@@ -128,9 +128,9 @@ export default function Checkout() {
     return () => { stale = true; };
   }, [session]);
 
-  // Require sign-in; return here after auth. Preserve the full path + query
-  // (e.g. ?tagada=1) so destination flags survive the login round-trip — a bare
-  // "/checkout" would strip ?tagada=1 and drop the owner back onto NowPayments.
+  // Require sign-in; return here after auth. Preserve the full path + query so
+  // any destination flags survive the login round-trip — a bare "/checkout"
+  // would strip the query string.
   useEffect(() => {
     if (!loading && !session) {
       const here = window.location.pathname + window.location.search;

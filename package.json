@@ -22,8 +22,6 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/supabase-js": "^2.106.2",
-    "@tagadapay/core-js": "^3.1.0",
-    "@tagadapay/node-sdk": "^2.7.3",
     "@vercel/analytics": "^2.0.1",
     "@vercel/functions": "^3.7.0",
     "class-variance-authority": "^0.7.1",

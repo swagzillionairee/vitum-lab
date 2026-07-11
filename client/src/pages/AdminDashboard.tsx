@@ -141,12 +141,6 @@ export default function AdminDashboard() {
             r === "confirmed" ? "Payment found — order confirmed." :
             r === "no_payment_found" ? "No matching payment found on NowPayments." :
             r === "failed" ? "Payment failed/expired — order marked failed." :
-            r === "tagada_no_payment" ? "TagadaPay order — no captured payment on record yet (e.g. an admin test charge left pending). Nothing to reconcile." :
-            r === "tagada_authorized" ? "TagadaPay: the card was authorized but NOT captured — review it in the Tagada dashboard before fulfilling." :
-            r === "tagada_amount_mismatch" ? "TagadaPay: the captured amount doesn't match the order total — NOT confirmed. Review it in the Tagada dashboard." :
-            r === "tagada_refunded" ? "TagadaPay: this payment was refunded." :
-            r === "tagada_pending" ? "TagadaPay: payment still processing — try again shortly." :
-            r?.startsWith("tagada_") ? `TagadaPay status: ${r.slice("tagada_".length)}` :
             `NowPayments status: ${r ?? "unchanged"}`);
         }
       } else {

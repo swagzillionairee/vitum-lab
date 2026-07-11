@@ -4,7 +4,7 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 
 ## What This Project Is
 
-Vitum Lab (`vitumlab.com`) is a research-peptide e-commerce site (Retatrutide/GLP-3 (R), GHK-Cu, NAD+, BAC Water). **Payments: three methods, one checkout — Square (live card processing) + manual peer-to-peer transfers (Zelle · Cash App · Venmo · bank ACH, admin-verified) + NowPayments crypto.** (TagadaPay was the former card processor; its code is dormant/retired — see Payments.) Deployed on Vercel; Supabase for inventory/orders/affiliates.
+Vitum Lab (`vitumlab.com`) is a research-peptide e-commerce site (Retatrutide/GLP-3 (R), GHK-Cu, NAD+, BAC Water). **Payments: three methods, one checkout — Square (live card processing) + manual peer-to-peer transfers (Zelle · Cash App · Venmo · bank ACH, admin-verified) + NowPayments crypto.** (TagadaPay was a former card processor; all of its code has been removed.) Deployed on Vercel; Supabase for inventory/orders/affiliates.
 
 **Stack:** React 19 + TypeScript + Tailwind CSS v4 (oklch color space) + wouter routing + Vite. Local dev serves `/api/*` via `vitePluginLocalApi` in `vite.config.ts`; production uses Vercel serverless functions (`/api/*.ts`).
 
@@ -22,7 +22,7 @@ pnpm test:e2e     # Playwright e2e (checkout) — run `pnpm exec playwright inst
 pnpm format       # Prettier
 ```
 
-Tests use **Vitest** (`vitest.config.ts`). Two envs via `environmentMatchGlobs`: `*.test.ts` = Node (e.g. `api/_lib/pricing.test.ts`), `*.test.tsx` = jsdom + `@testing-library/react`. `esbuild.jsx: "automatic"` lets `.tsx` tests skip a React import. Coverage: `pricing.ts` order-money/promo logic, `CartContext` reducer, `useProducts` sale mapper, `tagada.ts`/`orderLifecycle.ts`. **Playwright** e2e in `e2e/` mocks every `/api/*` call + seeds the age-gate cookie + a fake Supabase session (no live backend). No lint script — use `pnpm check`.
+Tests use **Vitest** (`vitest.config.ts`). Two envs via `environmentMatchGlobs`: `*.test.ts` = Node (e.g. `api/_lib/pricing.test.ts`), `*.test.tsx` = jsdom + `@testing-library/react`. `esbuild.jsx: "automatic"` lets `.tsx` tests skip a React import. Coverage: `pricing.ts` order-money/promo logic, `CartContext` reducer, `useProducts` sale mapper, `orderLifecycle.ts`. **Playwright** e2e in `e2e/` mocks every `/api/*` call + seeds the age-gate cookie + a fake Supabase session (no live backend). No lint script — use `pnpm check`.
 
 The Vite root is `client/` (not repo root). Path alias `@` → `client/src`.
 
@@ -38,8 +38,7 @@ client/src/
                     Parent AdminDashboard.tsx keeps Overview/Products/Inventory/Orders + loadData + order state.
   components/       Navbar, Footer, CartDrawer, OrderTimeline, AddressAutocomplete, SEO,
                     SquareCardBox.tsx (in-browser Square card tokenization → single-use source_id),
-                    ManualPaymentModal.tsx (Zelle/Cash App/Venmo/ACH "send your payment" modal),
-                    TagadaCardBox.tsx + GooglePayButton.tsx (DORMANT — legacy Tagada card/wallet UI), …
+                    ManualPaymentModal.tsx (Zelle/Cash App/Venmo/ACH "send your payment" modal), …
   lib/
     products.ts     Static fallback catalog — authoritative data is Supabase `products` via /api/products (useProducts)
     supabase.ts     Browser Supabase client (anon key)
@@ -47,8 +46,6 @@ client/src/
     promo.ts        Capture/persist a shared ?code=/?ref=/?promo= code (strips only those params; preserves others)
     orders.ts       formatOrderId
     discounts.ts    quantityDiscountPercent/round2/shippingFee — client mirror of the checkout math
-    wallets.ts      (DORMANT) Google Pay / Apple Pay via Tagada core-js — retired with the Tagada card flow; not wired
-                    into the current checkout.
   contexts/         CartContext (sessionStorage; free gift capped at qty 1; reconcileCartPrices re-syncs to live catalog),
                     ThemeContext (dark mode), AuthContext (Supabase Auth)
   hooks/
@@ -62,7 +59,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                               credit; enforces promo one-use. Routes by `paymentMethod`: $0 due → confirm immediately;
                               `squareToken` (method "square") → chargeSquare (live card, sync); a manual method
                               (zelle/cashapp/venmo/ach) → pending "awaiting transfer" order (admin confirms); else →
-                              NowPayments crypto invoice. (A gated-off dormant Tagada branch remains.)
+                              NowPayments crypto invoice.
   nowpayments-webhook.ts      POST (raw body, HMAC-verified) — confirmed/failed emails, promo use count
   validate-discount.ts        POST (REQUIRES auth) — early UI validation of affiliate/promo codes
   contact.ts                  POST (rate-limited 5/10min/IP)
@@ -74,10 +71,10 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                               PATCH actions, products CRUD, upload, affiliates, payouts, promos, site-promo,
                               quantity-tiers, rewards, payment-config GET/PUT (Admin → Payments: toggle methods + edit
                               Zelle/Cash App/Venmo/ACH handles; reports square_configured), order-pdfs (4×6 labels/slips
-                              via pdf-lib), waitlist, users, shipments. (Dormant: register-tagada-webhook, tagada-products.)
+                              via pdf-lib), waitlist, users, shipments.
                               Order PATCH actions: cancel (restocks paid + email), ship, deliver, mark_paid (manual transfer
                               landed → confirm + fulfil via confirmPaidOrder), recheck (reconciles a pending order vs
-                              NowPayments; dormant Tagada branch by admin_notes), notes, resend_email. DELETE → hard delete
+                              NowPayments), notes, resend_email. DELETE → hard delete
                               (no restock; single + bulk).
   affiliate/[...slug].ts      Catch-all /api/affiliate/* (stats, orders)
   account/[...slug].ts        Catch-all /api/account/*: orders, profile GET/PUT (saved shipping address), credit, referral,
@@ -85,8 +82,7 @@ api/                Vercel serverless functions — ALL relative imports MUST us
                               → alerts the payment inbox; idempotent)
   public/[...slug].ts         Catch-all /api/public/* (no auth): site GET (sale banner + quantity_tiers + `payments` offer
                               via buildPayments — enabled Square/manual/crypto methods + manual handles/instructions),
-                              track GET ?order=&email=, tagada-webhook POST (raw-body, signature-verified — DORMANT, no
-                              Tagada orders exist) — bodyParser off
+                              track GET ?order=&email=
   _lib/
     supabase-admin.ts  Service-role Supabase client
     orderId.ts         buildOrderId — 3 letters + dash + 6 digits (e.g. "KFD-837291", nanoid); formatOrderId (legacy IDs)
@@ -105,9 +101,6 @@ api/                Vercel serverless functions — ALL relative imports MUST us
     square.ts          chargeSquare — Square Payments API (raw REST, no SDK): charges the exact amountDue (cents) against a
                        Web-Payments source_id; idempotency key = order id; autocomplete:true; confirms ONLY on a COMPLETED
                        capture (refuses APPROVED holds); maps decline codes to safe copy. squareConfigured() gates the card tile.
-    tagada.ts          (DORMANT — Tagada retired) verifyTagadaWebhook (HMAC) + isTagadaPaidEvent still unit-tested; chargeCard/
-                       getTagadaPaymentStatus/registerTagadaWebhook/listTagadaProducts retained but unreachable (no Tagada
-                       token is collected client-side anymore).
     fulfillment.ts     Shared confirm-paid-order steps (stock, emails, loyalty/referral, late-payment) — all idempotent
     requireUser/requireAdmin/requireAffiliate.ts  JWT validation (reject unverified email); admins/affiliates table checks
 
@@ -142,11 +135,11 @@ supabase/migrations/  SQL migrations
 
 **$0 due** (100%-off / full store credit): confirmed immediately, skips every processor.
 
-**Confirm/reconcile:** Square confirms inline; crypto via the NowPayments IPN; manual via admin **Mark Paid** — all funnel through the idempotent `_lib/fulfillment.ts` (stock, emails, loyalty/referral). Admin **Re-check** reconciles a pending order against NowPayments (a dormant Tagada branch keyed on `admin_notes` remains, but no Tagada orders exist).
+**Confirm/reconcile:** Square confirms inline; crypto via the NowPayments IPN; manual via admin **Mark Paid** — all funnel through the idempotent `_lib/fulfillment.ts` (stock, emails, loyalty/referral). Admin **Re-check** reconciles a pending order against NowPayments.
 
 **Go-live env (Vercel → redeploy):** live `SQUARE_ACCESS_TOKEN` + `SQUARE_LOCATION_ID` + `SQUARE_ENVIRONMENT=production` and matching `VITE_SQUARE_APPLICATION_ID`/`VITE_SQUARE_LOCATION_ID`/`VITE_SQUARE_ENVIRONMENT=production` (client + server envs must match), then enable Square in Admin → Payments. Add each Zelle/Cash App/Venmo/ACH handle in Admin → Payments to expose that tile.
 
-**TagadaPay is retired.** The former card processor's code is dormant, not deleted: `_lib/tagada.ts`, the gated-off Tagada branch in `create-crypto-payment.ts`, `tagada-webhook` in `api/public`, `TagadaCardBox.tsx`/`GooglePayButton.tsx`/`lib/wallets.ts`, and the `register-tagada-webhook`/`tagada-products` admin routes. Nothing collects a Tagada token client-side anymore, so those paths never fire.
+**TagadaPay is fully removed.** A former card processor, now deleted end-to-end — server helpers, client card/wallet UI, the admin webhook-registration routes, its checkout branch, and the `@tagadapay/*` dependencies. No Tagada code, routes, or env vars remain.
 
 *NowPayments' own invoice page also offers a card/Apple-Pay on-ramp (Guardarian/Banxa) — pending NowPayments review; storefront copy left as-is by owner decision.*
 
@@ -210,7 +203,6 @@ PAYMENT_EMAIL=                      # OPTIONAL — inbox for "I've Sent the Paym
                                     # actually provisioned (an unprovisioned address black-holes the alert).
 # Manual P2P handles (Zelle/Cash App/Venmo/ACH) are NOT env vars — they live in store_settings.payment_config,
 #   edited in Admin → Payments (a method shows at checkout only when enabled AND it has a handle).
-# TagadaPay is RETIRED — its TAGADA_*/VITE_TAGADA_*/VITE_GOOGLE_PAY_* vars are no longer read by the live flow.
 GMAIL_USER=hello@vitumlab.com / GMAIL_APP_PASSWORD=
 BASE_URL=https://vitumlab.com
 ORDERS_EMAIL=orders@vitumlab.com    # admin new-paid-order alerts (falls back to GMAIL_USER)
@@ -296,8 +288,6 @@ Customer login is the single entry point (admins land on `/admin` automatically 
 ## Open / Outstanding
 
 **Payments go-live (owner dashboard actions):** set live `SQUARE_ACCESS_TOKEN` + `SQUARE_LOCATION_ID` + `SQUARE_ENVIRONMENT=production` and the matching `VITE_SQUARE_*` (redeploy), then enable Square in Admin → Payments. Add each manual handle (Zelle/Cash App/Venmo/ACH) in Admin → Payments to expose it. Optionally provision a `payment@vitumlab.com` mailbox (Google Workspace user/alias/group) + set `PAYMENT_EMAIL` to route manual-transfer alerts there instead of the hello@ inbox. Swap `SHIPPO_API_KEY` to live for real postage.
-
-**Tagada cleanup (code, deferred — safe to delete when convenient):** TagadaPay is retired but its code lingers, dormant — `api/_lib/tagada.ts` (+ `tagada.test.ts`), the gated-off Tagada branch in `create-crypto-payment.ts`, `tagada-webhook` in `api/public`, the `register-tagada-webhook`/`tagada-products` admin routes, and `TagadaCardBox.tsx`/`GooglePayButton.tsx`/`lib/wallets.ts`. Nothing collects a Tagada token client-side anymore, so none of it fires.
 
 **Sales tax:** the checkout has no tax line. If PA sales tax is added later it's a `create-crypto-payment` pricing change (the processors' own tax rates don't affect our headless flat-amount charge). Owner to confirm obligation with a tax pro.
 

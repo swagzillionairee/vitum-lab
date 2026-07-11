@@ -42,19 +42,3 @@ export async function requireAdmin(req: any): Promise<AdminUser | null> {
 
   return { id: admin.id, email: admin.email, name: admin.name };
 }
-
-/**
- * Lightweight "is this (already-verified) email a registered admin?" check.
- * The caller must have validated the JWT first (e.g. via requireUser), so this
- * only answers the admins-table membership question — used to gate the owner's
- * on-prod Tagada test opt-in without shipping the full AdminUser record.
- */
-export async function isAdminEmail(email: string): Promise<boolean> {
-  if (!email) return false;
-  const { data } = await supabaseAdmin
-    .from("admins")
-    .select("id")
-    .eq("email", email.toLowerCase())
-    .maybeSingle();
-  return !!data;
-}
