@@ -156,7 +156,7 @@ export const products: Product[] = [
         dose: "500 MG",
         lot: "D006",
         price: 129,
-        img: "/NAD%2B%20500MG%20PRODUCT%20PIC.png",
+        img: "/NAD+%20500MG%20PRODUCT%20PIC.png",
         cartCode: "nad-500mg",
       },
     ],

@@ -9,31 +9,62 @@ import { sendWelcome, deferEmail } from "./_lib/email.js";
  * (deduped via a `welcomed` flag in the auth user's metadata).
  */
 export default async function handler(req: any, res: any) {
+  if (req.method !== "GET") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
   const user = await requireUser(req);
   if (!user) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  const [{ data: admin }, affiliate] = await Promise.all([
-    supabaseAdmin.from("admins").select("id").eq("email", user.email).maybeSingle(),
-    // Match an affiliate by email OR a previously linked user_id — done as two
-    // typed .eq() lookups rather than a string-built .or() filter (an email can
-    // contain characters that are special inside PostgREST's `.or()` grammar).
+  const [admin, affiliate] = await Promise.all([
     (async () => {
-      const byEmail = await supabaseAdmin.from("affiliates").select("id").eq("email", user.email).maybeSingle();
-      if (byEmail.data) return byEmail.data;
-      const byUser = await supabaseAdmin.from("affiliates").select("id").eq("user_id", user.id).maybeSingle();
-      return byUser.data;
+      const byUser = await supabaseAdmin.from("admins").select("id").eq("user_id", user.id).maybeSingle();
+      if (byUser.data) return byUser.data;
+      // Email is only a first-login bootstrap key. Never identify a different
+      // auth identity through a role row that has already been linked.
+      const byEmail = await supabaseAdmin
+        .from("admins")
+        .select("id")
+        .eq("email", user.email)
+        .is("user_id", null)
+        .maybeSingle();
+      return byEmail.data;
+    })(),
+    (async () => {
+      const byUser = await supabaseAdmin
+        .from("affiliates")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("is_referral", false)
+        .maybeSingle();
+      if (byUser.data) return byUser.data;
+      const byEmail = await supabaseAdmin
+        .from("affiliates")
+        .select("id")
+        .eq("email", user.email)
+        .eq("is_referral", false)
+        .is("user_id", null)
+        .maybeSingle();
+      return byEmail.data;
     })(),
   ]);
 
   // Welcome email — entirely after the response; never blocks role lookup.
+  // The table insert is an atomic claim, so concurrent /api/me calls cannot all
+  // observe an unset metadata flag and send duplicate welcome messages.
   deferEmail(
     (async () => {
       const { data } = await supabaseAdmin.auth.admin.getUserById(user.id);
       const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>;
       if (meta.welcomed) return;
+
+      const { error: claimError } = await supabaseAdmin.from("welcome_sent").insert({ email: user.email });
+      if (claimError) return;
+
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
         user_metadata: { ...meta, welcomed: true },
       });

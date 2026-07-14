@@ -16,6 +16,15 @@ const MANUAL_METHODS = ["zelle", "cashapp", "venmo", "ach"];
 
 const FREE_GIFT_CODE = "bac-water-free";
 const FREE_GIFT_THRESHOLD = 100; // paid subtotal that unlocks the free BAC Water
+const MAX_CART_LINES = 25;
+const MAX_ITEM_QUANTITY = 100;
+const CHECKOUT_RATE_MAX = 10;
+const CHECKOUT_RATE_WINDOW_SECONDS = 600;
+
+function validText(value: unknown, maxLength: number, required = true): boolean {
+  if (value == null) return !required;
+  return typeof value === "string" && value.length <= maxLength && (!required || value.trim().length > 0);
+}
 
 /**
  * Authoritative per-variant prices, keyed by cartCode, read from the products
@@ -124,8 +133,30 @@ export default async function handler(req: any, res: any) {
   }
   const email = user.email;
 
+  // A verified account must not be able to create an unbounded number of
+  // pending orders/invoices or exhaust downstream email/payment quotas.
   try {
-    const { items, discountCode, shipping, attestation, total, paymentMethod } = req.body as {
+    const { data: allowed, error } = await supabaseAdmin.rpc("rate_limit_hit", {
+      p_bucket: `checkout:${user.id}`,
+      p_max: CHECKOUT_RATE_MAX,
+      p_window_seconds: CHECKOUT_RATE_WINDOW_SECONDS,
+    });
+    if (error || allowed !== true) {
+      res.status(error ? 503 : 429).json({
+        error: error
+          ? "Checkout protection is temporarily unavailable. Please try again shortly."
+          : "Too many checkout attempts. Please wait a few minutes and try again.",
+      });
+      return;
+    }
+  } catch (err) {
+    console.error("checkout rate-limit check failed:", err);
+    res.status(503).json({ error: "Checkout protection is temporarily unavailable. Please try again shortly." });
+    return;
+  }
+
+  try {
+    const { items, discountCode, shipping, attestation, total, paymentMethod } = (req.body ?? {}) as {
       paymentMethod?: string;
       items: { name: string; dose: string; quantity: number; cartCode: string; price: number }[];
       total: number;
@@ -139,27 +170,37 @@ export default async function handler(req: any, res: any) {
       };
     };
 
-    if (!items?.length) {
+    if (!Array.isArray(items) || items.length === 0) {
       res.status(400).json({ error: "Missing required fields" });
+      return;
+    }
+    if (items.length > MAX_CART_LINES) {
+      res.status(400).json({ error: "Your cart contains too many line items." });
       return;
     }
 
     // Require the research-use / age acknowledgment from checkout.
-    if (!attestation) {
+    if (attestation !== true) {
       res.status(400).json({ error: "A research-use acknowledgment is required to place an order." });
       return;
     }
 
-    if (!shipping?.name || !shipping?.line1 || !shipping?.city || !shipping?.state || !shipping?.postal_code) {
+    if (
+      !shipping ||
+      !validText(shipping.name, 200) ||
+      !validText(shipping.line1, 200) ||
+      !validText(shipping.line2, 200, false) ||
+      !validText(shipping.city, 100) ||
+      !validText(shipping.state, 100) ||
+      !validText(shipping.postal_code, 32) ||
+      !validText(shipping.country, 100, false) ||
+      !validText(shipping.phone, 40, false)
+    ) {
       res.status(400).json({ error: "A complete shipping address is required" });
       return;
     }
-
-    // Verify the address is deliverable (best-effort — never blocks on a Shippo
-    // outage; only rejects when Shippo definitively flags it invalid).
-    const addrCheck = await validateAddress(shipping);
-    if (addrCheck && !addrCheck.valid) {
-      res.status(400).json({ error: `We couldn't verify that shipping address. ${addrCheck.messages[0] || "Please double-check it and try again."}` });
+    if (discountCode != null && !validText(discountCode, 64)) {
+      res.status(400).json({ error: "Invalid discount code." });
       return;
     }
 
@@ -168,17 +209,34 @@ export default async function handler(req: any, res: any) {
     // dose come from the products table. The free gift is re-added at $0 only
     // when the order actually qualifies — never taken from the request. ──
     const catalog = await loadCatalog();
-    const paidItems: { name: string; dose: string; quantity: number; cartCode: string; price: number }[] = [];
+    const quantities = new Map<string, number>();
     for (const i of items) {
+      if (!i || typeof i !== "object" || typeof i.cartCode !== "string" || i.cartCode.length > 100) {
+        res.status(400).json({ error: "Invalid product in cart." });
+        return;
+      }
       if (i.cartCode === FREE_GIFT_CODE) continue; // re-derived below, not trusted
       const entry = catalog[i.cartCode];
       if (!entry) {
         res.status(400).json({ error: `Unknown product in cart: ${i.cartCode}` });
         return;
       }
-      const quantity = Math.max(1, Math.floor(Number(i.quantity) || 0));
-      paidItems.push({ name: entry.name, dose: entry.dose, quantity, cartCode: i.cartCode, price: entry.price });
+      const rawQuantity = Number(i.quantity);
+      if (!Number.isSafeInteger(rawQuantity) || rawQuantity < 1) {
+        res.status(400).json({ error: `Invalid quantity for ${entry.name}.` });
+        return;
+      }
+      const quantity = (quantities.get(i.cartCode) ?? 0) + rawQuantity;
+      if (quantity > MAX_ITEM_QUANTITY) {
+        res.status(400).json({ error: `Maximum quantity for ${entry.name} is ${MAX_ITEM_QUANTITY}.` });
+        return;
+      }
+      quantities.set(i.cartCode, quantity);
     }
+    const paidItems = Array.from(quantities.entries()).map(([cartCode, quantity]) => {
+      const entry = catalog[cartCode];
+      return { name: entry.name, dose: entry.dose, quantity, cartCode, price: entry.price };
+    });
     if (paidItems.length === 0) {
       res.status(400).json({ error: "Your cart has no purchasable items." });
       return;
@@ -198,6 +256,15 @@ export default async function handler(req: any, res: any) {
         res.status(409).json({ error: `${item.name} ${item.dose} is out of stock.` });
         return;
       }
+    }
+
+    // Burn the external Shippo quota only after the cheap cart and stock checks
+    // have succeeded. A Shippo outage remains non-blocking; only a definitive
+    // invalid-address response rejects the order.
+    const addrCheck = await validateAddress(shipping);
+    if (addrCheck && !addrCheck.valid) {
+      res.status(400).json({ error: `We couldn't verify that shipping address. ${addrCheck.messages[0] || "Please double-check it and try again."}` });
+      return;
     }
 
     const orderId = buildOrderId();

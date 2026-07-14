@@ -10,7 +10,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import AgeGate from "./components/AgeGate";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -20,32 +20,40 @@ import BackToTop from "./components/BackToTop";
 import { CartProvider } from "./contexts/CartContext";
 import { capturePromoFromUrl } from "./lib/promo";
 import Home from "./pages/Home";
-import ResearchDisclaimer from "./pages/ResearchDisclaimer";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import TermsOfService from "./pages/TermsOfService";
-import ShippingPolicy from "./pages/ShippingPolicy";
-import ReturnPolicy from "./pages/ReturnPolicy";
-import Shop from "./pages/Shop";
-import About from "./pages/About";
-import Contact from "./pages/Contact";
-import FAQ from "./pages/FAQ";
-import ProductDetail from "./pages/ProductDetail";
-import OrderSuccess from "./pages/OrderSuccess";
-import OrderCancel from "./pages/OrderCancel";
-import Checkout from "./pages/Checkout";
-import OrderTracking from "./pages/OrderTracking";
-import DoseCalculator from "./pages/DoseCalculator";
-import COALibrary from "./pages/COALibrary";
-import Research from "./pages/Research";
-import Referral from "./pages/Referral";
-import AdminLogin from "./pages/AdminLogin";
-import AdminDashboard from "./pages/AdminDashboard";
-import Login from "./pages/Login";
-import Account from "./pages/Account";
-import AffiliateLogin from "./pages/AffiliateLogin";
-import AffiliateDashboard from "./pages/AffiliateDashboard";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Analytics } from "@vercel/analytics/react";
+
+// Keep the landing page eager and split every secondary surface by route. In
+// particular, charting/admin and payment SDK code should never delay the first
+// storefront render.
+const Shop = lazy(() => import("./pages/Shop"));
+const ProductDetail = lazy(() => import("./pages/ProductDetail"));
+const COALibrary = lazy(() => import("./pages/COALibrary"));
+const About = lazy(() => import("./pages/About"));
+const Contact = lazy(() => import("./pages/Contact"));
+const FAQ = lazy(() => import("./pages/FAQ"));
+const ShippingPolicy = lazy(() => import("./pages/ShippingPolicy"));
+const ReturnPolicy = lazy(() => import("./pages/ReturnPolicy"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const ResearchDisclaimer = lazy(() => import("./pages/ResearchDisclaimer"));
+const DoseCalculator = lazy(() => import("./pages/DoseCalculator"));
+const Research = lazy(() => import("./pages/Research"));
+const Referral = lazy(() => import("./pages/Referral"));
+const Checkout = lazy(() => import("./pages/Checkout"));
+const OrderTracking = lazy(() => import("./pages/OrderTracking"));
+const OrderSuccess = lazy(() => import("./pages/OrderSuccess"));
+const OrderCancel = lazy(() => import("./pages/OrderCancel"));
+const Login = lazy(() => import("./pages/Login"));
+const Account = lazy(() => import("./pages/Account"));
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AffiliateLogin = lazy(() => import("./pages/AffiliateLogin"));
+const AffiliateDashboard = lazy(() => import("./pages/AffiliateDashboard"));
+
+function RouteFallback() {
+  return <div className="min-h-[45vh]" aria-busy="true" aria-label="Loading page" />;
+}
 
 // ─── Scroll to top on every route change ─────────────────────────────────────
 function ScrollToTop() {
@@ -106,13 +114,15 @@ function AppLayout() {
   // Admin + affiliate routes bypass the age gate and storefront chrome.
   if (location.startsWith("/admin") || location.startsWith("/affiliate")) {
     return (
-      <Switch>
-        <Route path="/admin/login" component={AdminLogin} />
-        <Route path="/admin" component={AdminDashboard} />
-        <Route path="/affiliate/login" component={AffiliateLogin} />
-        <Route path="/affiliate/dashboard" component={AffiliateDashboard} />
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<RouteFallback />}>
+        <Switch>
+          <Route path="/admin/login" component={AdminLogin} />
+          <Route path="/admin" component={AdminDashboard} />
+          <Route path="/affiliate/login" component={AffiliateLogin} />
+          <Route path="/affiliate/dashboard" component={AffiliateDashboard} />
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     );
   }
 
@@ -132,7 +142,9 @@ function AppLayout() {
       <div className={gated ? "pointer-events-none select-none blur-sm" : ""}>
         <Navbar />
         <main>
-          <Router />
+          <Suspense fallback={<RouteFallback />}>
+            <Router />
+          </Suspense>
         </main>
         <Footer />
         <CookieConsent />

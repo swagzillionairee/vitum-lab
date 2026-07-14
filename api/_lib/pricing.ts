@@ -26,16 +26,6 @@ export function shippingFee(gross: number): number {
   return (Number(gross) || 0) >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
 }
 
-/** Dollar value of a percentage discount on a subtotal. */
-export function discountAmount(gross: number, percent: number): number {
-  return round2((gross * percent) / 100);
-}
-
-/** Subtotal minus the discount (never trusts client math). */
-export function netAmount(gross: number, discount: number): number {
-  return round2(gross - discount);
-}
-
 /** Affiliate commission as a percentage of the net (post-discount) amount. */
 export function commissionAmount(net: number, commissionPercent: number): number {
   return round2((net * commissionPercent) / 100);

@@ -35,9 +35,21 @@ export async function requireAdmin(req: any): Promise<AdminUser | null> {
 
   if (!admin) return null;
 
+  // Once a role row is linked, email equality is no longer sufficient. This
+  // prevents a newly-created auth identity for the same address from inheriting
+  // the old identity's admin privileges.
+  if (admin.user_id && admin.user_id !== authUser.id) return null;
+
   // Link the auth user_id on first login
   if (!admin.user_id) {
-    await supabaseAdmin.from("admins").update({ user_id: authUser.id }).eq("id", admin.id);
+    const { data: linked } = await supabaseAdmin
+      .from("admins")
+      .update({ user_id: authUser.id })
+      .eq("id", admin.id)
+      .is("user_id", null)
+      .select("user_id")
+      .maybeSingle();
+    if (!linked || linked.user_id !== authUser.id) return null;
   }
 
   return { id: admin.id, email: admin.email, name: admin.name };

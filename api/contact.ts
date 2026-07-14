@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
+import { clientIp } from "./_lib/clientIp.js";
 
 // Per-IP throttle: the contact form shares the Gmail transport with all order
 // email, so an unthrottled spam loop could burn the daily send cap and silently
@@ -7,6 +8,9 @@ import { supabaseAdmin } from "./_lib/supabase-admin.js";
 const RATE_MAX = 5;
 const RATE_WINDOW_SECONDS = 600; // 5 messages / 10 min / IP
 const MAX_MESSAGE_LEN = 5000;
+const MAX_NAME_LEN = 200;
+const MAX_EMAIL_LEN = 320;
+const MAX_SUBJECT_LEN = 300;
 
 // Escape user input before it's interpolated into the email HTML so a crafted
 // name/subject/message can't inject markup or links into the inbox email.
@@ -28,7 +32,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const { name, email, subject, message } = req.body as {
+  const { name, email, subject, message } = (req.body ?? {}) as {
     name: string;
     email: string;
     subject?: string;
@@ -40,26 +44,41 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
+  if (
+    typeof name !== "string" || name.length > MAX_NAME_LEN ||
+    typeof email !== "string" || email.length > MAX_EMAIL_LEN || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ||
+    (subject != null && (typeof subject !== "string" || subject.length > MAX_SUBJECT_LEN))
+  ) {
+    res.status(400).json({ error: "Invalid contact form fields." });
+    return;
+  }
+
   if (typeof message !== "string" || message.length > MAX_MESSAGE_LEN) {
     res.status(400).json({ error: "Message is too long." });
     return;
   }
 
-  // Rate-limit by client IP (Vercel sets x-forwarded-for). Fails OPEN on an RPC
-  // error so a database hiccup never blocks a genuine customer inquiry.
-  const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  // Rate-limit by a trusted client IP. Fail closed because
+  // this endpoint shares the finite mail quota used by order confirmations.
+  const ip = clientIp(req);
   try {
     const { data: allowed, error } = await supabaseAdmin.rpc("rate_limit_hit", {
       p_bucket: `contact:${ip}`,
       p_max: RATE_MAX,
       p_window_seconds: RATE_WINDOW_SECONDS,
     });
-    if (!error && allowed === false) {
+    if (error || allowed !== true) {
+      if (error) {
+        res.status(503).json({ error: "Contact form protection is temporarily unavailable. Please email us directly." });
+        return;
+      }
       res.status(429).json({ error: "Too many messages — please wait a few minutes and try again." });
       return;
     }
   } catch (err) {
-    console.error("contact rate-limit check failed (allowing):", err);
+    console.error("contact rate-limit check failed:", err);
+    res.status(503).json({ error: "Contact form protection is temporarily unavailable. Please email us directly." });
+    return;
   }
 
   const transporter = nodemailer.createTransport({

@@ -22,7 +22,7 @@ pnpm test:e2e     # Playwright e2e (checkout) — run `pnpm exec playwright inst
 pnpm format       # Prettier
 ```
 
-Tests use **Vitest** (`vitest.config.ts`). Two envs via `environmentMatchGlobs`: `*.test.ts` = Node (e.g. `api/_lib/pricing.test.ts`), `*.test.tsx` = jsdom + `@testing-library/react`. `esbuild.jsx: "automatic"` lets `.tsx` tests skip a React import. Coverage: `pricing.ts` order-money/promo logic, `CartContext` reducer, `useProducts` sale mapper, `orderLifecycle.ts`. **Playwright** e2e in `e2e/` mocks every `/api/*` call + seeds the age-gate cookie + a fake Supabase session (no live backend). No lint script — use `pnpm check`.
+Tests use **Vitest** (`vitest.config.ts`). API/pure logic tests run in Node; component tests opt into jsdom with `@vitest-environment jsdom` and use `@testing-library/react`. `esbuild.jsx: "automatic"` lets `.tsx` tests skip a React import. Coverage: pricing/order lifecycle, trusted client-IP parsing, affiliate authorization, the cart reducer, and product sale mapping. **Playwright** e2e in `e2e/` mocks every `/api/*` call + seeds the age-gate cookie + a fake Supabase session (no live backend). No lint script — use `pnpm check`.
 
 The Vite root is `client/` (not repo root). Path alias `@` → `client/src`.
 
@@ -291,6 +291,8 @@ Customer login is the single entry point (admins land on `/admin` automatically 
 
 **Sales tax:** the checkout has no tax line. If PA sales tax is added later it's a `create-crypto-payment` pricing change (the processors' own tax rates don't affect our headless flat-amount charge). Owner to confirm obligation with a tax pro.
 
-**Security — outstanding owner actions (dashboards, not code):** (1) Supabase Auth → confirm "Confirm email" ON + enable leaked-password protection; (2) Google Cloud → restrict `VITE_GOOGLE_MAPS_API_KEY` by HTTP referrer; (3) move `pg_net` out of the `public` schema. *Deferred code follow-ups:* CSP header (needs per-source enumeration for Maps/Supabase/Square); admin products PATCH column allowlist; admin upload content-type/size validation; stop logging raw customer emails.
+**Security — outstanding owner actions (dashboards, not code):** (1) Supabase Auth → confirm "Confirm email" ON + enable leaked-password protection; (2) Google Cloud → restrict `VITE_GOOGLE_MAPS_API_KEY` by HTTP referrer; (3) assess the Supabase `pg_net` extension warning during a maintenance window (the installed extension is non-relocatable even though its functions live in `net`).
+
+**Security audit (July 2026):** server-only RPC EXECUTE grants are re-asserted in migrations; role rows bind atomically to an auth `user_id`; self-serve referral rows cannot pass curated-affiliate authorization; webhook secrets fail closed and raw bodies are capped; contact, checkout, discount validation, and waitlist abuse paths are bounded by trusted-IP/account/email rate limits; cart quantities and duplicate variants are capped and re-priced server-side; welcome-email claims are atomic; redirects and contact HTML/headers are sanitized; CSP/security headers are set in `vercel.json`; the standalone Express build delegates to the same hardened API handlers as Vercel. The public product-image bucket independently enforces a 5 MB limit and image MIME allowlist.
 
 **Testing:** Vitest unit/component + a Playwright checkout e2e. Next: more coverage + CI to run `pnpm test` on PRs.

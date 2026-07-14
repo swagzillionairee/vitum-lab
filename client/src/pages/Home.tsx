@@ -451,7 +451,7 @@ export default function Home() {
             </div>
             {/* Right vial */}
             <div className="relative flex-shrink-0 w-[48%] z-10 vial-float-c ml-[-55px] lg:ml-[-195px]" style={{transform: 'rotate(6deg)', transformOrigin: 'bottom center'}}>
-              <img src="/nad%2B%20500mg%20vial%20only.png" alt="NAD+ 500mg research peptide vial" className="w-full object-contain" />
+              <img src="/nad+%20500mg%20vial%20only.png" alt="NAD+ 500mg research peptide vial" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/18 blur-lg pointer-events-none" />
             </div>
           </div>

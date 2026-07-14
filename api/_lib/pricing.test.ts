@@ -2,8 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   round2,
   grossFromItems,
-  discountAmount,
-  netAmount,
   commissionAmount,
   isFreeOrder,
   applyCredit,
@@ -60,30 +58,13 @@ describe("grossFromItems", () => {
   });
 });
 
-describe("discount / net / commission", () => {
-  it("applies a percentage discount", () => {
-    expect(discountAmount(200, 10)).toBe(20);
-    expect(netAmount(200, 20)).toBe(180);
+describe("commissionAmount", () => {
+  it("is a percent of the net (post-discount) amount", () => {
+    expect(commissionAmount(180, 10)).toBe(18);
   });
 
-  it("a 100%-off promo nets to $0 (a free order)", () => {
-    const gross = 129;
-    const d = discountAmount(gross, 100); // 129
-    const net = netAmount(gross, d); // 0
-    expect(d).toBe(129);
-    expect(net).toBe(0);
-    expect(isFreeOrder(net)).toBe(true);
-  });
-
-  it("commission is a percent of the net (post-discount) amount", () => {
-    // $200 order, 10% off → net 180, 10% commission → 18
-    const net = netAmount(200, discountAmount(200, 10));
-    expect(commissionAmount(net, 10)).toBe(18);
-  });
-
-  it("rounds discounts to cents", () => {
-    expect(discountAmount(99.99, 10)).toBe(10); // 9.999 → 10.00
-    expect(discountAmount(153, 15)).toBe(22.95);
+  it("rounds commission to cents", () => {
+    expect(commissionAmount(153, 15)).toBe(22.95);
   });
 });
 

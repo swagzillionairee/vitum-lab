@@ -31,14 +31,32 @@ async function notifyAffiliate(order: any) {
 
 export const config = { api: { bodyParser: false } };
 
+const MAX_WEBHOOK_BYTES = 1024 * 1024;
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
     res.status(405).send("Method not allowed");
     return;
   }
 
+  const secret = process.env.NOWPAYMENTS_IPN_SECRET;
+  if (!secret) {
+    console.error("NOWPAYMENTS_IPN_SECRET is not configured; rejecting webhook");
+    res.status(503).send("Webhook unavailable");
+    return;
+  }
+
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  let bytes = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.from(chunk);
+    bytes += buffer.length;
+    if (bytes > MAX_WEBHOOK_BYTES) {
+      res.status(413).send("Payload too large");
+      return;
+    }
+    chunks.push(buffer);
+  }
   const rawBody = Buffer.concat(chunks).toString("utf8");
 
   const signature = req.headers["x-nowpayments-sig"] as string;
@@ -46,7 +64,7 @@ export default async function handler(req: any, res: any) {
   try {
     const payload = JSON.parse(rawBody);
     const sorted = sortKeys(payload);
-    const hmac = crypto.createHmac("sha512", process.env.NOWPAYMENTS_IPN_SECRET!);
+    const hmac = crypto.createHmac("sha512", secret);
     hmac.update(JSON.stringify(sorted));
     const computed = hmac.digest("hex");
 

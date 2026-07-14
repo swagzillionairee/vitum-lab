@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
+import { clientIp } from "./_lib/clientIp.js";
 
 /**
  * GET  /api/inventory → { cartCode: stock } map (public, cached).
@@ -8,35 +9,52 @@ import { supabaseAdmin } from "./_lib/supabase-admin.js";
 export default async function handler(req: any, res: any) {
   if (req.method === "POST") {
     const { cartCode, email } = (req.body ?? {}) as { cartCode?: string; email?: string };
-    if (!cartCode || !email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    if (
+      typeof cartCode !== "string" || !cartCode.trim() || cartCode.length > 100 ||
+      typeof email !== "string" || email.length > 320 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)
+    ) {
       res.status(400).json({ error: "A valid email and cartCode are required" });
       return;
     }
 
-    // Per-IP throttle: this endpoint is public and its rows later trigger
-    // "back in stock" email from our domain — unthrottled, it's an email-bomb
-    // vector (enroll a victim's address, re-arm every restock) and a junk-row
-    // sink. Same limiter as the contact form; fails open on an RPC error.
-    const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+    const normalizedCartCode = cartCode.trim();
+    const targetEmail = email.toLowerCase().trim();
+
+    // Throttle both the trusted client IP and the target email. This endpoint's
+    // rows later trigger mail, so both many-victim and one-victim abuse matter.
+    const ip = clientIp(req);
     try {
-      const { data: allowed, error } = await supabaseAdmin.rpc("rate_limit_hit", {
-        p_bucket: `waitlist:${ip}`,
-        p_max: 5,
-        p_window_seconds: 600,
-      });
-      if (!error && allowed === false) {
+      const [ipHit, emailHit] = await Promise.all([
+        supabaseAdmin.rpc("rate_limit_hit", {
+          p_bucket: `waitlist:ip:${ip}`,
+          p_max: 5,
+          p_window_seconds: 600,
+        }),
+        supabaseAdmin.rpc("rate_limit_hit", {
+          p_bucket: `waitlist:email:${targetEmail}`,
+          p_max: 5,
+          p_window_seconds: 3600,
+        }),
+      ]);
+      if (ipHit.error || emailHit.error || ipHit.data !== true || emailHit.data !== true) {
+        if (ipHit.error || emailHit.error) {
+          res.status(503).json({ error: "Waitlist protection is temporarily unavailable. Please try again shortly." });
+          return;
+        }
         res.status(429).json({ error: "Too many requests — please try again in a few minutes." });
         return;
       }
     } catch (err) {
-      console.error("waitlist rate-limit check failed (allowing):", err);
+      console.error("waitlist rate-limit check failed:", err);
+      res.status(503).json({ error: "Waitlist protection is temporarily unavailable. Please try again shortly." });
+      return;
     }
 
     // Only accept real variants — otherwise arbitrary junk rows accrue forever.
     const { data: variant } = await supabaseAdmin
       .from("inventory")
       .select("cart_code")
-      .eq("cart_code", cartCode)
+      .eq("cart_code", normalizedCartCode)
       .maybeSingle();
     if (!variant) {
       res.status(400).json({ error: "Unknown product." });
@@ -46,7 +64,7 @@ export default async function handler(req: any, res: any) {
     const { error } = await supabaseAdmin
       .from("stock_waitlist")
       .upsert(
-        { cart_code: cartCode, email: email.toLowerCase().trim(), notified_at: null },
+        { cart_code: normalizedCartCode, email: targetEmail, notified_at: null },
         { onConflict: "cart_code,email" },
       );
     if (error) {

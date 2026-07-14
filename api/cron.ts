@@ -70,7 +70,7 @@ async function sendAffiliateStatements(results: { statements: number; errors: nu
       });
       results.statements++;
     } catch (err) {
-      console.error(`cron: statement failed for ${a.email}:`, err);
+      console.error(`cron: statement failed for affiliate ${a.id}:`, err);
       results.errors++;
     }
   }

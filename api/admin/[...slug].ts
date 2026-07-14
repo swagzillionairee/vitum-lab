@@ -32,7 +32,7 @@ async function notifyWaitlist(cartCode: string) {
 
   for (const s of subs) {
     try { await sendBackInStock(s.email as string, { name, url, image }); }
-    catch (err) { console.error(`back-in-stock email failed for ${s.email}:`, err); }
+    catch (err) { console.error(`back-in-stock email failed for waitlist row ${s.id}:`, err); }
   }
   await supabaseAdmin
     .from("stock_waitlist")
@@ -1224,10 +1224,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!filename) return res.status(400).json({ error: "filename required" });
     // Images only: check both the declared content type and the extension
     // before minting a signed upload URL for the public bucket.
-    const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
-    const ext = String(filename).toLowerCase().match(/\.(jpe?g|png|webp|gif|avif)$/)?.[0];
-    if (!ext || (contentType && !IMAGE_TYPES.includes(String(contentType).toLowerCase()))) {
-      return res.status(400).json({ error: "Only image files (jpg, png, webp, gif, avif) can be uploaded" });
+    const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const ext = String(filename).toLowerCase().match(/\.(jpe?g|png|webp|gif)$/)?.[0];
+    if (!ext || !IMAGE_TYPES.includes(String(contentType ?? "").toLowerCase())) {
+      return res.status(400).json({ error: "Only image files (jpg, png, webp, gif) can be uploaded" });
     }
     const path = `products/${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const { data, error } = await supabaseAdmin.storage.from("product-images").createSignedUploadUrl(path);

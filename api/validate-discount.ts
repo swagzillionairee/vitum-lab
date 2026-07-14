@@ -25,9 +25,35 @@ export default async function handler(req: any, res: any) {
   }
   const email = user.email;
 
-  const { code, subtotal } = req.body as { code?: string; subtotal?: number };
-  if (!code?.trim()) {
+  // This endpoint's valid/invalid split is a discount-code oracle. Bound brute
+  // force work per verified account and fail closed if abuse protection is down.
+  try {
+    const { data: allowed, error } = await supabaseAdmin.rpc("rate_limit_hit", {
+      p_bucket: `validate-discount:${user.id}`,
+      p_max: 20,
+      p_window_seconds: 600,
+    });
+    if (error || allowed !== true) {
+      res.status(error ? 503 : 429).json({
+        error: error
+          ? "Discount validation is temporarily unavailable. Please try again shortly."
+          : "Too many attempts — please wait a few minutes and try again.",
+      });
+      return;
+    }
+  } catch (err) {
+    console.error("validate-discount rate-limit check failed:", err);
+    res.status(503).json({ error: "Discount validation is temporarily unavailable. Please try again shortly." });
+    return;
+  }
+
+  const { code, subtotal } = (req.body ?? {}) as { code?: string; subtotal?: number };
+  if (typeof code !== "string" || !code.trim() || code.length > 64) {
     res.status(400).json({ error: "Code is required" });
+    return;
+  }
+  if (subtotal != null && (typeof subtotal !== "number" || !Number.isFinite(subtotal) || subtotal < 0 || subtotal > 1_000_000)) {
+    res.status(400).json({ error: "Subtotal is invalid" });
     return;
   }
   const normalized = code.trim().toUpperCase();

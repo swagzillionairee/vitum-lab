@@ -146,7 +146,7 @@ export default async function handler(req: any, res: any) {
       const { data: byUser } = await supabaseAdmin
         .from("affiliates").select("code").eq("is_referral", false).eq("user_id", user.id).limit(1).maybeSingle();
       const aff = byUser ?? (await supabaseAdmin
-        .from("affiliates").select("code").eq("is_referral", false).eq("email", user.email).limit(1).maybeSingle()).data;
+        .from("affiliates").select("code").eq("is_referral", false).eq("email", user.email).is("user_id", null).limit(1).maybeSingle()).data;
       if (aff) { res.status(200).json({ active: true, already_affiliate: true, affiliate_code: aff.code }); return; }
     }
 
@@ -172,8 +172,14 @@ export default async function handler(req: any, res: any) {
         .is("user_id", null)
         .maybeSingle();
       if (byEmail) {
-        await supabaseAdmin.from("affiliates").update({ user_id: user.id }).eq("id", byEmail.id);
-        ref = { id: byEmail.id, code: byEmail.code };
+        const { data: linked } = await supabaseAdmin
+          .from("affiliates")
+          .update({ user_id: user.id })
+          .eq("id", byEmail.id)
+          .is("user_id", null)
+          .select("id, code")
+          .maybeSingle();
+        if (linked) ref = { id: linked.id, code: linked.code };
       }
     }
 
