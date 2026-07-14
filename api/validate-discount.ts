@@ -25,6 +25,24 @@ export default async function handler(req: any, res: any) {
   }
   const email = user.email;
 
+  // Throttle per account: the 200(valid)/404(invalid) split makes this a code
+  // oracle, so without a limit a signed-in user could brute-force the promo /
+  // affiliate / referral code namespaces. Keyed on the JWT user id (self-signup
+  // is cheap, so an IP key is weaker). Fails open on an RPC error.
+  try {
+    const { data: allowed, error } = await supabaseAdmin.rpc("rate_limit_hit", {
+      p_bucket: `validate-discount:${user.id}`,
+      p_max: 20,
+      p_window_seconds: 600,
+    });
+    if (!error && allowed === false) {
+      res.status(429).json({ error: "Too many attempts — please wait a few minutes and try again." });
+      return;
+    }
+  } catch (err) {
+    console.error("validate-discount rate-limit check failed (allowing):", err);
+  }
+
   const { code, subtotal } = req.body as { code?: string; subtotal?: number };
   if (!code?.trim()) {
     res.status(400).json({ error: "Code is required" });

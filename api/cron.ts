@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, sendLowStockDigest, sendAffiliateStatement, type EmailOrder } from "./_lib/email.js";
 import { getTrackingStatus, shippoConfigured } from "./_lib/shippo.js";
+import { getSquareReversal, squareConfigured } from "./_lib/square.js";
+import { refundClawback, ORDER_COLS as FULFILL_ORDER_COLS } from "./_lib/fulfillment.js";
 
 const LOW_STOCK_THRESHOLD = 5;
 // Send the low-stock digest once a day, at 14:00 UTC (~9–10am ET).
@@ -92,7 +94,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const results = { expired: 0, emailed: 0, errors: 0, lowStockDigest: 0, delivered: 0, followup: 0, statements: 0 };
+  const results = { expired: 0, emailed: 0, errors: 0, lowStockDigest: 0, delivered: 0, followup: 0, statements: 0, reversed: 0 };
 
   try {
     // 1. Expire stale pending orders (mirrors the expire_stale_orders pg_cron
@@ -227,6 +229,36 @@ export default async function handler(req: any, res: any) {
     const nowDate = new Date();
     if (nowDate.getUTCDate() === 1 && nowDate.getUTCHours() === AFFILIATE_STATEMENT_HOUR_UTC) {
       await sendAffiliateStatements(results);
+    }
+
+    // 7. Reconcile Square card orders against refunds/chargebacks. There is no
+    // Square webhook, so a refund (Square dashboard) or a lost chargeback would
+    // otherwise leave the order permanently confirmed — stock, loyalty/referral
+    // credit, and affiliate commission never clawed back. Poll a bounded batch of
+    // recent confirmed card orders; refundClawback is idempotent + CAS-guarded,
+    // and getSquareReversal fails safe (never reverses on an API error).
+    if (squareConfigured()) {
+      const sqSince = new Date(Date.now() - 180 * 86400 * 1000).toISOString();
+      const { data: cardOrders } = await supabaseAdmin
+        .from("orders")
+        .select(`${FULFILL_ORDER_COLS}, payment_id`)
+        .eq("payment_method", "square")
+        .in("status", ["confirmed", "finished"])
+        .not("payment_id", "is", null)
+        .gte("created_at", sqSince)
+        .limit(100);
+      for (const o of cardOrders ?? []) {
+        try {
+          const rev = await getSquareReversal(String((o as { payment_id?: string }).payment_id ?? ""));
+          if (rev.reversed) {
+            await refundClawback(o, rev.reason ?? "Refunded/reversed via Square");
+            results.reversed++;
+          }
+        } catch (err) {
+          console.error(`cron: square reconcile failed for ${o.id}:`, err);
+          results.errors++;
+        }
+      }
     }
 
     res.status(200).json(results);

@@ -20,9 +20,15 @@ export default function Login() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Optional post-login destination (e.g. /checkout). Only same-site paths.
+  // Optional post-login destination (e.g. /checkout). Same-origin paths only:
+  // require a leading "/" but REJECT protocol-relative ("//evil.com") and
+  // backslash ("/\evil.com") forms, which resolve cross-origin and would be an
+  // open redirect if the post-login hop is ever switched to location.assign.
   const rawRedirect = new URLSearchParams(window.location.search).get("redirect");
-  const redirect = rawRedirect && rawRedirect.startsWith("/") ? rawRedirect : null;
+  const redirect =
+    rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//") && !rawRedirect.startsWith("/\\")
+      ? rawRedirect
+      : null;
   // Preserve the redirect across the OAuth / magic-link round trip.
   const authReturn = redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : "/login";
 

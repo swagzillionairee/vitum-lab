@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
+import { clientIp } from "./_lib/clientIp.js";
 
 /**
  * GET  /api/inventory → { cartCode: stock } map (public, cached).
@@ -13,18 +14,20 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Per-IP throttle: this endpoint is public and its rows later trigger
-    // "back in stock" email from our domain — unthrottled, it's an email-bomb
-    // vector (enroll a victim's address, re-arm every restock) and a junk-row
-    // sink. Same limiter as the contact form; fails open on an RPC error.
-    const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+    // Public endpoint whose rows later trigger "back in stock" email from our
+    // domain — unthrottled it's an email-bomb vector (enroll a victim's address,
+    // re-arm every restock) and a junk-row sink. Throttle on BOTH the real
+    // (non-spoofable) client IP AND the target email, so rotating the IP can't
+    // enroll one victim repeatedly and one IP can't enroll many victims. Same
+    // limiter as the contact form; fails open on an RPC error.
+    const ip = clientIp(req);
+    const targetEmail = String(email).toLowerCase().trim();
     try {
-      const { data: allowed, error } = await supabaseAdmin.rpc("rate_limit_hit", {
-        p_bucket: `waitlist:${ip}`,
-        p_max: 5,
-        p_window_seconds: 600,
-      });
-      if (!error && allowed === false) {
+      const [ipHit, emailHit] = await Promise.all([
+        supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `waitlist:ip:${ip}`, p_max: 5, p_window_seconds: 600 }),
+        supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `waitlist:email:${targetEmail}`, p_max: 5, p_window_seconds: 3600 }),
+      ]);
+      if ((!ipHit.error && ipHit.data === false) || (!emailHit.error && emailHit.data === false)) {
         res.status(429).json({ error: "Too many requests — please try again in a few minutes." });
         return;
       }

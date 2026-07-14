@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
+import { clientIp } from "./_lib/clientIp.js";
 
 // Per-IP throttle: the contact form shares the Gmail transport with all order
 // email, so an unthrottled spam loop could burn the daily send cap and silently
@@ -45,9 +46,9 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  // Rate-limit by client IP (Vercel sets x-forwarded-for). Fails OPEN on an RPC
+  // Rate-limit by the real (non-spoofable) client IP. Fails OPEN on an RPC
   // error so a database hiccup never blocks a genuine customer inquiry.
-  const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  const ip = clientIp(req);
   try {
     const { data: allowed, error } = await supabaseAdmin.rpc("rate_limit_hit", {
       p_bucket: `contact:${ip}`,
