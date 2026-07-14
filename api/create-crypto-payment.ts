@@ -124,6 +124,25 @@ export default async function handler(req: any, res: any) {
   }
   const email = user.email;
 
+  // Throttle checkout per account: each attempt does real work — a Shippo address
+  // check, an orders INSERT + store-credit reservation, and either a live
+  // NowPayments invoice or a Gmail "order received" email — so an unthrottled
+  // loop could drain those external quotas / the shared mail cap. Keyed on the
+  // JWT user id. Fails open on an RPC error so a DB hiccup never blocks checkout.
+  try {
+    const { data: allowed, error } = await supabaseAdmin.rpc("rate_limit_hit", {
+      p_bucket: `checkout:${user.id}`,
+      p_max: 15,
+      p_window_seconds: 300,
+    });
+    if (!error && allowed === false) {
+      res.status(429).json({ error: "Too many checkout attempts — please wait a moment and try again." });
+      return;
+    }
+  } catch (err) {
+    console.error("checkout rate-limit check failed (allowing):", err);
+  }
+
   try {
     const { items, discountCode, shipping, attestation, total, paymentMethod } = req.body as {
       paymentMethod?: string;
@@ -155,20 +174,17 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Verify the address is deliverable (best-effort — never blocks on a Shippo
-    // outage; only rejects when Shippo definitively flags it invalid).
-    const addrCheck = await validateAddress(shipping);
-    if (addrCheck && !addrCheck.valid) {
-      res.status(400).json({ error: `We couldn't verify that shipping address. ${addrCheck.messages[0] || "Please double-check it and try again."}` });
-      return;
-    }
-
     // ── Re-price every line item SERVER-SIDE from the catalog. The client's
     // `price` is ignored entirely (the cart is browser state); price, name, and
     // dose come from the products table. The free gift is re-added at $0 only
     // when the order actually qualifies — never taken from the request. ──
     const catalog = await loadCatalog();
-    const paidItems: { name: string; dose: string; quantity: number; cartCode: string; price: number }[] = [];
+    // Collapse duplicate cartCode lines into ONE entry with the summed quantity.
+    // Otherwise two lines of the same variant each pass the per-line stock check
+    // below against the FULL current stock, so the aggregate can exceed stock and
+    // oversell (confirmation's decrement_stock only logs the shortfall, never
+    // blocks). Aggregating makes the stock check see the true per-variant total.
+    const byCode = new Map<string, { name: string; dose: string; quantity: number; cartCode: string; price: number }>();
     for (const i of items) {
       if (i.cartCode === FREE_GIFT_CODE) continue; // re-derived below, not trusted
       const entry = catalog[i.cartCode];
@@ -177,8 +193,11 @@ export default async function handler(req: any, res: any) {
         return;
       }
       const quantity = Math.max(1, Math.floor(Number(i.quantity) || 0));
-      paidItems.push({ name: entry.name, dose: entry.dose, quantity, cartCode: i.cartCode, price: entry.price });
+      const existing = byCode.get(i.cartCode);
+      if (existing) existing.quantity += quantity;
+      else byCode.set(i.cartCode, { name: entry.name, dose: entry.dose, quantity, cartCode: i.cartCode, price: entry.price });
     }
+    const paidItems = [...byCode.values()];
     if (paidItems.length === 0) {
       res.status(400).json({ error: "Your cart has no purchasable items." });
       return;
@@ -198,6 +217,16 @@ export default async function handler(req: any, res: any) {
         res.status(409).json({ error: `${item.name} ${item.dose} is out of stock.` });
         return;
       }
+    }
+
+    // Verify the address is deliverable — done AFTER the cheap cart/stock checks
+    // so an invalid or abusive request can't burn the Shippo address-validation
+    // quota. Best-effort: never blocks on a Shippo outage; only rejects when
+    // Shippo definitively flags the address invalid.
+    const addrCheck = await validateAddress(shipping);
+    if (addrCheck && !addrCheck.valid) {
+      res.status(400).json({ error: `We couldn't verify that shipping address. ${addrCheck.messages[0] || "Please double-check it and try again."}` });
+      return;
     }
 
     const orderId = buildOrderId();

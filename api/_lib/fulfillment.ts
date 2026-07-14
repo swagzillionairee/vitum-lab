@@ -163,6 +163,27 @@ export async function refundClawback(order: any, reason: string): Promise<void> 
     await supabaseAdmin.rpc("decrement_promo_use", { p_code: order.discount_code }).then(() => {}, () => {});
   }
   await releaseDiscountRedemption(order.id).catch(() => {});
+
+  // Surface a residual store-credit deficit: if the customer already SPENT the
+  // loyalty/referral credit THIS order earned (as tender on another still-
+  // confirmed order) before this reversal, excluding this order's earn rows
+  // drives their ledger balance negative. store_credit_balance keeps the deficit
+  // (it nets against future earnings) but getBalance floors it to 0, so it can't
+  // be spent — flag it on the order so the owner can pursue it rather than
+  // silently absorbing the loss. Best-effort; never blocks the clawback.
+  if (wasPaid && order.email) {
+    try {
+      const { data: bal } = await supabaseAdmin.rpc("store_credit_balance", { p_email: order.email });
+      const raw = Number(bal) || 0;
+      if (raw < 0) {
+        const prior = order.admin_notes ? `${order.admin_notes}\n\n${note}` : note;
+        const deficitNote = `⚠️ This clawback left ${order.email} with a store-credit deficit of $${Math.abs(raw).toFixed(2)} — earned credit was already spent before the reversal. It nets against future earnings and cannot be spent now; pursue manually if warranted.`;
+        await supabaseAdmin.from("orders").update({ admin_notes: `${prior}\n\n${deficitNote}` }).eq("id", order.id);
+      }
+    } catch (err) {
+      console.error("refundClawback deficit check failed:", err);
+    }
+  }
 }
 
 /**

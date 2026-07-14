@@ -82,6 +82,46 @@ export async function chargeSquare(params: {
   return { status: "failed", error: "Your card couldn't be charged. Please try another card.", paymentId };
 }
 
+export type SquareReversal = { reversed: boolean; reason?: string };
+
+/**
+ * Check whether a previously-COMPLETED Square payment has since been reversed —
+ * fully refunded, canceled, or failed. There is no Square webhook in this app,
+ * so the hourly cron uses this to reconcile confirmed card orders and claw back
+ * a reversed one (stock + loyalty/referral credit + affiliate commission).
+ *
+ * Conservative by design: returns { reversed:false } on ANY error, an
+ * unconfigured Square, or a partial refund, so a transient API failure can never
+ * wrongly cancel a genuinely-paid order. (Card disputes/chargebacks surface here
+ * once Square records the resulting refund; the Disputes API is out of scope.)
+ */
+export async function getSquareReversal(paymentId: string): Promise<SquareReversal> {
+  if (!paymentId || !squareConfigured()) return { reversed: false };
+  try {
+    const res = await fetch(`${squareBase()}/v2/payments/${encodeURIComponent(paymentId)}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.SQUARE_ACCESS_TOKEN}`,
+        "Square-Version": SQUARE_VERSION,
+      },
+    });
+    if (!res.ok) return { reversed: false };
+    const body: any = await res.json().catch(() => ({}));
+    const p = body?.payment ?? {};
+    const status = String(p?.status ?? "").toUpperCase();
+    if (status === "CANCELED" || status === "FAILED") {
+      return { reversed: true, reason: `Square payment ${status.toLowerCase()}` };
+    }
+    const total = Number(p?.amount_money?.amount ?? 0);
+    const refunded = Number(p?.refunded_money?.amount ?? 0);
+    if (total > 0 && refunded >= total) {
+      return { reversed: true, reason: "Square payment fully refunded" };
+    }
+    return { reversed: false };
+  } catch {
+    return { reversed: false };
+  }
+}
+
 // Map the most common Square decline codes to customer-safe copy.
 function friendlyDecline(code?: string, detail?: string): string {
   switch (code) {
