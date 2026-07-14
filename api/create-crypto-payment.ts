@@ -524,7 +524,7 @@ export default async function handler(req: any, res: any) {
     // No automated confirmation exists for these — the order stays pending with
     // the send-to instructions shown to the customer, and the admin marks it
     // paid in Admin → Orders once the money lands. Reserved credit/promo slots
-    // are held (like a crypto invoice) until it's confirmed or auto-expires (14d).
+    // are held (like a crypto invoice) until it's confirmed or auto-expires (4d).
     if (MANUAL_METHODS.includes(payMethod)) {
       deferEmail(sendOrderEvent(emailOrderBase(), "order_created"));
       // The order auto-expires 4 days after creation (mirrors expire_stale_orders);
