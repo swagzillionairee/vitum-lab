@@ -8,12 +8,12 @@
 
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowRight, Tag, Check, Loader2, ShoppingBag, CreditCard, Bitcoin, Landmark, DollarSign, AtSign, Building2, Zap, ShieldCheck, CircleSlash } from "lucide-react";
+import { ArrowRight, Tag, Check, Loader2, ShoppingBag, CreditCard, Bitcoin, Landmark, DollarSign, AtSign, Building2, Zap, ShieldCheck, CircleSlash, Lock, Truck, PartyPopper } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
 import { getPromoCode, clearPromoCode } from "@/lib/promo";
-import { quantityDiscountPercent, round2, shippingFee, type QuantityTier } from "@/lib/discounts";
+import { quantityDiscountPercent, round2, shippingFee, SHIPPING_PROTECTION_FEE, FREE_SHIPPING_THRESHOLD, type QuantityTier } from "@/lib/discounts";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
 import SquareCardBox from "@/components/SquareCardBox";
@@ -49,6 +49,78 @@ const METHOD_META: Record<PayMethod, { label: string; Icon: typeof CreditCard; m
   crypto:  { label: "Crypto",      Icon: Bitcoin,    memo: "" },
 };
 
+// Per-method brand colour for the payment tiles. `icon` colours the glyph in
+// both states (a pop of colour even when unselected); `sel` is the full selected
+// treatment; `hover` tints an unselected tile on hover. Full class strings (incl.
+// dark: variants) so Tailwind's scanner emits them.
+const METHOD_STYLE: Record<PayMethod, { icon: string; sel: string; hover: string }> = {
+  // Card → indigo/violet
+  square: {
+    icon: "text-[oklch(0.48_0.18_285)] dark:text-[oklch(0.80_0.14_285)]",
+    sel: "border-[oklch(0.50_0.18_285)] bg-[oklch(0.96_0.03_285)] text-[oklch(0.36_0.17_285)] dark:bg-[oklch(0.30_0.10_285)] dark:text-[oklch(0.90_0.07_285)] dark:border-[oklch(0.55_0.15_285)]",
+    hover: "hover:border-[oklch(0.70_0.10_285)] hover:bg-[oklch(0.985_0.01_285)] dark:hover:bg-[oklch(0.24_0.04_285)]",
+  },
+  // Zelle → purple
+  zelle: {
+    icon: "text-[oklch(0.48_0.20_300)] dark:text-[oklch(0.80_0.15_300)]",
+    sel: "border-[oklch(0.50_0.20_300)] bg-[oklch(0.96_0.03_300)] text-[oklch(0.38_0.18_300)] dark:bg-[oklch(0.30_0.11_300)] dark:text-[oklch(0.90_0.11_300)] dark:border-[oklch(0.55_0.16_300)]",
+    hover: "hover:border-[oklch(0.72_0.11_300)] hover:bg-[oklch(0.985_0.01_300)] dark:hover:bg-[oklch(0.24_0.04_300)]",
+  },
+  // Cash App → green
+  cashapp: {
+    icon: "text-[oklch(0.56_0.17_155)] dark:text-[oklch(0.80_0.16_155)]",
+    sel: "border-[oklch(0.55_0.16_155)] bg-[oklch(0.95_0.05_155)] text-[oklch(0.40_0.14_155)] dark:bg-[oklch(0.28_0.10_155)] dark:text-[oklch(0.88_0.13_155)] dark:border-[oklch(0.55_0.15_155)]",
+    hover: "hover:border-[oklch(0.72_0.12_155)] hover:bg-[oklch(0.98_0.02_155)] dark:hover:bg-[oklch(0.22_0.05_155)]",
+  },
+  // Venmo → blue
+  venmo: {
+    icon: "text-[oklch(0.54_0.16_245)] dark:text-[oklch(0.80_0.12_245)]",
+    sel: "border-[oklch(0.52_0.16_245)] bg-[oklch(0.95_0.04_245)] text-[oklch(0.38_0.15_245)] dark:bg-[oklch(0.28_0.10_245)] dark:text-[oklch(0.88_0.11_245)] dark:border-[oklch(0.55_0.15_245)]",
+    hover: "hover:border-[oklch(0.72_0.10_245)] hover:bg-[oklch(0.98_0.02_245)] dark:hover:bg-[oklch(0.22_0.05_245)]",
+  },
+  // Bank (ACH) → teal
+  ach: {
+    icon: "text-[oklch(0.52_0.11_195)] dark:text-[oklch(0.80_0.10_195)]",
+    sel: "border-[oklch(0.52_0.12_195)] bg-[oklch(0.95_0.04_195)] text-[oklch(0.40_0.10_195)] dark:bg-[oklch(0.28_0.08_195)] dark:text-[oklch(0.86_0.10_195)] dark:border-[oklch(0.52_0.12_195)]",
+    hover: "hover:border-[oklch(0.72_0.09_195)] hover:bg-[oklch(0.98_0.02_195)] dark:hover:bg-[oklch(0.22_0.04_195)]",
+  },
+  // Crypto → bitcoin orange
+  crypto: {
+    icon: "text-[oklch(0.64_0.16_55)] dark:text-[oklch(0.80_0.15_60)]",
+    sel: "border-[oklch(0.62_0.16_55)] bg-[oklch(0.96_0.05_70)] text-[oklch(0.48_0.14_55)] dark:bg-[oklch(0.30_0.09_55)] dark:text-[oklch(0.86_0.13_65)] dark:border-[oklch(0.60_0.14_55)]",
+    hover: "hover:border-[oklch(0.75_0.12_60)] hover:bg-[oklch(0.98_0.03_70)] dark:hover:bg-[oklch(0.24_0.05_55)]",
+  },
+};
+
+// Trust row of accepted card brands — inline SVG/markup only (CSP-safe, no
+// external images). White badges force an explicit white bg so the `.dark
+// .bg-white` override doesn't darken them. Shown when Card (Square) is selected.
+function CardBrands() {
+  const chip = "inline-flex items-center justify-center h-6 rounded-[5px] bg-[oklch(1_0_0)] border border-[oklch(0.90_0.004_260)]";
+  return (
+    <div className="flex flex-col items-center gap-2 pt-1">
+      <div className="flex items-center gap-1.5 text-[0.6875rem] font-semibold text-[oklch(0.50_0.01_260)] dark:text-[oklch(0.70_0.01_260)]">
+        <Lock className="w-3 h-3" /> 256-bit SSL encrypted checkout
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+        <span className={`${chip} px-1.5`}><span className="text-[0.6875rem] font-extrabold italic tracking-tight text-[#1a1f71]">VISA</span></span>
+        <span className={`${chip} w-10`}>
+          <svg width="28" height="17" viewBox="0 0 28 17" aria-label="Mastercard" role="img">
+            <circle cx="11" cy="8.5" r="6.5" fill="#EB001B" />
+            <circle cx="17" cy="8.5" r="6.5" fill="#F79E1B" fillOpacity="0.85" />
+          </svg>
+        </span>
+        <span className="inline-flex items-center justify-center h-6 px-1.5 rounded-[5px] bg-[#1F72CD]"><span className="text-[0.625rem] font-extrabold text-white tracking-tight">AMEX</span></span>
+        <span className="inline-flex items-center justify-center gap-[3px] h-6 px-1.5 rounded-[5px] bg-black">
+          <svg width="11" height="13" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.51 4.09l-.02-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" /></svg>
+          <span className="text-[0.625rem] font-semibold text-white">Pay</span>
+        </span>
+        <span className={`${chip} px-1.5`}><span className="text-[0.6875rem] font-bold tracking-tight"><span className="text-[#4285F4]">G</span><span className="text-[#EA4335]"> </span><span className="text-[oklch(0.40_0.01_260)]">Pay</span></span></span>
+      </div>
+    </div>
+  );
+}
+
 function isMethodEnabled(p: PaymentsCfg | null, m: PayMethod): boolean {
   if (!p) return false;
   if (m === "square") return !!p.square?.enabled;
@@ -76,6 +148,7 @@ export default function Checkout() {
   const [tiers, setTiers] = useState<QuantityTier[]>([]);
   const [creditBalance, setCreditBalance] = useState(0);
   const [attested, setAttested] = useState(false);
+  const [shippingProtection, setShippingProtection] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // Enabled payment methods (Square + manual handles + crypto), from the admin
@@ -229,10 +302,13 @@ export default function Checkout() {
   const netAfterDiscounts = round2(subtotal - discountAmount);
   // Flat $15 shipping under $100 (pre-discount basis), free above.
   const shippingCost = shippingFee(subtotal);
+  // Optional lost/stolen shipping-protection add-on (flat fee). Server folds it
+  // into shipping_amount, so it's part of the amount due (and credit can cover it).
+  const protectionFee = shippingProtection ? SHIPPING_PROTECTION_FEE : 0;
   // Store credit auto-applies as tender (covering shipping too), reducing the
   // amount due (server is authoritative).
-  const creditApplied = round2(Math.min(creditBalance, netAfterDiscounts + shippingCost));
-  const total = round2(netAfterDiscounts + shippingCost - creditApplied);
+  const creditApplied = round2(Math.min(creditBalance, netAfterDiscounts + shippingCost + protectionFee));
+  const total = round2(netAfterDiscounts + shippingCost + protectionFee - creditApplied);
 
   const handlePay = async (squareToken?: string) => {
     // Re-entrancy guard: a tokenize callback resolving while another payment
@@ -269,6 +345,7 @@ export default function Checkout() {
           affiliateId: promoApplied ? affiliateId : undefined,
           discountAmount: promoApplied ? discountAmount : undefined,
           attestation: attested,
+          shippingProtection,
           paymentMethod: total <= 0 ? "crypto" : payMethod,
           squareToken,
         }),
@@ -402,6 +479,25 @@ export default function Checkout() {
               <button onClick={openCart} className="text-[0.75rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">Edit cart</button>
             </div>
 
+            {/* Free-shipping progress — a little colour + a nudge toward $100 */}
+            {(() => {
+              const remaining = round2(FREE_SHIPPING_THRESHOLD - subtotal);
+              const pct = Math.min(100, Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100));
+              const unlocked = subtotal >= FREE_SHIPPING_THRESHOLD;
+              return (
+                <div className="rounded-xl border border-[oklch(0.90_0.05_155)] dark:border-[oklch(0.30_0.06_155)] bg-[oklch(0.97_0.03_155)] dark:bg-[oklch(0.20_0.05_155)] px-3.5 py-3">
+                  <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-[oklch(0.42_0.13_155)] dark:text-[oklch(0.82_0.14_155)] mb-2">
+                    {unlocked
+                      ? (<><PartyPopper className="w-3.5 h-3.5" /> Free shipping unlocked!</>)
+                      : (<><Truck className="w-3.5 h-3.5" /> ${remaining.toFixed(2)} away from free shipping</>)}
+                  </div>
+                  <div className="h-1.5 rounded-full bg-[oklch(0.90_0.02_155)] dark:bg-[oklch(0.28_0.03_155)] overflow-hidden">
+                    <div className="h-full rounded-full bg-[oklch(0.55_0.15_155)] transition-all duration-500" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Items */}
             <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
               {items.map((item) => (
@@ -465,14 +561,44 @@ export default function Checkout() {
                   <span className="text-[oklch(0.35_0.12_155)] font-semibold">Free</span>
                 )}
               </div>
+              {protectionFee > 0 && (
+                <div className="flex justify-between text-[0.875rem] text-[oklch(0.40_0.01_260)]">
+                  <span>Shipping protection</span><span>${protectionFee.toFixed(2)}</span>
+                </div>
+              )}
               <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)] leading-snug">
                 Free shipping on orders of $100+, based on your subtotal before discounts.
               </p>
               <div className="flex justify-between items-center border-t border-[oklch(0.93_0.004_260)] pt-2">
                 <span className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)]">Total</span>
-                <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${total.toFixed(2)}</span>
+                <span className="text-[1.35rem] font-extrabold text-[oklch(0.45_0.17_265)] dark:text-[oklch(0.78_0.15_265)]">${total.toFixed(2)}</span>
               </div>
             </div>
+
+            {/* Optional Shipping Protection add-on */}
+            <label className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-colors ${
+              shippingProtection
+                ? "border-[oklch(0.55_0.12_195)] bg-[oklch(0.96_0.03_195)] dark:bg-[oklch(0.22_0.06_195)] dark:border-[oklch(0.50_0.12_195)]"
+                : "border-[oklch(0.90_0.004_260)] hover:bg-[oklch(0.98_0.015_195)] dark:hover:bg-[oklch(0.20_0.02_260)]"
+            }`}>
+              <input
+                type="checkbox"
+                checked={shippingProtection}
+                onChange={(e) => setShippingProtection(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded accent-[oklch(0.50_0.12_195)] flex-shrink-0"
+              />
+              <span className="flex-1 min-w-0">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-[0.8125rem] font-bold text-[oklch(0.28_0.05_200)] dark:text-[oklch(0.88_0.07_200)]">
+                    <ShieldCheck className="w-4 h-4 text-[oklch(0.50_0.12_195)] dark:text-[oklch(0.78_0.10_195)]" /> Shipping Protection
+                  </span>
+                  <span className="text-[0.8125rem] font-bold text-[oklch(0.42_0.11_195)] dark:text-[oklch(0.82_0.10_195)] whitespace-nowrap">+${SHIPPING_PROTECTION_FEE.toFixed(2)}</span>
+                </span>
+                <span className="block mt-1 text-[0.6875rem] text-[oklch(0.50_0.01_260)] leading-relaxed">
+                  If your package is lost or stolen, we'll send a free replacement — no questions asked.
+                </span>
+              </span>
+            </label>
 
             {error && <p className="text-[0.75rem] text-red-500">{error}</p>}
 
@@ -514,6 +640,7 @@ export default function Checkout() {
                 <div className={`grid gap-2 ${enabledMethods.length >= 4 ? "grid-cols-4" : enabledMethods.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
                   {enabledMethods.map((m) => {
                     const { label, Icon } = METHOD_META[m];
+                    const st = METHOD_STYLE[m];
                     const selected = payMethod === m;
                     return (
                       <button
@@ -523,24 +650,27 @@ export default function Checkout() {
                         onClick={() => { setPayMethod(m); setError(""); }}
                         className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-3 px-1 text-[0.8125rem] font-semibold transition-colors disabled:opacity-60 ${
                           selected
-                            ? "border-[oklch(0.40_0.16_260)] bg-[oklch(0.96_0.02_260)] text-[oklch(0.30_0.16_260)] dark:bg-[oklch(0.40_0.16_260)] dark:text-white dark:border-[oklch(0.40_0.16_260)]"
-                            : "border-[oklch(0.90_0.004_260)] text-[oklch(0.35_0.01_260)] hover:bg-[oklch(0.98_0.002_260)] dark:border-[oklch(0.30_0.01_260)] dark:text-[oklch(0.72_0.01_260)] dark:hover:bg-[oklch(0.22_0.01_260)]"
+                            ? st.sel
+                            : `border-[oklch(0.90_0.004_260)] text-[oklch(0.35_0.01_260)] dark:border-[oklch(0.30_0.01_260)] dark:text-[oklch(0.72_0.01_260)] ${st.hover}`
                         }`}
                       >
-                        <Icon className="w-4 h-4" /> {label}
+                        <Icon className={`w-4 h-4 ${st.icon}`} /> {label}
                         {m === "ach" && <span className="text-[0.5625rem] font-medium text-[oklch(0.45_0.12_155)] leading-none">No card fees</span>}
                       </button>
                     );
                   })}
                 </div>
 
-                {/* Square — inline secure card fields */}
+                {/* Square — inline secure card fields + accepted-card trust row */}
                 {payMethod === "square" && (
-                  attested ? (
-                    <SquareCardBox amountDue={total} disabled={busy || !attested} busy={busy} onPay={(t) => handlePay(t)} onError={setError} />
-                  ) : (
-                    <p className="text-[0.75rem] text-[oklch(0.52_0.01_260)] text-center py-2">Confirm the acknowledgment above to enter your card.</p>
-                  )
+                  <div className="space-y-3">
+                    {attested ? (
+                      <SquareCardBox amountDue={total} disabled={busy || !attested} busy={busy} onPay={(t) => handlePay(t)} onError={setError} />
+                    ) : (
+                      <p className="text-[0.75rem] text-[oklch(0.52_0.01_260)] text-center py-2">Confirm the acknowledgment above to enter your card.</p>
+                    )}
+                    <CardBrands />
+                  </div>
                 )}
 
                 {/* Bank / ACH — trust badges + how-it-works, then place the order */}
@@ -582,6 +712,19 @@ export default function Checkout() {
                 )}
               </div>
             )}
+            {/* Pastel trust chips */}
+            <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+              <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.625rem] font-bold bg-[oklch(0.96_0.03_155)] text-[oklch(0.42_0.13_155)] dark:bg-[oklch(0.22_0.05_155)] dark:text-[oklch(0.82_0.13_155)]">
+                <ShieldCheck className="w-3 h-3" /> ≥99% Purity
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.625rem] font-bold bg-[oklch(0.96_0.03_245)] text-[oklch(0.42_0.14_245)] dark:bg-[oklch(0.22_0.05_245)] dark:text-[oklch(0.82_0.12_245)]">
+                <Truck className="w-3 h-3" /> USPS 2–3 day
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.625rem] font-bold bg-[oklch(0.96_0.03_290)] text-[oklch(0.44_0.15_290)] dark:bg-[oklch(0.24_0.06_290)] dark:text-[oklch(0.84_0.13_290)]">
+                <Check className="w-3 h-3" /> COA included
+              </span>
+            </div>
+
             <p className="text-[0.625rem] text-center text-[oklch(0.70_0.01_260)]">
               Research use only — not for human consumption.
             </p>

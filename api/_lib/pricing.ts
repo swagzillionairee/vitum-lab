@@ -15,6 +15,10 @@ export function grossFromItems(items: { price: number; quantity: number }[]): nu
 
 export const SHIPPING_FEE = 15;
 export const FREE_SHIPPING_THRESHOLD = 100;
+// Optional "Shipping Protection" add-on (lost/stolen replacement). Flat fee the
+// customer can opt into at checkout; folded into shipping_amount so every order
+// total (email receipts, admin, credit) reconciles without a new column.
+export const SHIPPING_PROTECTION_FEE = 15;
 
 /**
  * Flat shipping fee for an order: $15 under the free-shipping threshold, free

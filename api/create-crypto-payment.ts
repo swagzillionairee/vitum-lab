@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
-import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, sitewideSalePrice, isSitewideActive, shippingFee, type QuantityTier } from "./_lib/pricing.js";
+import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, sitewideSalePrice, isSitewideActive, shippingFee, SHIPPING_PROTECTION_FEE, type QuantityTier } from "./_lib/pricing.js";
 import { getBalance, reserveCredit, reserveDiscountRedemption, releaseDiscountRedemption, getRewardConfig, earnLoyalty, grantReferralReward, type RewardConfig } from "./_lib/credit.js";
 import { validateAddress } from "./_lib/shippo.js";
 import { buildOrderId } from "./_lib/orderId.js";
@@ -156,7 +156,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { items, discountCode, shipping, attestation, total, paymentMethod } = (req.body ?? {}) as {
+    const { items, discountCode, shipping, attestation, total, paymentMethod, shippingProtection } = (req.body ?? {}) as {
       paymentMethod?: string;
       items: { name: string; dose: string; quantity: number; cartCode: string; price: number }[];
       total: number;
@@ -164,6 +164,7 @@ export default async function handler(req: any, res: any) {
       affiliateId?: string;
       discountAmount?: number;
       attestation?: boolean;
+      shippingProtection?: boolean;
       shipping?: {
         name: string; line1: string; line2?: string; city: string;
         state: string; postal_code: string; country: string; phone?: string;
@@ -370,9 +371,13 @@ export default async function handler(req: any, res: any) {
     const commissionAmount =
       discount?.kind === "affiliate" ? calcCommission(netAmount, discount.commissionPercent) : null;
 
-    // Flat shipping fee on sub-$150 orders (free at $150+, pre-discount basis —
+    // Flat shipping fee on sub-$100 orders (free at $100+, pre-discount basis —
     // mirrors the free-gift threshold). Commission stays on the merchandise net.
-    const shippingAmount = shippingFee(grossAmount);
+    // The optional Shipping Protection add-on is a flat upcharge folded into the
+    // shipping amount, so every downstream total (receipts, admin, store credit)
+    // stays correct without a new column.
+    const protectionAmount = shippingProtection === true ? SHIPPING_PROTECTION_FEE : 0;
+    const shippingAmount = shippingFee(grossAmount) + protectionAmount;
 
     // Apply store credit as tender: it reduces the cash amount due (net_amount is
     // the order's value after discounts; credit is a payment method, not a discount,

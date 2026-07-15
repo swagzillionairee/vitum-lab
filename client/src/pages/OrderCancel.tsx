@@ -4,7 +4,7 @@ import SEO from "@/components/SEO";
 
 export default function OrderCancel() {
   return (
-    <div className="min-h-screen bg-[oklch(0.98_0.002_260)] flex items-center justify-center px-6">
+    <div className="min-h-screen bg-page flex items-center justify-center px-6">
       <SEO title="Payment Cancelled" description="Your payment was cancelled. Your cart is still saved." />
       <div className="bg-white rounded-2xl border border-[oklch(0.91_0.004_260)] shadow-[0_4px_24px_oklch(0.13_0.01_260/0.08)] max-w-md w-full p-10 text-center">
         <div className="flex justify-center mb-6">

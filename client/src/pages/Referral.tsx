@@ -103,14 +103,14 @@ export default function Referral() {
   // ── Loading / inactive states ─────────────────────────────────────────────
   if (cfg === null) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-page flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-[oklch(0.52_0.01_260)]" />
       </div>
     );
   }
   if (!cfg.active) {
     return (
-      <div className="min-h-screen bg-[oklch(0.97_0.003_260)] flex items-center justify-center px-6">
+      <div className="min-h-screen bg-page flex items-center justify-center px-6">
         <SEO title="Referral Program" description="Share a code, earn cash. Vitum Lab referral program." />
         <div className="text-center max-w-md">
           <div className="inline-flex items-center gap-2 bg-[oklch(0.93_0.05_260)] text-[oklch(0.35_0.16_260)] text-[0.75rem] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full mb-6">
@@ -125,7 +125,7 @@ export default function Referral() {
   }
 
   return (
-    <div className="min-h-screen bg-[oklch(0.98_0.004_255)]">
+    <div className="min-h-screen bg-page">
       <SEO
         title="Referral Program"
         description={`Share your code and earn $${bountyAmount} for every ${bountyOrders} customers you refer. Your buyers get ${buyerDiscount}% off. Sign in to grab your code — no application, no cap, no expiry.`}

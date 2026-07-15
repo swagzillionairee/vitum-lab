@@ -63,7 +63,7 @@ const coas = [
 
 export default function COALibrary() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-page">
       <SEO
         title="COA Library"
         description="Third-party Certificates of Analysis for all Vitum Lab research peptides. Verified by Constitution Laboratories LLC."

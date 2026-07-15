@@ -141,7 +141,7 @@ export default function FAQ() {
   const [activeCategory, setActiveCategory] = useState(faqCategories[0].category);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-page">
       <SEO title="FAQ" description="Frequently asked questions about Vitum Lab peptides, ordering, shipping, reconstitution, and storage." />
 
       {/* ── Page header ──────────────────────────────────────────────── */}

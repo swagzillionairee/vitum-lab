@@ -17,14 +17,14 @@ export default function DoseCalculator() {
 
   if (loading || !session) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-page flex items-center justify-center">
         <p className="text-[oklch(0.52_0.01_260)] text-sm">Sign in to access this tool…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-page">
       <SEO
         title="Dose Calculator"
         description="Reconstitution calculator for research peptides. Calculate concentration, volume per dose, and doses per vial."

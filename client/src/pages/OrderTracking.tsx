@@ -59,7 +59,7 @@ export default function OrderTracking() {
   const inputClass = "w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)]";
 
   return (
-    <div className="min-h-[70vh] bg-[oklch(0.98_0.002_260)]">
+    <div className="min-h-[70vh] bg-page">
       <SEO title="Track Your Order" description="Check the status of your Vitum Lab order with your order number and email." />
 
       <div className="container py-12 max-w-xl">

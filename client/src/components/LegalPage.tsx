@@ -13,7 +13,7 @@ interface LegalPageProps {
 
 export default function LegalPage({ title, lastUpdated, children }: LegalPageProps) {
   return (
-    <div className="min-h-screen bg-white dark:bg-[oklch(0.12_0.02_260)] flex flex-col">
+    <div className="min-h-screen bg-page dark:bg-[oklch(0.12_0.02_260)] flex flex-col">
 
       {/* Full-width dark navy header — stays dark in both modes */}
       <div className="bg-[oklch(0.13_0.01_260)] pt-14 pb-14">

@@ -50,7 +50,7 @@ export default function Contact() {
   return (
     <>
     <SEO title="Contact" description="Get in touch with the Vitum Lab team. Email us at hello@vitumlab.com for order support, research inquiries, or wholesale questions." />
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-page">
 
       {/* ── Page header ──────────────────────────────────────────────── */}
       <div className="bg-[oklch(0.14_0.03_260)] text-white">
