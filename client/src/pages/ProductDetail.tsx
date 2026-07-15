@@ -100,7 +100,7 @@ export default function ProductDetail() {
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center text-center px-4">
+      <div className="min-h-screen bg-page flex flex-col items-center justify-center text-center px-4">
         <h1 className="text-[2rem] font-bold text-[oklch(0.13_0.01_260)] mb-3">Product not found</h1>
         <p className="text-[oklch(0.52_0.01_260)] mb-6">The product you're looking for doesn't exist or has been removed.</p>
         <Link href="/shop" className="btn-primary">← Back to Shop</Link>
@@ -158,7 +158,7 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-page">
       <SEO
         title={`${product.name} — ${product.fullName}`}
         description={`${product.fullName} — ${product.tagline}. ≥99% purity, third-party HPLC tested, COA with every order. For laboratory research use only.`}

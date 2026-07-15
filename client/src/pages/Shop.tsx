@@ -195,11 +195,11 @@ export default function Shop() {
       : allProducts.filter((p) => p.categorySlug === activeCategory);
 
   return (
-    <div className="min-h-screen bg-[oklch(0.98_0.002_260)]">
+    <div className="min-h-screen bg-page">
       <SEO title="Shop" description="Browse Vitum Lab's full catalog of research peptides: GLP-3 (R) 10/20/30mg, GHK-Cu 50/100mg, NAD+ 500mg, and BAC Water 10mL. ≥99% purity guaranteed." />
 
       {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-[oklch(0.91_0.004_260)]">
+      <div className="page-hero-tint border-b border-[oklch(0.91_0.004_260)]">
         <div className="container py-10">
           <Link
             href="/"

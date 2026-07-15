@@ -173,7 +173,7 @@ export default function Account() {
   }
 
   return (
-    <div className="min-h-screen bg-[oklch(0.98_0.002_260)]">
+    <div className="min-h-screen bg-page">
       <SEO title="My Account" description="Your Vitum Lab order history and shipping status." />
       <div className="container py-10 max-w-3xl">
         <div className="flex items-center justify-between mb-2">

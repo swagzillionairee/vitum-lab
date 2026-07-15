@@ -64,7 +64,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-4 bg-[oklch(0.98_0.002_260)]">
+    <div className="min-h-[80vh] flex items-center justify-center px-4 bg-page">
       <SEO title="Login" description="Sign in to your Vitum Lab account to view order history and shipping status." />
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-[0_2px_16px_oklch(0.13_0.01_260/0.1)] p-8">
         <div className="flex items-center gap-2 mb-1">

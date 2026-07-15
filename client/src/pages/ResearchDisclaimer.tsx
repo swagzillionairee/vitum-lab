@@ -55,7 +55,7 @@ const sections = [
 
 export default function ResearchDisclaimer() {
   return (
-    <div className="min-h-screen bg-[oklch(0.98_0.002_260)]">
+    <div className="min-h-screen bg-page">
       <SEO
         title="Research Disclaimer"
         description="Vitum Lab research disclaimer — all products are for in vitro laboratory use only. Not for human or veterinary consumption."

@@ -42,7 +42,7 @@ export default function About() {
   return (
     <>
     <SEO title="About" description="Learn about Vitum Lab's mission to supply research-grade peptides with verified purity, transparent COAs, and fast 2–3 day US shipping." />
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-page">
 
       {/* ── Page header ──────────────────────────────────────────────── */}
       <div className="bg-[oklch(0.14_0.03_260)] text-white">

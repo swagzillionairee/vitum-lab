@@ -24,6 +24,9 @@ export const round2 = (n: number): number => Math.round(((Number(n) || 0) + Numb
 
 export const SHIPPING_FEE = 15;
 export const FREE_SHIPPING_THRESHOLD = 100;
+// Optional lost/stolen "Shipping Protection" add-on — flat opt-in upcharge shown
+// at checkout. Server mirror: api/_lib/pricing.ts → SHIPPING_PROTECTION_FEE.
+export const SHIPPING_PROTECTION_FEE = 15;
 
 /**
  * Flat $15 shipping under the free-shipping threshold, free at $100+ —

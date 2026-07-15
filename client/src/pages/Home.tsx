@@ -370,7 +370,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-page">
       <SEO
         description="Vitum Lab — research-grade peptides: GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. ≥99% purity, third-party HPLC tested, COA with every order. Free shipping over $100. For laboratory research use only."
         canonical="https://vitumlab.com/"

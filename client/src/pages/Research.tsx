@@ -169,7 +169,7 @@ export default function Research() {
         title="Research Library"
         description="Peer-reviewed studies and clinical literature referenced by the research community for compounds available at Vitum Lab, including Retatrutide, NAD+, and GHK-Cu."
       />
-      <div className="min-h-screen bg-[oklch(0.97_0.003_260)]">
+      <div className="min-h-screen bg-page">
 
         {/* ── Page header ──────────────────────────────────────────────── */}
         <div className="bg-[oklch(0.13_0.01_260)] text-white">
