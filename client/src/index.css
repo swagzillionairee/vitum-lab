@@ -241,6 +241,17 @@
 .dark .legal-page-content li     { color: oklch(0.80 0.01 260) !important; }
 .dark .legal-page-content li strong { color: oklch(0.95 0.006 260) !important; }
 
+/* ─── Global readability: bolder headers/emphasis + darker muted text ──────── */
+/* One notch heavier on every bold heading / emphasised word, site-wide. Sora is
+   loaded at 800, so this renders crisply. (Buttons set their own weight.) */
+.font-bold { font-weight: 800; }
+/* Darken the common muted greys in light mode for legibility. The dark-mode
+   overrides above already lighten these and win by specificity, so dark mode is
+   unaffected. */
+.text-\[oklch\(0\.52_0\.01_260\)\] { color: oklch(0.44 0.01 260); }
+.text-\[oklch\(0\.55_0\.01_260\)\] { color: oklch(0.46 0.01 260); }
+.text-\[oklch\(0\.60_0\.01_260\)\] { color: oklch(0.49 0.01 260); }
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
