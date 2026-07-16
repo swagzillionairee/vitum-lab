@@ -8,6 +8,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { toast } from "sonner";
 import { useProducts } from "@/hooks/useProducts";
+import { FREE_GIFT_THRESHOLD } from "@/lib/discounts";
 
 export interface CartItem {
   id: string;
@@ -36,7 +37,6 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null);
 
 const SESSION_KEY = "vitum_cart";
-const FREE_SHIPPING_THRESHOLD = 100;
 
 const FREE_BAC_WATER: Omit<CartItem, "quantity"> = {
   id: "free-bac-water",
@@ -130,12 +130,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
       .reduce((sum, i) => sum + i.price * i.quantity, 0);
 
     const freeGift = items.find((i) => i.id === FREE_BAC_WATER.id);
-    const qualifies = paidSubtotal >= FREE_SHIPPING_THRESHOLD;
+    const qualifies = paidSubtotal >= FREE_GIFT_THRESHOLD;
 
     if (qualifies && !freeGift) {
       setItems((prev) => [...prev, { ...FREE_BAC_WATER, quantity: 1 }]);
       toast.success("🎉 Free BAC Water added to your cart!", {
-        description: "Free shipping + a free BAC Water on orders over $100.",
+        description: "A complimentary 10mL BAC Water on orders over $100.",
         duration: 4000,
       });
     } else if (!qualifies && freeGift) {

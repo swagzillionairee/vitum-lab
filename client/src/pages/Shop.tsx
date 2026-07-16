@@ -280,7 +280,7 @@ export default function Shop() {
               Free Shipping + Free BAC Water
             </h3>
             <p className="text-[0.875rem] opacity-80 mt-1">
-              On all orders over $100. Shipped via USPS Ground Advantage padded envelopes.
+              Free shipping over $75; free BAC Water over $100. Shipped via USPS Ground Advantage padded envelopes.
             </p>
           </div>
           <Link

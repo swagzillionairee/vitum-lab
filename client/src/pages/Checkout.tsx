@@ -300,7 +300,7 @@ export default function Checkout() {
     : 0;
   const discountAmount = round2(qtyDiscount + codeDiscount);
   const netAfterDiscounts = round2(subtotal - discountAmount);
-  // Flat $15 shipping under $100 (pre-discount basis), free above.
+  // Flat $10 shipping under $75 (pre-discount basis), free above.
   const shippingCost = shippingFee(subtotal);
   // Optional lost/stolen shipping-protection add-on (flat fee). Server folds it
   // into shipping_amount, so it's part of the amount due (and credit can cover it).
@@ -479,7 +479,7 @@ export default function Checkout() {
               <button onClick={openCart} className="text-[0.75rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">Edit cart</button>
             </div>
 
-            {/* Free-shipping progress — a little colour + a nudge toward $100 */}
+            {/* Free-shipping progress — a little colour + a nudge toward $75 */}
             {(() => {
               const remaining = round2(FREE_SHIPPING_THRESHOLD - subtotal);
               const pct = Math.min(100, Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100));
@@ -567,7 +567,7 @@ export default function Checkout() {
                 </div>
               )}
               <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)] leading-snug">
-                Free shipping on orders of $100+, based on your subtotal before discounts.
+                Free shipping on orders of $75+, based on your subtotal before discounts.
               </p>
               <div className="flex justify-between items-center border-t border-[oklch(0.93_0.004_260)] pt-2">
                 <span className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)]">Total</span>

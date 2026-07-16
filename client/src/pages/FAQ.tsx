@@ -65,7 +65,7 @@ const faqCategories = [
       },
       {
         q: "Do you offer free shipping?",
-        a: "Yes — orders over $100 receive free shipping and a complimentary 10mL BAC Water vial. The free BAC Water is automatically added to your cart when you reach the threshold. Orders under $100 ship for a flat $15 rate. The $100 threshold is based on your subtotal before discounts, so a promo code never affects free-shipping eligibility.",
+        a: "Yes — orders over $75 receive free shipping; orders under $75 ship for a flat $10 rate. Orders over $100 also include a complimentary 10mL BAC Water vial, automatically added to your cart at that threshold. Both thresholds are based on your subtotal before discounts, so a promo code never affects eligibility.",
       },
       {
         q: "Do you ship internationally?",

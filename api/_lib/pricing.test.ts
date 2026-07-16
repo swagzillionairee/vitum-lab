@@ -19,7 +19,7 @@ import {
 describe("shippingFee", () => {
   it("charges the flat fee under the free-shipping threshold", () => {
     expect(shippingFee(69)).toBe(SHIPPING_FEE);
-    expect(shippingFee(99.99)).toBe(SHIPPING_FEE);
+    expect(shippingFee(74.99)).toBe(SHIPPING_FEE);
   });
   it("is free at and above the threshold", () => {
     expect(shippingFee(FREE_SHIPPING_THRESHOLD)).toBe(0);

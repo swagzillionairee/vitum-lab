@@ -4,7 +4,7 @@ import SEO from "@/components/SEO";
 export default function ShippingPolicy() {
   return (
     <>
-    <SEO title="Shipping & Returns" description="Vitum Lab shipping policy: USPS Ground Advantage padded envelopes, 2–5 business-day US delivery, free shipping on orders over $100." />
+    <SEO title="Shipping & Returns" description="Vitum Lab shipping policy: USPS Ground Advantage padded envelopes, 2–5 business-day US delivery, free shipping on orders over $75." />
     <LegalPage title="Shipping Policy" lastUpdated="May 2025">
       <h2>Shipping Method</h2>
       <p>
@@ -26,7 +26,7 @@ export default function ShippingPolicy() {
 
       <h2>Free Shipping Promotion</h2>
       <p>
-        Orders totaling <strong>$100 or more</strong> qualify for free shipping. Orders below this threshold are subject to a flat <strong>$15</strong> shipping rate, displayed at checkout. The $100 threshold is determined by your item subtotal <strong>before any discount codes or store credit are applied</strong>, so a discount never affects your free-shipping eligibility. Free shipping applies to domestic U.S. orders only.
+        Orders totaling <strong>$75 or more</strong> qualify for free shipping. Orders below this threshold are subject to a flat <strong>$10</strong> shipping rate, displayed at checkout. The $75 threshold is determined by your item subtotal <strong>before any discount codes or store credit are applied</strong>, so a discount never affects your free-shipping eligibility. Free shipping applies to domestic U.S. orders only.
       </p>
 
       <h2>Complimentary BAC Water</h2>

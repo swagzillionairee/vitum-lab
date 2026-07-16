@@ -14,8 +14,7 @@ import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
-
-const FREE_SHIPPING_THRESHOLD = 100;
+import { FREE_SHIPPING_THRESHOLD, FREE_GIFT_THRESHOLD } from "@/lib/discounts";
 
 export default function CartDrawer() {
   const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, totalItems } = useCart();
@@ -41,8 +40,13 @@ export default function CartDrawer() {
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
-  const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
-  const freeShippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
+  // Two-stage perks: free shipping at $75, free BAC Water at $100. Track toward
+  // whichever the customer hasn't unlocked yet.
+  const freeShip = subtotal >= FREE_SHIPPING_THRESHOLD;
+  const freeGift = subtotal >= FREE_GIFT_THRESHOLD;
+  const nextTarget = freeShip ? FREE_GIFT_THRESHOLD : FREE_SHIPPING_THRESHOLD;
+  const remaining = Math.max(0, nextTarget - subtotal);
+  const freeShippingProgress = Math.min((subtotal / nextTarget) * 100, 100);
 
   const handleCheckout = () => {
     closeCart();
@@ -106,9 +110,15 @@ export default function CartDrawer() {
 
             {/* ── Free shipping progress ──────────────────────────── */}
             <div className="px-6 py-3 bg-[oklch(0.97_0.003_260)] border-b border-[oklch(0.91_0.004_260)]">
-              {subtotal >= FREE_SHIPPING_THRESHOLD ? (
+              {freeGift ? (
                 <p className="text-[0.75rem] font-semibold text-[oklch(0.35_0.12_155)]">
-                  🎉 You've unlocked free shipping + free BAC Water!
+                  🎉 You've unlocked free shipping + a free BAC Water!
+                </p>
+              ) : freeShip ? (
+                <p className="text-[0.75rem] text-[oklch(0.52_0.01_260)]">
+                  <span className="font-semibold text-[oklch(0.35_0.12_155)]">🎉 Free shipping unlocked!</span> Add{" "}
+                  <span className="font-bold text-[oklch(0.13_0.01_260)]">${remaining.toFixed(2)}</span>{" "}
+                  more for a free BAC Water
                 </p>
               ) : (
                 <p className="text-[0.75rem] text-[oklch(0.52_0.01_260)]">
@@ -116,7 +126,7 @@ export default function CartDrawer() {
                   <span className="font-bold text-[oklch(0.13_0.01_260)]">
                     ${remaining.toFixed(2)}
                   </span>{" "}
-                  more for free shipping &amp; a free BAC Water
+                  more for free shipping
                 </p>
               )}
               <div className="mt-2 h-1.5 rounded-full bg-[oklch(0.91_0.004_260)] overflow-hidden">

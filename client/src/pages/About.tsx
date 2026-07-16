@@ -27,7 +27,7 @@ const values = [
   {
     icon: <Truck className="w-6 h-6" />,
     title: "Researcher-First Logistics",
-    body: "Fast delivery via USPS Ground Advantage padded envelopes — about 2 days to the East Coast, up to 5 to the West Coast (e.g. California). Free shipping and a complimentary BAC Water on orders over $100.",
+    body: "Fast delivery via USPS Ground Advantage padded envelopes — about 2 days to the East Coast, up to 5 to the West Coast (e.g. California). Free shipping over $75, plus a complimentary BAC Water over $100.",
   },
 ];
 
