@@ -22,16 +22,19 @@ export function quantityDiscountPercent(tiers: QuantityTier[] | null | undefined
 // EPSILON nudge before rounding — keep identical to api/_lib/pricing.ts round2.
 export const round2 = (n: number): number => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
 
-export const SHIPPING_FEE = 15;
-export const FREE_SHIPPING_THRESHOLD = 100;
+export const SHIPPING_FEE = 10;
+export const FREE_SHIPPING_THRESHOLD = 75;
+// The free 10mL BAC Water gift is a SEPARATE (higher) threshold than free
+// shipping — client mirror of api/create-crypto-payment.ts → FREE_GIFT_THRESHOLD.
+export const FREE_GIFT_THRESHOLD = 100;
 // Optional lost/stolen "Shipping Protection" add-on — flat opt-in upcharge shown
 // at checkout. Server mirror: api/_lib/pricing.ts → SHIPPING_PROTECTION_FEE.
 export const SHIPPING_PROTECTION_FEE = 15;
 
 /**
- * Flat $15 shipping under the free-shipping threshold, free at $100+ —
+ * Flat $10 shipping under the free-shipping threshold, free at $75+ —
  * mirror of api/_lib/pricing.ts → shippingFee. Based on the pre-discount
- * item subtotal (same basis as the free BAC Water gift).
+ * item subtotal.
  */
 export function shippingFee(subtotal: number): number {
   return (Number(subtotal) || 0) >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;

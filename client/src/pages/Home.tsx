@@ -60,7 +60,7 @@ const faqs = [
   },
   {
     q: "Do you offer free shipping?",
-    a: "Yes — orders over $100 receive free shipping and a complimentary 10mL BAC Water vial. The free BAC Water is automatically added to your cart when you reach the threshold. Orders under $100 ship for a flat $15 rate. The $100 threshold is based on your subtotal before discounts, so a promo code never affects free-shipping eligibility.",
+    a: "Yes — orders over $75 receive free shipping; orders under $75 ship for a flat $10 rate. Orders over $100 also include a complimentary 10mL BAC Water vial, automatically added to your cart at that threshold. Both thresholds are based on your subtotal before discounts, so a promo code never affects eligibility.",
   },
   {
     q: "What is BAC Water and why do I need it?",
@@ -372,7 +372,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-page">
       <SEO
-        description="Vitum Lab — research-grade peptides: GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. ≥99% purity, third-party HPLC tested, COA with every order. Free shipping over $100. For laboratory research use only."
+        description="Vitum Lab — research-grade peptides: GLP-3 (R) / Retatrutide, GHK-Cu, NAD+, and BAC Water. ≥99% purity, third-party HPLC tested, COA with every order. Free shipping over $75. For laboratory research use only."
         canonical="https://vitumlab.com/"
         jsonLd={[
           {
@@ -478,7 +478,7 @@ export default function Home() {
               {
                 icon: <Truck className="w-5 h-5" />,
                 title: "Fast US Shipping",
-                body: "About 2 days to the East Coast, up to 5 to the West Coast (e.g. California) via USPS Ground Advantage. Free shipping + BAC Water over $100.",
+                body: "About 2 days to the East Coast, up to 5 to the West Coast (e.g. California) via USPS Ground Advantage. Free shipping over $75; free BAC Water over $100.",
               },
             ].map((pillar) => (
               <div key={pillar.title} className="flex items-start gap-4 px-8 py-7">
@@ -572,7 +572,7 @@ export default function Home() {
               {
                 icon: <Truck className="w-6 h-6" />,
                 title: "Fast delivery anywhere in the US",
-                body: "About 2 days to the East Coast, up to 5 to the West Coast (e.g. California) via USPS Ground Advantage. Free shipping and a complimentary 10mL BAC Water on orders over $100.",
+                body: "About 2 days to the East Coast, up to 5 to the West Coast (e.g. California) via USPS Ground Advantage. Free shipping over $75, plus a complimentary 10mL BAC Water over $100.",
                 cta: "Shipping Info",
                 href: "/shipping-policy",
               },

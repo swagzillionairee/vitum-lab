@@ -13,18 +13,18 @@ export function grossFromItems(items: { price: number; quantity: number }[]): nu
   return round2(items.reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0));
 }
 
-export const SHIPPING_FEE = 15;
-export const FREE_SHIPPING_THRESHOLD = 100;
+export const SHIPPING_FEE = 10;
+export const FREE_SHIPPING_THRESHOLD = 75;
 // Optional "Shipping Protection" add-on (lost/stolen replacement). Flat fee the
 // customer can opt into at checkout; folded into shipping_amount so every order
 // total (email receipts, admin, credit) reconciles without a new column.
 export const SHIPPING_PROTECTION_FEE = 15;
 
 /**
- * Flat shipping fee for an order: $15 under the free-shipping threshold, free
- * at $100+. Based on the pre-discount item subtotal (same basis as the free
- * BAC Water gift), so a promo code never pushes an order back into paying
- * shipping.
+ * Flat shipping fee for an order: $10 under the free-shipping threshold, free
+ * at $75+. Based on the pre-discount item subtotal, so a promo code never pushes
+ * an order back into paying shipping. (The free BAC Water gift is a separate
+ * threshold — $100 — handled in create-crypto-payment.)
  */
 export function shippingFee(gross: number): number {
   return (Number(gross) || 0) >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;

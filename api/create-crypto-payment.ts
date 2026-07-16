@@ -371,7 +371,7 @@ export default async function handler(req: any, res: any) {
     const commissionAmount =
       discount?.kind === "affiliate" ? calcCommission(netAmount, discount.commissionPercent) : null;
 
-    // Flat shipping fee on sub-$100 orders (free at $100+, pre-discount basis —
+    // Flat shipping fee on sub-$75 orders (free at $75+, pre-discount basis —
     // mirrors the free-gift threshold). Commission stays on the merchandise net.
     // The optional Shipping Protection add-on is a flat upcharge folded into the
     // shipping amount, so every downstream total (receipts, admin, store credit)
