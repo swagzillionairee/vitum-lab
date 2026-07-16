@@ -227,7 +227,7 @@ export default function Shop() {
             </span>
             <span className="hidden sm:block opacity-30">|</span>
             <span className="flex items-center gap-1.5 opacity-80">
-              <Truck className="w-3.5 h-3.5" /> 2–3 Day Delivery via USPS Priority Mail
+              <Truck className="w-3.5 h-3.5" /> 2–5 Business-Day Delivery via USPS Ground Advantage
             </span>
             <span className="hidden sm:block opacity-30">|</span>
             <span className="flex items-center gap-1.5 opacity-80">
@@ -280,7 +280,7 @@ export default function Shop() {
               Free Shipping + Free BAC Water
             </h3>
             <p className="text-[0.875rem] opacity-80 mt-1">
-              On all orders over $100. Shipped via USPS Priority Mail padded envelopes.
+              On all orders over $100. Shipped via USPS Ground Advantage padded envelopes.
             </p>
           </div>
           <Link

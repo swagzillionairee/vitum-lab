@@ -28,7 +28,7 @@ const baseNavLinks = [
 // ─── Marquee items ────────────────────────────────────────────────────────────
 const PROMO_ITEMS = [
   "Free shipping + 10mL BAC Water on orders over $100",
-  "2–3 day delivery via USPS Priority Mail",
+  "2–5 business-day delivery via USPS Ground Advantage",
 ];
 
 export default function Navbar() {

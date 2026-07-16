@@ -56,7 +56,7 @@ const faqs = [
   },
   {
     q: "How are orders shipped?",
-    a: "Orders are shipped via USPS Priority Mail® in padded envelopes. East Coast deliveries typically arrive in 2 days; Central and West Coast deliveries typically arrive in 3 days. Delivery times are estimates and not guaranteed.",
+    a: "Orders are shipped via USPS Ground Advantage® in padded envelopes. Most orders arrive in 2–5 business days — about 2 days to the East Coast and up to 5 days to the West Coast (e.g. California). Delivery times are estimates and not guaranteed.",
   },
   {
     q: "Do you offer free shipping?",
@@ -426,7 +426,7 @@ export default function Home() {
                 "COA with Every Batch",
                 "12–24 Hour Dispatch",
                 "US-Based & Tested",
-                "2–3 Day USPS Priority Mail",
+                "2–5 Day USPS Ground Advantage",
               ].map((t) => (
                 <span key={t} className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.01_260)]">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[oklch(0.40_0.16_260)] flex-shrink-0" />
@@ -478,7 +478,7 @@ export default function Home() {
               {
                 icon: <Truck className="w-5 h-5" />,
                 title: "Fast US Shipping",
-                body: "2 days avg. to East Coast, 3 days to Central & West Coast via USPS Priority Mail. Free shipping + BAC Water over $100.",
+                body: "About 2 days to the East Coast, up to 5 to the West Coast (e.g. California) via USPS Ground Advantage. Free shipping + BAC Water over $100.",
               },
             ].map((pillar) => (
               <div key={pillar.title} className="flex items-start gap-4 px-8 py-7">
@@ -572,7 +572,7 @@ export default function Home() {
               {
                 icon: <Truck className="w-6 h-6" />,
                 title: "Fast delivery anywhere in the US",
-                body: "2 days avg. to East Coast, 3 days to Central & West Coast via USPS Priority Mail. Free shipping and a complimentary 10mL BAC Water on orders over $100.",
+                body: "About 2 days to the East Coast, up to 5 to the West Coast (e.g. California) via USPS Ground Advantage. Free shipping and a complimentary 10mL BAC Water on orders over $100.",
                 cta: "Shipping Info",
                 href: "/shipping-policy",
               },

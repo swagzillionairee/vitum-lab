@@ -27,7 +27,7 @@ const values = [
   {
     icon: <Truck className="w-6 h-6" />,
     title: "Researcher-First Logistics",
-    body: "Fast delivery via USPS Priority Mail padded envelopes — 2 days avg. to East Coast, 3 days to Central & West Coast. Free shipping and a complimentary BAC Water on orders over $100.",
+    body: "Fast delivery via USPS Ground Advantage padded envelopes — about 2 days to the East Coast, up to 5 to the West Coast (e.g. California). Free shipping and a complimentary BAC Water on orders over $100.",
   },
 ];
 
@@ -35,13 +35,13 @@ const stats = [
   { value: "≥99%", label: "Minimum purity on all compounds" },
   { value: "100%", label: "Batches independently tested" },
   { value: "5+", label: "Quality checks per batch" },
-  { value: "2–3", label: "Day avg. delivery (East to West Coast)" },
+  { value: "2–5", label: "Business-day delivery (East → West Coast)" },
 ];
 
 export default function About() {
   return (
     <>
-    <SEO title="About" description="Learn about Vitum Lab's mission to supply research-grade peptides with verified purity, transparent COAs, and fast 2–3 day US shipping." />
+    <SEO title="About" description="Learn about Vitum Lab's mission to supply research-grade peptides with verified purity, transparent COAs, and fast 2–5 business-day US shipping via USPS Ground Advantage." />
     <div className="min-h-screen bg-page">
 
       {/* ── Page header ──────────────────────────────────────────────── */}

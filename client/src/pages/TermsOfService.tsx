@@ -28,7 +28,7 @@ export default function TermsOfService() {
 
       <h2>Shipping and Delivery</h2>
       <p>
-        We ship via USPS Priority Mail® in padded envelopes. East Coast deliveries average 2 days; Central and West Coast deliveries average 3 days. Delivery times are estimates and not guaranteed. Risk of loss transfers to the purchaser upon handoff to the carrier. We are not responsible for delays caused by the carrier, customs, or circumstances beyond our control.
+        We ship via USPS Ground Advantage® in padded envelopes. Most orders arrive in 2–5 business days — about 2 days to the East Coast and up to 5 days to the West Coast (e.g. California). Delivery times are estimates and not guaranteed. Risk of loss transfers to the purchaser upon handoff to the carrier. We are not responsible for delays caused by the carrier, customs, or circumstances beyond our control.
       </p>
 
       <h2>Returns and Refunds</h2>

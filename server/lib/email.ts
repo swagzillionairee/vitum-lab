@@ -46,7 +46,7 @@ function orderConfirmedHtml(orderId: string, amount: string, currency: string) {
       </div>
 
       <p style="margin:0 0 28px;font-size:14px;color:#666;line-height:1.65;">
-        You'll receive your tracking information once your order ships. East Coast orders typically arrive in 2 days; Central and West Coast orders in 3 days via USPS Priority Mail.
+        You'll receive your tracking information once your order ships. Most orders arrive in 2–5 business days — about 2 days to the East Coast and up to 5 days to the West Coast (e.g. California) via USPS Ground Advantage.
       </p>
 
       <div style="border-top:1px solid #eee;padding-top:24px;">
