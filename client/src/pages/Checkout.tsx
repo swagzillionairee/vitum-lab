@@ -506,8 +506,8 @@ export default function Checkout() {
                     <img src={item.img} alt={`${item.name} ${item.dose}`} className="w-full h-full object-cover object-top" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[0.8125rem] font-semibold text-[oklch(0.13_0.01_260)] leading-tight truncate">{item.name}</p>
-                    <p className="text-[0.6875rem] text-[oklch(0.52_0.01_260)]">{item.dose} · Qty {item.quantity}</p>
+                    <p className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight truncate">{item.name}</p>
+                    <p className="text-[0.8125rem] text-[oklch(0.42_0.01_260)] mt-0.5">{item.dose} · <span className="font-semibold text-[oklch(0.20_0.01_260)]">Qty {item.quantity}</span></p>
                   </div>
                   <span className="text-[0.8125rem] font-bold text-[oklch(0.13_0.01_260)]">
                     {item.price === 0 ? "Free" : `$${(item.price * item.quantity).toFixed(2)}`}

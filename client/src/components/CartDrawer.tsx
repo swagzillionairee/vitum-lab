@@ -183,10 +183,10 @@ export default function CartDrawer() {
 
                       {/* Details */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-[0.8125rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight truncate">
+                        <p className="text-[0.875rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight truncate">
                           {item.name}
                         </p>
-                        <p className="text-[0.75rem] text-[oklch(0.52_0.01_260)] mb-2">
+                        <p className="text-[0.8125rem] font-medium text-[oklch(0.42_0.01_260)] mb-2">
                           {item.dose}
                         </p>
 
