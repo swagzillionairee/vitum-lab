@@ -61,7 +61,7 @@ const faqCategories = [
     questions: [
       {
         q: "How are orders shipped?",
-        a: "Orders are shipped via USPS Priority Mail® in padded envelopes. East Coast deliveries typically arrive in 2 days; Central and West Coast deliveries typically arrive in 3 days.",
+        a: "Orders are shipped via USPS Ground Advantage® in padded envelopes. Most orders arrive in 2–5 business days — about 2 days to the East Coast and up to 5 days to the West Coast (e.g. California).",
       },
       {
         q: "Do you offer free shipping?",
@@ -73,7 +73,7 @@ const faqCategories = [
       },
       {
         q: "How long does delivery take?",
-        a: "East Coast orders average 2 days; Central and West Coast orders average 3 days via USPS Priority Mail®. Delivery times are estimates and may vary during peak periods or due to carrier delays outside our control.",
+        a: "Most orders arrive in 2–5 business days via USPS Ground Advantage® — about 2 days to the East Coast and up to 5 days to the West Coast (e.g. California). Delivery times are estimates and may vary during peak periods or due to carrier delays outside our control.",
       },
       {
         q: "How is packaging handled for temperature-sensitive compounds?",

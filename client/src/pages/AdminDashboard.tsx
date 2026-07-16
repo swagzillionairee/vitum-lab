@@ -164,10 +164,10 @@ export default function AdminDashboard() {
     orderAction(id, "ship", { tracking_number: tracking.trim(), carrier });
   };
 
-  // Buy a USPS Priority Mail Flat Rate Padded Envelope label via Shippo,
+  // Buy a USPS Ground Advantage label via Shippo,
   // then open the label PDF. On success the order flips to shipped + tracking.
   const handleBuyLabel = async (id: string) => {
-    if (!confirm("Buy a USPS Priority Mail Flat Rate Padded Envelope label for this order via Shippo?")) return;
+    if (!confirm("Buy a USPS Ground Advantage label for this order via Shippo?")) return;
     setOrderBusy(id);
     try {
       const res = await authedFetch("/api/admin/orders", { method: "PATCH", body: JSON.stringify({ id, action: "buy_label" }) });

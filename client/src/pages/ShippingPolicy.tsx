@@ -4,21 +4,21 @@ import SEO from "@/components/SEO";
 export default function ShippingPolicy() {
   return (
     <>
-    <SEO title="Shipping & Returns" description="Vitum Lab shipping policy: USPS Priority Mail padded envelopes, 2-day East Coast / 3-day West Coast delivery, free shipping on orders over $100." />
+    <SEO title="Shipping & Returns" description="Vitum Lab shipping policy: USPS Ground Advantage padded envelopes, 2–5 business-day US delivery, free shipping on orders over $100." />
     <LegalPage title="Shipping Policy" lastUpdated="May 2025">
       <h2>Shipping Method</h2>
       <p>
-        All orders are shipped via <strong>USPS Priority Mail® in padded envelopes</strong>. Orders are processed and shipped on business days and weekends, excluding holidays and special circumstances.
+        All orders are shipped via <strong>USPS Ground Advantage® in padded envelopes</strong>. Orders are processed and shipped on business days and weekends, excluding holidays and special circumstances.
       </p>
 
       <h2>Estimated Delivery Times</h2>
       <p>
-        Delivery times are averages based on USPS Priority Mail® transit times and are not guaranteed:
+        Delivery times are averages based on USPS Ground Advantage® transit times and are not guaranteed. Most orders arrive in 2–5 business days:
       </p>
       <ul>
         <li><strong>East Coast</strong> — approximately 2 business days</li>
-        <li><strong>Central US</strong> — approximately 3 business days</li>
-        <li><strong>West Coast</strong> — approximately 3 business days</li>
+        <li><strong>Central US</strong> — approximately 3–4 business days</li>
+        <li><strong>West Coast</strong> — up to 5 business days (e.g. California)</li>
       </ul>
       <p>
         Delivery times are estimates provided by USPS and are not guaranteed by Vitum Lab. Delays may occur during peak periods or due to carrier circumstances outside our control.

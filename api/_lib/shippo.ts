@@ -2,11 +2,27 @@
  * shippo.ts — USPS labels + tracking via Shippo.
  * The token (SHIPPO_API_KEY) decides test vs live mode, so no code change is
  * needed to go live — a test key returns SAMPLE labels + test tracking.
- * Everything ships as USPS Priority Mail Flat Rate Padded Envelope, so the
- * parcel/service is hard-coded (no per-order weight/dimension entry).
+ * Everything ships as USPS Ground Advantage in a padded mailer. Ground Advantage
+ * is priced by weight + zone (not flat rate), so the parcel dimensions + weight
+ * (GA_PARCEL below) are sent to Shippo — tune them to your real average package.
  */
 
 const SHIPPO_API = "https://api.goshippo.com";
+
+// Default parcel for a padded mailer of research vials. USPS Ground Advantage
+// prices by weight + zone (unlike the old Priority flat-rate envelope), so real
+// dimensions + weight are used. Under 1 lb and ~119 in³, which stays below the
+// dimensional-weight threshold, so actual weight governs the rate.
+// ⚠️ Set `weight` to your true average package weight — USPS can bill an
+// adjustment (or refund) if the declared weight is off.
+const GA_PARCEL = {
+  length: "12.5",
+  width: "9.5",
+  height: "1",
+  distance_unit: "in",
+  weight: "8", // ounces (must be < 16 for the under-1-lb rate)
+  mass_unit: "oz",
+};
 
 export interface ShippoAddress {
   name?: string; line1?: string; line2?: string; city?: string;
@@ -55,8 +71,8 @@ function headers() {
 }
 
 /**
- * Buy a USPS Priority Mail Flat Rate Padded Envelope label for an order's
- * shipping address. Returns tracking number + label PDF URL.
+ * Buy a USPS Ground Advantage label for an order's shipping address.
+ * Returns tracking number + label PDF URL.
  */
 export async function buyLabel(order: { email: string; shipping_address?: ShippoAddress | null }): Promise<LabelResult> {
   const a = order.shipping_address;
@@ -74,15 +90,15 @@ export async function buyLabel(order: { email: string; shipping_address?: Shippo
     email: order.email || "",
   };
 
-  // 1. Create the shipment (flat-rate padded envelope template; weight is
-  //    required by Shippo even though flat rate ignores it for pricing).
+  // 1. Create the shipment. Ground Advantage is weight/zone priced, so send the
+  //    real parcel dimensions + weight (GA_PARCEL) rather than a flat-rate template.
   const shipRes = await fetch(`${SHIPPO_API}/shipments/`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({
       address_from: fromAddress(),
       address_to,
-      parcels: [{ template: "USPS_FlatRatePaddedEnvelope", weight: "8", mass_unit: "oz" }],
+      parcels: [GA_PARCEL],
       async: false,
     }),
   });
@@ -91,7 +107,7 @@ export async function buyLabel(order: { email: string; shipping_address?: Shippo
 
   const rates: { object_id: string; provider?: string; servicelevel?: { token?: string; name?: string } }[] = shipment.rates ?? [];
   const rate =
-    rates.find((r) => (r.provider || "").toUpperCase() === "USPS" && /priority/i.test(r.servicelevel?.token || r.servicelevel?.name || "")) ||
+    rates.find((r) => (r.provider || "").toUpperCase() === "USPS" && /ground_advantage|ground advantage/i.test(r.servicelevel?.token || r.servicelevel?.name || "")) ||
     rates.find((r) => (r.provider || "").toUpperCase() === "USPS") ||
     rates[0];
   if (!rate) throw new Error("Shippo returned no USPS rate for this address");

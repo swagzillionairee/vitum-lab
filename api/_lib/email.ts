@@ -322,7 +322,7 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
           pill("✓ Payment Confirmed", "#edfaf3", "#1a7a4a") +
           heading("Your order is confirmed", "Thank you for your Vitum Lab order. Your payment has been confirmed and your order is now being processed for shipment.") +
           orderBox(order, images) + addressBox(order.shipping_address) +
-          `<p style="margin:0 0 4px;font-size:14px;color:#666;line-height:1.65;">You'll receive tracking information once your order ships. East Coast orders typically arrive in 2 days; Central and West Coast orders in 3 days via USPS Priority Mail.</p>`,
+          `<p style="margin:0 0 4px;font-size:14px;color:#666;line-height:1.65;">You'll receive tracking information once your order ships. Most orders arrive in 2–5 business days — about 2 days to the East Coast and up to 5 days to the West Coast (e.g. California) via USPS Ground Advantage.</p>`,
         ),
       };
     case "shipped": {
@@ -332,7 +332,7 @@ function buildOrderEmail(order: EmailOrder, event: OrderEmailEvent, opts?: { inv
         subject: `Your order has shipped — ${shortId}`,
         html: layout(
           pill("📦 Shipped", "#eaf1fd", "#2c5fdb") +
-          heading("Your order is on the way", `Your order shipped via ${esc(order.carrier || "USPS")}${order.tracking_number ? ` — tracking number <span style="font-family:monospace;font-weight:700;color:#0f1a2e;">${esc(order.tracking_number)}</span>` : ""}. East Coast orders typically arrive in 2 days; Central and West Coast in 3 days.`) +
+          heading("Your order is on the way", `Your order shipped via ${esc(order.carrier || "USPS")}${order.tracking_number ? ` — tracking number <span style="font-family:monospace;font-weight:700;color:#0f1a2e;">${esc(order.tracking_number)}</span>` : ""}. Most orders arrive in 2–5 business days — about 2 days to the East Coast and up to 5 days to the West Coast (e.g. California).`) +
           button("Track Your Package", track) +
           orderBox(order, images) + addressBox(order.shipping_address),
         ),

@@ -718,7 +718,7 @@ export default function Checkout() {
                 <ShieldCheck className="w-3 h-3" /> ≥99% Purity
               </span>
               <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.625rem] font-bold bg-[oklch(0.96_0.03_245)] text-[oklch(0.42_0.14_245)] dark:bg-[oklch(0.22_0.05_245)] dark:text-[oklch(0.82_0.12_245)]">
-                <Truck className="w-3 h-3" /> USPS 2–3 day
+                <Truck className="w-3 h-3" /> USPS 2–5 days
               </span>
               <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.625rem] font-bold bg-[oklch(0.96_0.03_290)] text-[oklch(0.44_0.15_290)] dark:bg-[oklch(0.24_0.06_290)] dark:text-[oklch(0.84_0.13_290)]">
                 <Check className="w-3 h-3" /> COA included
