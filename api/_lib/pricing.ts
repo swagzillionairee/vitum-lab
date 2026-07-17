@@ -79,6 +79,24 @@ export function promoAlreadyRedeemed(
   );
 }
 
+/**
+ * How many times this customer has redeemed this code among the given orders —
+ * used to enforce a promo's per-customer usage limit (a code allows up to
+ * per_customer_limit uses per account; 1 = the classic one-use-per-customer).
+ */
+export function promoRedemptionCount(
+  priorOrders: { email?: string | null; discount_code?: string | null }[],
+  email: string,
+  code: string,
+): number {
+  const e = (email ?? "").trim().toLowerCase();
+  const c = (code ?? "").trim().toUpperCase();
+  if (!e || !c) return 0;
+  return priorOrders.filter(
+    (o) => (o.email ?? "").trim().toLowerCase() === e && (o.discount_code ?? "").trim().toUpperCase() === c,
+  ).length;
+}
+
 export interface PromoRecord {
   is_active?: boolean;
   starts_at?: string | null;

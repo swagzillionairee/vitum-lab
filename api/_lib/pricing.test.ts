@@ -9,6 +9,7 @@ import {
   isSitewideActive,
   sitewideSalePrice,
   promoAlreadyRedeemed,
+  promoRedemptionCount,
   quantityDiscountPercent,
   computeStackedDiscounts,
   shippingFee,
@@ -217,5 +218,28 @@ describe("promoAlreadyRedeemed (one use per customer)", () => {
     expect(promoAlreadyRedeemed([], "buyer@example.com", "SPRING20")).toBe(false);
     expect(promoAlreadyRedeemed(orders, "", "SPRING20")).toBe(false);
     expect(promoAlreadyRedeemed(orders, "buyer@example.com", "")).toBe(false);
+  });
+});
+
+describe("promoRedemptionCount (per-customer usage limit)", () => {
+  const orders = [
+    { email: "Buyer@Example.com", discount_code: "SPRING20" },
+    { email: "buyer@example.com", discount_code: "spring20" },
+    { email: "buyer@example.com", discount_code: "WELCOME10" },
+    { email: "other@example.com", discount_code: "SPRING20" },
+  ];
+  it("counts this customer's uses of the code, case-insensitively", () => {
+    expect(promoRedemptionCount(orders, "buyer@example.com", "SPRING20")).toBe(2);
+    expect(promoRedemptionCount(orders, "BUYER@EXAMPLE.COM", "spring20")).toBe(2);
+  });
+  it("is scoped to the specific customer + code", () => {
+    expect(promoRedemptionCount(orders, "buyer@example.com", "WELCOME10")).toBe(1);
+    expect(promoRedemptionCount(orders, "other@example.com", "SPRING20")).toBe(1);
+    expect(promoRedemptionCount(orders, "new@example.com", "SPRING20")).toBe(0);
+  });
+  it("is 0 for empty inputs", () => {
+    expect(promoRedemptionCount([], "buyer@example.com", "SPRING20")).toBe(0);
+    expect(promoRedemptionCount(orders, "", "SPRING20")).toBe(0);
+    expect(promoRedemptionCount(orders, "buyer@example.com", "")).toBe(0);
   });
 });

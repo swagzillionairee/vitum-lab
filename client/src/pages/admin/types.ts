@@ -73,6 +73,7 @@ export interface PromoRow {
   min_subtotal: number;
   max_uses: number | null;
   used_count: number;
+  per_customer_limit: number;
   starts_at: string | null;
   expires_at: string | null;
   is_active: boolean;

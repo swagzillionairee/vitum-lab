@@ -446,7 +446,7 @@ function ReferralProgramCard() {
 // ─── Promo codes ───────────────────────────────────────────────────────────────
 export default function PromosTab() {
   const [promos, setPromos] = useState<PromoRow[] | null>(null);
-  const [promoForm, setPromoForm] = useState({ code: "", percent_off: "", min_subtotal: "", max_uses: "", starts_at: "", expires_at: "" });
+  const [promoForm, setPromoForm] = useState({ code: "", percent_off: "", min_subtotal: "", max_uses: "", per_customer_limit: "1", starts_at: "", expires_at: "" });
   const [promoSaving, setPromoSaving] = useState(false);
   const [promoFormError, setPromoFormError] = useState("");
 
@@ -472,6 +472,7 @@ export default function PromosTab() {
         percent_off: pct,
         min_subtotal: promoForm.min_subtotal ? Number(promoForm.min_subtotal) : 0,
         max_uses: promoForm.max_uses ? Number(promoForm.max_uses) : null,
+        per_customer_limit: promoForm.per_customer_limit === "" ? 1 : Math.max(0, Math.floor(Number(promoForm.per_customer_limit))),
         starts_at: promoForm.starts_at ? new Date(`${promoForm.starts_at}T00:00:00`).toISOString() : null,
         // End-of-day LOCAL (same as the site-wide sale): a bare "YYYY-MM-DD"
         // parses as UTC midnight, which killed codes the evening before the
@@ -481,7 +482,7 @@ export default function PromosTab() {
     });
     setPromoSaving(false);
     if (!res.ok) { setPromoFormError((await res.json().catch(() => ({}))).error ?? "Failed to create promo"); return; }
-    setPromoForm({ code: "", percent_off: "", min_subtotal: "", max_uses: "", starts_at: "", expires_at: "" });
+    setPromoForm({ code: "", percent_off: "", min_subtotal: "", max_uses: "", per_customer_limit: "1", starts_at: "", expires_at: "" });
     loadPromos();
   };
 
@@ -512,7 +513,9 @@ export default function PromosTab() {
           <h2 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)]">Promo Codes</h2>
         </div>
         <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] mb-5">
-          General discount codes (separate from affiliate codes). Limited to one use per customer; usage counts when an order is paid.
+          General discount codes (separate from affiliate codes). Set how many times each customer can use a code
+          (<span className="font-semibold">Uses / customer</span> — 0 = unlimited); usage counts when an order is paid.
+          Deleting and recreating a code resets its per-customer usage for everyone.
         </p>
 
         {/* Create form */}
@@ -532,6 +535,10 @@ export default function PromosTab() {
           <Field label="Max Uses">
             <input type="number" min={1} value={promoForm.max_uses}
               onChange={(e) => setPromoForm((f) => ({ ...f, max_uses: e.target.value }))} placeholder="∞" className="input-sm w-24" />
+          </Field>
+          <Field label="Uses / customer">
+            <input type="number" min={0} value={promoForm.per_customer_limit}
+              onChange={(e) => setPromoForm((f) => ({ ...f, per_customer_limit: e.target.value }))} placeholder="1" className="input-sm w-28" />
           </Field>
           <Field label="Starts">
             <input type="date" value={promoForm.starts_at}
@@ -561,6 +568,7 @@ export default function PromosTab() {
                   <th className="py-2 pr-4">% Off</th>
                   <th className="py-2 pr-4">Min Subtotal</th>
                   <th className="py-2 pr-4">Uses</th>
+                  <th className="py-2 pr-4">Per customer</th>
                   <th className="py-2 pr-4">Expires</th>
                   <th className="py-2 pr-4">Status</th>
                   <th className="py-2 text-right">Actions</th>
@@ -577,6 +585,7 @@ export default function PromosTab() {
                       <td className="py-3 pr-4">{p.percent_off}%</td>
                       <td className="py-3 pr-4">{Number(p.min_subtotal) > 0 ? money(Number(p.min_subtotal)) : "—"}</td>
                       <td className="py-3 pr-4">{p.used_count}{p.max_uses != null ? ` / ${p.max_uses}` : ""}</td>
+                      <td className="py-3 pr-4">{p.per_customer_limit === 0 ? "∞" : `${p.per_customer_limit ?? 1}×`}</td>
                       <td className="py-3 pr-4 text-[0.8125rem] text-[oklch(0.52_0.01_260)]">{p.expires_at ? new Date(p.expires_at).toLocaleDateString() : "—"}</td>
                       <td className="py-3 pr-4">
                         <span className={`px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold ${

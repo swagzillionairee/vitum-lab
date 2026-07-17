@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
-import { promoAlreadyRedeemed } from "./_lib/pricing.js";
+import { promoRedemptionCount } from "./_lib/pricing.js";
 import { getRewardConfig } from "./_lib/credit.js";
 import { requireUser } from "./_lib/requireUser.js";
 
@@ -84,7 +84,7 @@ export default async function handler(req: any, res: any) {
 
     const { data: promo } = await supabaseAdmin
       .from("promo_codes")
-      .select("percent_off, min_subtotal, max_uses, used_count, starts_at, expires_at, is_active")
+      .select("percent_off, min_subtotal, max_uses, used_count, starts_at, expires_at, is_active, created_at, per_customer_limit")
       .eq("code", normalized)
       .maybeSingle();
 
@@ -102,15 +102,25 @@ export default async function handler(req: any, res: any) {
         });
         return;
       }
-      // One use per customer — reject if this email already redeemed it (paid).
-      const { data: prior } = await supabaseAdmin
-        .from("orders")
-        .select("email, discount_code")
-        .ilike("discount_code", normalized)
-        .in("status", ["confirmed", "finished"]);
-      if (promoAlreadyRedeemed(prior ?? [], email, normalized)) {
-        res.status(400).json({ valid: false, error: "You've already used this code — it's limited to one use per customer." });
-        return;
+      // Per-customer usage cap (default 1; 0 = unlimited). Counted only since the
+      // promo's created_at, so deleting + recreating the code resets it.
+      const perCustomerLimit = promo.per_customer_limit == null ? 1 : Number(promo.per_customer_limit);
+      if (perCustomerLimit > 0) {
+        const { data: prior } = await supabaseAdmin
+          .from("orders")
+          .select("email, discount_code")
+          .ilike("discount_code", normalized)
+          .in("status", ["confirmed", "finished"])
+          .gte("created_at", promo.created_at ?? "1970-01-01T00:00:00Z");
+        if (promoRedemptionCount(prior ?? [], email, normalized) >= perCustomerLimit) {
+          res.status(400).json({
+            valid: false,
+            error: perCustomerLimit === 1
+              ? "You've already used this code — it's limited to one use per customer."
+              : `You've reached the ${perCustomerLimit}-use limit for this code.`,
+          });
+          return;
+        }
       }
       res.status(200).json({ valid: true, discountPct: promo.percent_off });
       return;
