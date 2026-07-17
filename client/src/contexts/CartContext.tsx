@@ -43,7 +43,7 @@ const FREE_BAC_WATER: Omit<CartItem, "quantity"> = {
   name: "BAC Water (Free Gift)",
   dose: "10 ML",
   price: 0,
-  img: "/BAC%20WATER%2010ML%20PRODUCT%20PIC.png",
+  img: "/BAC%20WATER%2010ML%20PRODUCT%20PIC.webp",
   cartCode: "bac-water-free",
   isFreeGift: true,
 };

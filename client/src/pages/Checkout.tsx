@@ -155,6 +155,13 @@ export default function Checkout() {
   // config via /api/public/site. `payMethod` is the selected tile.
   const [payments, setPayments] = useState<PaymentsCfg | null>(null);
   const [payMethod, setPayMethod] = useState<PayMethod>("crypto");
+  // Server config can offer Square while the client can't tokenize (missing
+  // VITE_ vars, SDK blocked). Detect the config gap synchronously and SDK
+  // failures via SquareCardBox.onUnavailable — then drop the Card tile instead
+  // of showing a dead form.
+  const [squareUnavailable, setSquareUnavailable] = useState(
+    () => !import.meta.env.VITE_SQUARE_APPLICATION_ID || !import.meta.env.VITE_SQUARE_LOCATION_ID,
+  );
   const [sale, setSale] = useState<Sitewide | null>(null);
   const [now, setNow] = useState(() => Date.now());
   // Post-order "send your payment" modal for the manual methods.
@@ -172,9 +179,10 @@ export default function Checkout() {
         const p = d.payments as PaymentsCfg | undefined;
         if (p) {
           setPayments(p);
-          // Default to the first enabled method (Square first, crypto last).
+          // Default to the first enabled method (Square first, crypto last) —
+          // skipping Square when the client can't tokenize.
           const first = (["square", "zelle", "cashapp", "venmo", "ach", "crypto"] as PayMethod[])
-            .find((m) => isMethodEnabled(p, m));
+            .find((m) => isMethodEnabled(p, m) && !(m === "square" && squareUnavailable));
           if (first) setPayMethod(first);
         }
       })
@@ -399,10 +407,20 @@ export default function Checkout() {
   const inputClass = `${inputBase} w-full`;
   const labelClass = "block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)] mb-1.5";
 
-  // Enabled methods in tile order.
+  // Enabled methods in tile order (Card drops out if the client can't tokenize).
   const enabledMethods = (["square", "zelle", "cashapp", "venmo", "ach", "crypto"] as PayMethod[])
-    .filter((m) => isMethodEnabled(payments, m));
+    .filter((m) => isMethodEnabled(payments, m) && !(m === "square" && squareUnavailable));
   const saleActive = !!sale?.active && (!saleEndsAt || saleEndsAt > now);
+
+  // If Square dies after being selected (SDK failed to load), fall over to the
+  // next available method rather than leaving a selected tile that no longer exists.
+  useEffect(() => {
+    if (squareUnavailable && payMethod === "square") {
+      const next = enabledMethods.find((m) => m !== "square");
+      if (next) setPayMethod(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [squareUnavailable, payMethod]);
 
   // The pay buttons are disabled until the research-use box is ticked — say why,
   // instead of showing a dead button (only the Card method had this hint before).
@@ -536,7 +554,7 @@ export default function Checkout() {
               {items.map((item) => (
                 <div key={item.id} className="flex gap-3 items-center">
                   <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0" style={{ backgroundColor: "#f0f0f0" }}>
-                    <img src={item.img} alt={`${item.name} ${item.dose}`} className="w-full h-full object-cover object-top" />
+                    <img src={item.img} alt={`${item.name} ${item.dose}`} loading="lazy" decoding="async" className="w-full h-full object-cover object-top" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[0.9375rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight truncate">{item.name}</p>
@@ -702,7 +720,7 @@ export default function Checkout() {
                 {payMethod === "square" && (
                   <div className="space-y-3">
                     {attested ? (
-                      <SquareCardBox amountDue={total} disabled={busy || !attested} busy={busy} onPay={(t) => handlePay(t)} onError={setError} />
+                      <SquareCardBox amountDue={total} disabled={busy || !attested} busy={busy} onPay={(t) => handlePay(t)} onError={setError} onUnavailable={() => setSquareUnavailable(true)} />
                     ) : (
                       <p className="text-[0.75rem] text-[oklch(0.52_0.01_260)] text-center py-2">Confirm the acknowledgment above to enter your card.</p>
                     )}

@@ -36,12 +36,16 @@ function loadSquareSdk(): Promise<any> {
   return sdkPromise;
 }
 
-export default function SquareCardBox({ disabled, busy, onPay, onError }: {
+export default function SquareCardBox({ disabled, busy, onPay, onError, onUnavailable }: {
   amountDue: number;
   disabled: boolean;
   busy: boolean;
   onPay: (squareToken: string) => void;
   onError: (msg: string) => void;
+  /** Called when the card form can never become ready (missing client config /
+   *  SDK load failure) — lets the checkout drop the Card tile instead of
+   *  showing a dead form. */
+  onUnavailable?: () => void;
 }) {
   const cardRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,7 +56,11 @@ export default function SquareCardBox({ disabled, busy, onPay, onError }: {
 
   useEffect(() => {
     mounted.current = true;
-    if (!APP_ID || !LOCATION_ID) { setInitError("Card payments aren't configured yet."); return; }
+    if (!APP_ID || !LOCATION_ID) {
+      setInitError("Card payments aren't configured yet.");
+      onUnavailable?.();
+      return;
+    }
     let card: any = null;
     (async () => {
       try {
@@ -66,7 +74,10 @@ export default function SquareCardBox({ disabled, busy, onPay, onError }: {
         setReady(true);
       } catch (e) {
         console.error("Square init failed:", e);
-        if (mounted.current) setInitError("Couldn't load the secure card form. Please refresh or choose another method.");
+        if (mounted.current) {
+          setInitError("Couldn't load the secure card form. Please refresh or choose another method.");
+          onUnavailable?.();
+        }
       }
     })();
     return () => {

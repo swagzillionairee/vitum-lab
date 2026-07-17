@@ -26,14 +26,18 @@ const baseNavLinks = [
 ];
 
 // ─── Marquee items ────────────────────────────────────────────────────────────
-const PROMO_ITEMS = [
-  "Free shipping on orders over $75",
-  "Free 10mL BAC Water on orders over $100",
-  "2–5 business-day delivery via USPS Ground Advantage",
+// The compliance line rides in the marquee on mobile (mobileOnly) so the header
+// stack is two bars instead of three; on md+ it has its own dedicated bar.
+const PROMO_ITEMS: { text: string; mobileOnly?: boolean }[] = [
+  { text: "Free shipping on orders over $75" },
+  { text: "Free 10mL BAC Water on orders over $100" },
+  { text: "2–5 business-day delivery via USPS Ground Advantage" },
+  { text: "Research use only — not for human consumption", mobileOnly: true },
 ];
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [marqueePaused, setMarqueePaused] = useState(false);
   const [location] = useLocation();
   const { totalItems, openCart } = useCart();
   const { theme, toggleTheme } = useTheme();
@@ -63,7 +67,9 @@ export default function Navbar() {
       <SaleBanner />
 
       {/* ── Promotional marquee banner ────────────────────────────────── */}
-      <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden">
+      {/* Tap toggles pause (hover already pauses) — moving content needs a stop
+          affordance on touch devices too (WCAG 2.2.2). */}
+      <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden" onClick={() => setMarqueePaused((p) => !p)}>
         <div className="flex items-center">
           {/* Scrolling marquee */}
           <div className="flex-1 overflow-hidden relative py-2">
@@ -71,13 +77,13 @@ export default function Navbar() {
             <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[oklch(0.35_0.15_260)] to-transparent z-10 pointer-events-none" />
             <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[oklch(0.35_0.15_260)] to-transparent z-10 pointer-events-none" />
 
-            <div className="marquee-track whitespace-nowrap">
+            <div className={`marquee-track whitespace-nowrap ${marqueePaused ? "paused" : ""}`}>
               {/* Render 6 copies of the items for a seamless loop */}
               {[...Array(6)].map((_, i) => (
                 <span key={i} className="marquee-content inline-flex items-center" aria-hidden={i > 0}>
                   {PROMO_ITEMS.map((item, j) => (
-                    <span key={j} className="inline-flex items-center">
-                      <span className="text-[0.75rem] font-semibold tracking-wide">{item}</span>
+                    <span key={j} className={`${item.mobileOnly ? "md:hidden " : ""}inline-flex items-center`}>
+                      <span className="text-[0.75rem] font-semibold tracking-wide">{item.text}</span>
                       <span className="mx-10 text-white/40 text-[0.75rem]">·</span>
                     </span>
                   ))}
@@ -88,8 +94,8 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* ── Compliance bar ────────────────────────────────────────────── */}
-      <div className="bg-[oklch(0.14_0.03_260)] text-white text-center py-1.5 px-4">
+      {/* ── Compliance bar (md+ — on mobile the line rides in the marquee) ── */}
+      <div className="hidden md:block bg-[oklch(0.14_0.03_260)] text-white text-center py-1.5 px-4">
         <p className="text-[0.625rem] font-medium tracking-widest uppercase text-white/70">
           Research Use Only — Not for Human Consumption
         </p>
@@ -101,8 +107,10 @@ export default function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 flex-shrink-0">
             <img
-              src="/vitum%20lab%20logo%20black.png"
+              src="/vitum%20lab%20logo%20black.webp"
               alt="Vitum Lab"
+              width={512}
+              height={512}
               className="h-14 w-auto dark:invert"
             />
           </Link>
