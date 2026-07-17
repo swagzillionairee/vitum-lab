@@ -125,7 +125,7 @@ supabase/migrations/  SQL migrations
 
 **Three methods, one checkout, server-authoritative pricing** — the server always charges/records the exact server-computed `amountDue` (stacked discounts + store credit intact), never a client price. Which methods appear is driven by `store_settings.payment_config`, surfaced (no client rebuild) via `/api/public/site` → `payments` (`buildPayments`).
 
-**Checkout method selector (`Checkout.tsx`):** **Card (Square) · Zelle · Cash App · Venmo · Bank transfer (ACH) · Crypto.** A tile shows only when offered: **Square** when enabled AND the server has credentials (`squareConfigured()`); a **manual** method when enabled AND it has a handle; **crypto** defaults on. Handles + instructions come from `payment_config` (Admin → Payments).
+**Checkout method selector (`Checkout.tsx`):** **Card (Square) · Zelle · Cash App · Venmo · Bank transfer (ACH) · Crypto.** A tile shows only when offered: **Square** when enabled AND the server has credentials (`squareConfigured()`); a **manual** method when enabled AND it has a handle; **crypto** defaults on. Handles + instructions come from `payment_config` (Admin → Payments). The tiles are **brand-coloured per method** (`METHOD_STYLE`); the **Card** tile shows accepted-card marks (Visa/Mastercard/Amex/Apple Pay/G Pay, inline SVG — CSP-safe). The order summary has a green **free-shipping progress bar**, pastel trust chips, and an optional **Shipping Protection** checkbox (see Product Variants).
 
 **1. Square (live cards).** `SquareCardBox.tsx` tokenizes the card in-browser with the Web Payments SDK (raw PAN never touches our server) → single-use `squareToken` (`source_id`). The server (`chargeSquare` in `_lib/square.ts`) charges the exact `amountDue` (cents) via the Square Payments API, idempotency-keyed on the order id, `autocomplete:true`. Confirms **only** on a `COMPLETED` capture (refuses a bare `APPROVED` hold); decline codes map to customer-safe copy. **Synchronous — no webhook.**
 
@@ -157,7 +157,7 @@ supabase/migrations/  SQL migrations
 | `nad-500mg` | $129 | stock = 0 |
 | `bac-water-10ml` | $15 | |
 
-Free gift `bac-water-free` ($0) auto-added when subtotal ≥ $100 — **capped at qty 1** (CartContext pins it). Skip stock checks for it. Flat **$15 shipping**, free at **$100+** (`SHIPPING_FEE`/`FREE_SHIPPING_THRESHOLD` — server `_lib/pricing.ts` + client `lib/discounts.ts` mirror; pre-discount basis).
+Free gift `bac-water-free` ($0) auto-added when subtotal ≥ **$100** (`FREE_GIFT_THRESHOLD`) — **capped at qty 1** (CartContext pins it). Skip stock checks for it. Flat **$10 shipping**, free at **$75+** (`SHIPPING_FEE`/`FREE_SHIPPING_THRESHOLD` — server `_lib/pricing.ts` + client `lib/discounts.ts` mirror; pre-discount basis). **Free shipping ($75) and the free gift ($100) are separate thresholds.** Optional **Shipping Protection** add-on (`SHIPPING_PROTECTION_FEE` $15) folds into `shipping_amount` at checkout (lost/stolen replacement).
 
 ---
 
@@ -166,7 +166,7 @@ Free gift `bac-water-free` ($0) auto-added when subtotal ≥ $100 — **capped a
 **Project ID:** `mddgtvwcwsmlbwiafdvq` (us-west-2)
 
 - `inventory(cart_code PK, stock INT CHECK ≥0, is_active BOOL, updated_at)` — availability is **stock-driven** (`stock=0` disables Add to Cart). `is_active` retained but unused.
-- `orders(id PK, email, items JSONB, shipping_address JSONB, gross_amount, discount_amount, net_amount, shipping_amount, discount_code, discount_breakdown JSONB, credit_applied, referral_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed/cancelled, payment_method (crypto|square|zelle|cashapp|venmo|ach|null), fulfillment_status CHECK IN unfulfilled/shipped/delivered, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, confirmed_at, created_at, emails_sent JSONB)` — `status` = payment lifecycle, `fulfillment_status` = shipping (orthogonal), `payment_method` drives the admin Mark-Paid flow + the method-aware auto-expiry. `emails_sent` = `{event: ISO ts}` idempotency log.
+- `orders(id PK, email, items JSONB, shipping_address JSONB, gross_amount, discount_amount, net_amount, shipping_amount, discount_code, discount_breakdown JSONB, credit_applied, referral_code, affiliate_id, commission_amount, status CHECK IN pending/confirmed/finished/failed/cancelled, payment_method (crypto|square|zelle|cashapp|venmo|ach|null), fulfillment_status CHECK IN unfulfilled/shipped/delivered, tracking_number, carrier, label_url, shipped_at, delivered_at, cancelled_at, cancel_reason, admin_notes, pay_currency, pay_amount, payment_id, confirmed_at, created_at, emails_sent JSONB)` — `status` = payment lifecycle, `fulfillment_status` = shipping (orthogonal), `payment_method` drives the admin Mark-Paid flow + the method-aware auto-expiry. `shipping_amount` = shipping fee **plus** any opted-in Shipping Protection (no separate column). `emails_sent` = `{event: ISO ts}` idempotency log.
 - `affiliates(id UUID PK, user_id→auth.users, code UNIQUE, discount_percent, commission_percent, name, email, created_at)`
 - `affiliate_payouts(id UUID PK, affiliate_id→affiliates, amount>0, note, created_at)` — owed = Σ commission on paid orders − Σ payouts.
 - `promo_codes(id UUID PK, code UNIQUE, percent_off 1-100, min_subtotal, max_uses NULL=∞, used_count, per_customer_limit (default 1, 0=∞), starts_at, expires_at, is_active, created_at)` — **per-customer usage cap** = `per_customer_limit` (`promoRedemptionCount`, counting paid orders since the promo's `created_at`; affiliate codes unlimited). Deleting a code clears its `discount_redemptions`, and the historical scan is bounded by `created_at`, so **delete+recreate resets the limit for everyone**. `used_count` bumps on confirmation via `increment_promo_use`.
@@ -225,6 +225,10 @@ VITE_GOOGLE_MAPS_API_KEY=           # optional — Places autocomplete at checko
 - Dark mode: `class` strategy via `ThemeContext`; `.dark` overrides in `client/src/index.css` target specific oklch values.
 - Dark section headers (`bg-[oklch(0.13_0.01_260)]`) intentionally stay dark — no `dark:` override.
 - Active/selected pills use `dark:bg-[oklch(0.40_0.16_260)]` cobalt blue.
+- **Soft pastel canvas:** the global `--background` is a barely-tinted lavender-white (`oklch(0.985 0.009 265)`); `.bg-page` (with its `.dark` override) is applied to storefront page roots. Reusable pastel tint utilities in `index.css` — `.bg-tint-lav/mint/peach/rose/sky` + `.page-hero-tint` — colour section/hero backgrounds without hard-coding literals per component.
+- **Legibility:** `.font-bold` is overridden to `font-weight:800` site-wide (heavier headers), and the muted-grey text tokens were darkened (e.g. `oklch(0.42/0.52/0.55/0.60 …)`) for contrast. Checkout item names use `text-[0.9375rem] font-bold`; dose/qty use `text-[0.8125rem]` with the Qty count emphasised.
+- **Checkout method tiles** are brand-coloured via the `METHOD_STYLE` map in `Checkout.tsx` (square=indigo, zelle=purple, cashapp=green, venmo=blue, ach=teal, crypto=bitcoin-orange); the Card tile renders inline-SVG accepted-card marks (`CardBrands()`, forced light via `bg-[oklch(1_0_0)]` so the dark override can't invert them).
+- **Favicon:** the browser-tab icon is the full Vitum Lab logo (monogram + wordmark) on white — `client/public/favicon.ico` + `favicon-16x16.png`/`favicon-32x32.png`/`apple-touch-icon.png`, linked in `client/index.html` (`theme-color #ffffff`).
 
 ---
 
