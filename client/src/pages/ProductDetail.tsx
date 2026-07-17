@@ -196,7 +196,8 @@ export default function ProductDetail() {
           </div>
 
           {/* ── Product info ──────────────────────────────────────────── */}
-          <div className="lg:sticky lg:top-24">
+          {/* top-44 clears the full sticky header stack (marquee + compliance bar + nav ≈ 125px+) */}
+          <div className="lg:sticky lg:top-44">
 
             {/* Category + badge */}
             <div className="flex items-center gap-2 mb-3">
@@ -378,13 +379,15 @@ export default function ProductDetail() {
             <div className="border-t border-[oklch(0.91_0.004_260)]">
               <button
                 onClick={() => setSpecsOpen(!specsOpen)}
+                aria-expanded={specsOpen}
+                aria-controls="pdp-specs"
                 className="w-full flex items-center justify-between py-4 text-left"
               >
                 <span className="text-[0.9375rem] font-semibold text-[oklch(0.13_0.01_260)]">Specifications</span>
                 {specsOpen ? <ChevronUp className="w-4 h-4 text-[oklch(0.52_0.01_260)]" /> : <ChevronDown className="w-4 h-4 text-[oklch(0.52_0.01_260)]" />}
               </button>
               {specsOpen && (
-                <div className="pb-4">
+                <div id="pdp-specs" className="pb-4">
                   <table className="w-full text-[0.875rem]">
                     <tbody>
                       {product.specs.map((s) => (
@@ -403,13 +406,15 @@ export default function ProductDetail() {
             <div className="border-t border-[oklch(0.91_0.004_260)]">
               <button
                 onClick={() => setStorageOpen(!storageOpen)}
+                aria-expanded={storageOpen}
+                aria-controls="pdp-storage"
                 className="w-full flex items-center justify-between py-4 text-left"
               >
                 <span className="text-[0.9375rem] font-semibold text-[oklch(0.13_0.01_260)]">Storage & Handling</span>
                 {storageOpen ? <ChevronUp className="w-4 h-4 text-[oklch(0.52_0.01_260)]" /> : <ChevronDown className="w-4 h-4 text-[oklch(0.52_0.01_260)]" />}
               </button>
               {storageOpen && (
-                <div className="pb-4 space-y-2">
+                <div id="pdp-storage" className="pb-4 space-y-2">
                   <p className="text-[0.875rem] text-[oklch(0.40_0.01_260)] leading-relaxed">{product.storageInstructions}</p>
                   {product.reconstitutionNote && (
                     <p className="text-[0.875rem] text-[oklch(0.40_0.01_260)] leading-relaxed">
@@ -425,13 +430,15 @@ export default function ProductDetail() {
             <div className="border-t border-b border-[oklch(0.91_0.004_260)]">
               <button
                 onClick={() => setNotesOpen(!notesOpen)}
+                aria-expanded={notesOpen}
+                aria-controls="pdp-notes"
                 className="w-full flex items-center justify-between py-4 text-left"
               >
                 <span className="text-[0.9375rem] font-semibold text-[oklch(0.13_0.01_260)]">Research Notes</span>
                 {notesOpen ? <ChevronUp className="w-4 h-4 text-[oklch(0.52_0.01_260)]" /> : <ChevronDown className="w-4 h-4 text-[oklch(0.52_0.01_260)]" />}
               </button>
               {notesOpen && (
-                <div className="pb-4">
+                <div id="pdp-notes" className="pb-4">
                   <ul className="space-y-2">
                     {product.researchNotes.map((note) => (
                       <li key={note} className="flex items-start gap-2 text-[0.875rem] text-[oklch(0.40_0.01_260)]">

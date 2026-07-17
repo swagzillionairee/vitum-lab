@@ -1,49 +1,22 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, Home } from "lucide-react";
-import { useLocation } from "wouter";
+import { Link } from "wouter";
+import { Home } from "lucide-react";
 
 export default function NotFound() {
-  const [, setLocation] = useLocation();
-
-  const handleGoHome = () => {
-    setLocation("/");
-  };
-
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-      <Card className="w-full max-w-lg mx-4 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <CardContent className="pt-8 pb-8 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />
-              <AlertCircle className="relative h-16 w-16 text-red-500" />
-            </div>
-          </div>
+    <div className="min-h-[70vh] w-full flex items-center justify-center bg-page px-4">
+      <div className="w-full max-w-md bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] shadow-[0_2px_16px_oklch(0.13_0.01_260/0.08)] py-12 px-8 text-center">
+        <p className="font-mono text-[3rem] font-bold leading-none text-[oklch(0.40_0.16_260)] mb-4">404</p>
 
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">404</h1>
+        <h1 className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)] mb-2">Page Not Found</h1>
 
-          <h2 className="text-xl font-semibold text-slate-700 mb-4">
-            Page Not Found
-          </h2>
+        <p className="text-[0.9375rem] text-[oklch(0.52_0.01_260)] leading-relaxed mb-8">
+          Sorry, the page you are looking for doesn't exist. It may have been moved or deleted.
+        </p>
 
-          <p className="text-slate-600 mb-8 leading-relaxed">
-            Sorry, the page you are looking for doesn't exist.
-            <br />
-            It may have been moved or deleted.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button
-              onClick={handleGoHome}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-            >
-              <Home className="w-4 h-4 mr-2" />
-              Go Home
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <Link href="/" className="btn-primary inline-flex">
+          <Home className="w-4 h-4" /> Go Home
+        </Link>
+      </div>
     </div>
   );
 }

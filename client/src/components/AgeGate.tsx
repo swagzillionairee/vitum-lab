@@ -42,18 +42,19 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
       />
       <div className="absolute inset-0 bg-[oklch(0.18_0.04_255)]/80" />
 
-      {/* Modal card */}
-      <div className="relative z-10 bg-white w-full max-w-md mx-4 rounded-sm shadow-2xl overflow-hidden">
+      {/* Modal card — capped height + scrollable so the Enter button is always
+          reachable on short viewports (the gate blocks the whole site). */}
+      <div className="relative z-10 bg-white w-full max-w-md mx-4 rounded-sm shadow-2xl max-h-[92vh] overflow-y-auto">
         {/* Top accent bar */}
         <div className="h-1 w-full bg-[oklch(0.35_0.15_260)]" />
 
         <div className="p-8 sm:p-10">
           {/* Logo */}
-          <div className="mb-8 flex justify-center">
+          <div className="mb-6 flex justify-center">
             <img
               src="/vitum%20lab%20logo%20black.png"
               alt="Vitum Lab"
-              className="h-48 w-auto"
+              className="h-24 w-auto"
             />
           </div>
 

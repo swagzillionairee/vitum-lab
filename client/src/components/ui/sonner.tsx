@@ -1,8 +1,10 @@
-import { useTheme } from "next-themes";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
+  // Follow the site's own theme toggle (ThemeContext), not the OS scheme —
+  // next-themes has no provider in this app and would resolve to "system".
+  const { theme } = useTheme();
 
   return (
     <Sonner

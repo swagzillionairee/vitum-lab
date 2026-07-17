@@ -74,14 +74,15 @@ function ProductCard({ p }: { p: FlatProduct }) {
       {/* Image area — links to product detail */}
       <Link href={`/shop/${p.detailSlug}`}>
         <div className="relative overflow-hidden cursor-pointer" style={{ backgroundColor: p.cardBg, height: "280px" }}>
-          {p.badge && (
+          {/* skip the "Out of Stock" badge value — the centered overlay below already says it (matches Home) */}
+          {p.badge && p.badge !== "Out of Stock" && (
             <span className={`absolute top-3 left-3 z-10 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md ${BADGE_STYLES[p.badge] ?? "bg-gray-800 text-white"}`}>
               {p.badge === "Best Seller" ? "★ " : ""}{p.badge}
             </span>
           )}
           {!available && (
             <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
-              <span className="bg-white/90 text-[oklch(0.13_0.01_260)] text-[0.75rem] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full">
+              <span className="bg-white/90 text-[#14161f] text-[0.75rem] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full">
                 Out of Stock
               </span>
             </div>
@@ -313,7 +314,7 @@ export default function Shop() {
             exit={{ opacity: 0, y: 24, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 380, damping: 30 }}
             onClick={openCart}
-            className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[oklch(0.13_0.01_260)] text-white pl-4 pr-5 py-3.5 rounded-full shadow-[0_4px_20px_oklch(0.13_0.01_260/0.35)] hover:bg-[oklch(0.20_0.02_260)] active:scale-95 transition-all duration-150 font-semibold text-[0.9375rem]"
+            className="floating-cart-btn fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[oklch(0.13_0.01_260)] text-white pl-4 pr-5 py-3.5 rounded-full shadow-[0_4px_20px_oklch(0.13_0.01_260/0.35)] hover:bg-[oklch(0.20_0.02_260)] active:scale-95 transition-all duration-150 font-semibold text-[0.9375rem]"
             aria-label={`View cart — ${totalItems} item${totalItems !== 1 ? "s" : ""}`}
           >
             <div className="relative">

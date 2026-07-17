@@ -78,7 +78,7 @@ export default function OrderTracking() {
         <form onSubmit={submit} className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6 space-y-3">
           <div>
             <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)] mb-1.5">Order number</label>
-            <input value={orderId} onChange={(e) => { setOrderId(e.target.value); setState("idle"); }} placeholder="e.g. a1b2c3d4e5--…" className={`${inputClass} font-mono`} />
+            <input value={orderId} onChange={(e) => { setOrderId(e.target.value); setState("idle"); }} placeholder="e.g. KFD-837291" className={`${inputClass} font-mono`} />
           </div>
           <div>
             <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)] mb-1.5">Email</label>

@@ -181,7 +181,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = useCallback(() => setItems([]), []);
 
-  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
+  // Paid items only — the auto-added free gift would otherwise bump the navbar
+  // badge to n+1 right after the customer's nth add ("did I add something twice?").
+  const totalItems = items.reduce((sum, i) => sum + (i.isFreeGift ? 0 : i.quantity), 0);
   const subtotal = calcSubtotal(items);
 
   return (
