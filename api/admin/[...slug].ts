@@ -975,7 +975,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "POST") {
-      const { code, percent_off, min_subtotal, max_uses, starts_at, expires_at, is_active } = req.body ?? {};
+      const { code, percent_off, min_subtotal, max_uses, starts_at, expires_at, is_active, per_customer_limit } = req.body ?? {};
       const pct = Number(percent_off);
       if (!code || !(pct >= 1 && pct <= 100)) return res.status(400).json({ error: "code and percent_off (1-100) are required" });
       const { data, error } = await supabaseAdmin
@@ -985,6 +985,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           percent_off: pct,
           min_subtotal: Number(min_subtotal) || 0,
           max_uses: max_uses != null && max_uses !== "" ? Number(max_uses) : null,
+          // Uses allowed per customer (0 = unlimited). Defaults to 1.
+          per_customer_limit: per_customer_limit != null && per_customer_limit !== "" ? Math.max(0, Math.floor(Number(per_customer_limit))) : 1,
           starts_at: starts_at || null,
           expires_at: expires_at || null,
           is_active: is_active ?? true,
@@ -999,7 +1001,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { id, ...patch } = req.body ?? {};
       if (!id) return res.status(400).json({ error: "id required" });
       const allowed: Record<string, unknown> = {};
-      for (const k of ["code", "percent_off", "min_subtotal", "max_uses", "starts_at", "expires_at", "is_active"]) {
+      for (const k of ["code", "percent_off", "min_subtotal", "max_uses", "starts_at", "expires_at", "is_active", "per_customer_limit"]) {
         if (patch[k] !== undefined) allowed[k] = k === "code" ? String(patch[k]).toUpperCase().trim() : patch[k];
       }
       const { data, error } = await supabaseAdmin.from("promo_codes").update(allowed).eq("id", id).select().single();
@@ -1010,8 +1012,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "DELETE") {
       const { id } = req.body ?? {};
       if (!id) return res.status(400).json({ error: "id required" });
+      // Grab the code first so we can also clear its redemption history: deleting
+      // and recreating a code should reset the per-customer usage for everyone
+      // (the historical order scan is already bounded by the new promo's
+      // created_at; this clears the atomic reservation slots keyed by the code).
+      const { data: existing } = await supabaseAdmin.from("promo_codes").select("code").eq("id", id).maybeSingle();
       const { error } = await supabaseAdmin.from("promo_codes").delete().eq("id", id);
       if (error) return res.status(400).json({ error: error.message });
+      if (existing?.code) {
+        await supabaseAdmin.from("discount_redemptions").delete().eq("code", String(existing.code).toUpperCase());
+      }
       return res.json({ ok: true });
     }
 

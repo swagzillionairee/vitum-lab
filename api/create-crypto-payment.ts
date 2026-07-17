@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
-import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoAlreadyRedeemed, computeStackedDiscounts, sitewideSalePrice, isSitewideActive, shippingFee, SHIPPING_PROTECTION_FEE, type QuantityTier } from "./_lib/pricing.js";
+import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoRedemptionCount, computeStackedDiscounts, sitewideSalePrice, isSitewideActive, shippingFee, SHIPPING_PROTECTION_FEE, type QuantityTier } from "./_lib/pricing.js";
 import { getBalance, reserveCredit, reserveDiscountRedemption, releaseDiscountRedemption, getRewardConfig, earnLoyalty, grantReferralReward, type RewardConfig } from "./_lib/credit.js";
 import { validateAddress } from "./_lib/shippo.js";
 import { buildOrderId } from "./_lib/orderId.js";
@@ -290,18 +290,35 @@ export default async function handler(req: any, res: any) {
     const discountCodeNorm = discount ? discountCode!.trim().toUpperCase() : null;
     const referralCode = discount?.kind === "referral" ? discountCodeNorm : null;
 
-    // Promo codes are limited to one use per customer (affiliate/referral exempt).
-    // Codes are A–Z0–9 so ILIKE on the code is safe; the exact email match is done
-    // in JS (emails can contain ILIKE wildcards like "_").
+    // Per-customer usage cap (default 1; 0 = unlimited) + global max_uses. The
+    // per-customer count is bounded by the promo's created_at, so deleting and
+    // recreating a code resets the limit for everyone. Affiliate/referral exempt.
+    let promoPerCustomerLimit = 1;
     if (discount?.kind === "promo") {
-      const { data: prior } = await supabaseAdmin
-        .from("orders")
-        .select("email, discount_code")
-        .ilike("discount_code", discountCodeNorm!)
-        .in("status", ["confirmed", "finished"]);
-      if (promoAlreadyRedeemed(prior ?? [], email, discountCodeNorm!)) {
-        res.status(400).json({ error: "You've already used this promo code — it's limited to one use per customer." });
-        return;
+      const { data: promoRow } = await supabaseAdmin
+        .from("promo_codes")
+        .select("created_at, per_customer_limit, max_uses, used_count")
+        .eq("code", discountCodeNorm!)
+        .maybeSingle();
+      promoPerCustomerLimit = promoRow?.per_customer_limit == null ? 1 : Number(promoRow.per_customer_limit);
+
+      // Codes are A–Z0–9 so ILIKE on the code is safe; the exact email match is
+      // done in JS (emails can contain ILIKE wildcards like "_").
+      if (promoPerCustomerLimit > 0) {
+        const { data: prior } = await supabaseAdmin
+          .from("orders")
+          .select("email, discount_code")
+          .ilike("discount_code", discountCodeNorm!)
+          .in("status", ["confirmed", "finished"])
+          .gte("created_at", promoRow?.created_at ?? "1970-01-01T00:00:00Z");
+        if (promoRedemptionCount(prior ?? [], email, discountCodeNorm!) >= promoPerCustomerLimit) {
+          res.status(400).json({
+            error: promoPerCustomerLimit === 1
+              ? "You've already used this promo code — it's limited to one use per customer."
+              : `You've reached the ${promoPerCustomerLimit}-use limit for this promo code.`,
+          });
+          return;
+        }
       }
 
       // Global max_uses guard including IN-FLIGHT orders: used_count only bumps
@@ -309,8 +326,6 @@ export default async function handler(req: any, res: any) {
       // invoices could all pass the plain cap check and blow past max_uses.
       // Counting pending holders closes that window. (Slightly conservative: a
       // pending order that later dies frees its slot via the hourly sweep.)
-      const { data: promoRow } = await supabaseAdmin
-        .from("promo_codes").select("max_uses, used_count").eq("code", discountCodeNorm!).maybeSingle();
       if (promoRow?.max_uses != null) {
         const { count: pendingCount } = await supabaseAdmin
           .from("orders").select("id", { count: "exact", head: true })
@@ -334,7 +349,9 @@ export default async function handler(req: any, res: any) {
       // referee (any referrer code), matching the first-order-only rule and
       // stopping a referee from farming referrer credit across codes.
       const reservationKey = discount.kind === "referral" ? "__REFERRAL__" : discountCodeNorm!;
-      const reserved = await reserveDiscountRedemption(email, reservationKey, orderId);
+      // Referral → one ever (limit 1). Promo → the code's per-customer limit.
+      const reservationLimit = discount.kind === "referral" ? 1 : promoPerCustomerLimit;
+      const reserved = await reserveDiscountRedemption(email, reservationKey, orderId, reservationLimit);
       if (!reserved) {
         res.status(400).json({
           error:

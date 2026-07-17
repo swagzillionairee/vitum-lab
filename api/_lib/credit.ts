@@ -80,12 +80,13 @@ export async function reserveCredit(email: string, amount: number, orderId: stri
  * twice. Returns false when another live order already holds the slot. Fails
  * CLOSED (returns false) on an RPC error so a glitch can't wave a reuse through.
  */
-export async function reserveDiscountRedemption(email: string, code: string, orderId: string): Promise<boolean> {
+export async function reserveDiscountRedemption(email: string, code: string, orderId: string, limit = 1): Promise<boolean> {
   if (!email || !code) return true;
   const { data, error } = await supabaseAdmin.rpc("reserve_discount_redemption", {
     p_email: email,
     p_code: code,
     p_order_id: orderId,
+    p_limit: limit,
   });
   if (error) { console.error("reserve_discount_redemption error:", error); return false; }
   return data === true;
