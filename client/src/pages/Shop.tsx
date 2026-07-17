@@ -1,13 +1,12 @@
 /*
  * Shop.tsx — Vitum Lab
  * Design: Contemporary Clinical
- * Full product catalog with all variants:
- *   - Retatrutide GLP-3 (R): 10mg, 20mg, 30mg
- *   - GHK-Cu: 50mg, 100mg
- *   - NAD+: 500mg
- *   - BAC Water: 10mL
- * Features: category filter tabs, product cards with Added✓ feedback,
- *   floating View Cart button, product detail page links
+ * Full product catalog — ONE card per product with a dose selector (same
+ * pattern as the home page's featured cards), instead of a separate card per
+ * variant. Stock badges, prices, sale strikethrough, and the COA link all
+ * follow the selected dose.
+ * Features: category filter tabs, Added✓ feedback, floating View Cart button,
+ *   product detail page links
  */
 
 import { useState, useEffect } from "react";
@@ -18,7 +17,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import SEO from "@/components/SEO";
 import { useProducts } from "@/hooks/useProducts";
 import { useInventory } from "@/hooks/useInventory";
-import { coaLibraryHref } from "@/lib/products";
+import { coaLibraryHref, type Product } from "@/lib/products";
 
 // ─── Slug → categorySlug mapping ─────────────────────────────────────────────
 const CATEGORY_SLUG_MAP: Record<string, string> = {
@@ -46,25 +45,21 @@ const BADGE_STYLES: Record<string, string> = {
   "New": "bg-[oklch(0.35_0.15_260)] text-white",
 };
 
-type FlatProduct = {
-  id: string; name: string; dose: string; lot: string; price: number;
-  salePrice?: number; category: string; categorySlug: string; tagline: string;
-  description: string; img: string; cardBg: string; cartCode: string;
-  badge: string | null; detailSlug: string;
-};
-
-// ─── Product card with Added✓ feedback ───────────────────────────────────────
-function ProductCard({ p }: { p: FlatProduct }) {
+// ─── Product card with dose selector + Added✓ feedback ───────────────────────
+function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart();
   const { isAvailable, stockLabel } = useInventory();
+  const [selectedIdx, setSelectedIdx] = useState(0);
   const [added, setAdded] = useState(false);
 
-  const available = isAvailable(p.cartCode);
-  const label = stockLabel(p.cartCode);
+  const selected = product.variants[Math.min(selectedIdx, product.variants.length - 1)];
+  const available = isAvailable(selected.cartCode);
+  const label = stockLabel(selected.cartCode);
+  const effectivePrice = selected.salePrice ?? selected.price;
 
   const handleAdd = () => {
     if (!available) return;
-    addItem({ id: p.id, name: p.name, dose: p.dose, price: p.salePrice ?? p.price, img: p.img, cartCode: p.cartCode });
+    addItem({ id: selected.id, name: product.name, dose: selected.dose, price: effectivePrice, img: selected.img, cartCode: selected.cartCode });
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };
@@ -72,12 +67,12 @@ function ProductCard({ p }: { p: FlatProduct }) {
   return (
     <div className="bg-white rounded-2xl overflow-hidden shadow-[0_1px_4px_oklch(0.13_0.01_260/0.07)] group hover:shadow-[0_4px_16px_oklch(0.13_0.01_260/0.12)] transition-shadow duration-200 flex flex-col h-full">
       {/* Image area — links to product detail */}
-      <Link href={`/shop/${p.detailSlug}`}>
-        <div className="relative overflow-hidden cursor-pointer" style={{ backgroundColor: p.cardBg, height: "280px" }}>
-          {/* skip the "Out of Stock" badge value — the centered overlay below already says it (matches Home) */}
-          {p.badge && p.badge !== "Out of Stock" && (
-            <span className={`absolute top-3 left-3 z-10 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md ${BADGE_STYLES[p.badge] ?? "bg-gray-800 text-white"}`}>
-              {p.badge === "Best Seller" ? "★ " : ""}{p.badge}
+      <Link href={`/shop/${product.slug}`}>
+        <div className="relative overflow-hidden cursor-pointer" style={{ backgroundColor: product.cardBg, height: "280px" }}>
+          {/* skip the "Out of Stock" badge value — the centered overlay below already says it */}
+          {product.badge && product.badge !== "Out of Stock" && (
+            <span className={`absolute top-3 left-3 z-10 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full shadow-md ${BADGE_STYLES[product.badge] ?? "bg-gray-800 text-white"}`}>
+              {product.badge === "Best Seller" ? "★ " : ""}{product.badge}
             </span>
           )}
           {!available && (
@@ -88,8 +83,10 @@ function ProductCard({ p }: { p: FlatProduct }) {
             </div>
           )}
           <img
-            src={p.img}
-            alt={`${p.name} ${p.dose} research peptide vial`}
+            src={selected.img}
+            alt={`${product.name} ${selected.dose} research peptide vial`}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
           />
         </div>
@@ -97,24 +94,47 @@ function ProductCard({ p }: { p: FlatProduct }) {
 
       {/* Info area */}
       <div className="px-5 pt-4 pb-5 flex-1 flex flex-col">
-        <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-1">{p.category}</p>
+        <p className="text-[0.6875rem] font-semibold tracking-widest uppercase text-[oklch(0.52_0.01_260)] mb-1">{product.category}</p>
         <div className="flex items-baseline gap-2 mb-0.5">
-          <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight">{p.name}</h3>
-          <span className="text-[0.8125rem] font-semibold text-[oklch(0.52_0.01_260)] flex-shrink-0">{p.dose}</span>
+          <h3 className="text-[1.125rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight">{product.name}</h3>
+          {product.variants.length === 1 && (
+            <span className="text-[0.8125rem] font-semibold text-[oklch(0.52_0.01_260)] flex-shrink-0">{selected.dose}</span>
+          )}
         </div>
-        <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-2">LOT: {p.lot}</p>
-        <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{p.description}</p>
+        <p className="text-[0.6875rem] font-mono text-[oklch(0.60_0.01_260)] mb-2">LOT: {selected.lot}</p>
+
+        {/* Dose selector pills (multi-dose products) */}
+        {product.variants.length > 1 && (
+          <div className="flex flex-wrap gap-1.5 mb-2.5">
+            {product.variants.map((v, i) => (
+              <button
+                key={v.dose}
+                onClick={() => { setSelectedIdx(i); setAdded(false); }}
+                aria-pressed={i === selectedIdx}
+                className={`text-[0.6875rem] font-bold px-3 py-1 rounded-full border transition-colors duration-150 ${
+                  i === selectedIdx
+                    ? "bg-[oklch(0.13_0.01_260)] dark:bg-[oklch(0.40_0.16_260)] text-white border-[oklch(0.13_0.01_260)] dark:border-[oklch(0.40_0.16_260)]"
+                    : "bg-white text-[oklch(0.40_0.01_260)] border-[oklch(0.88_0.004_260)] hover:border-[oklch(0.60_0.01_260)]"
+                }`}
+              >
+                {v.dose}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <p className="text-[0.8125rem] text-[oklch(0.40_0.01_260)] leading-relaxed mb-4 line-clamp-2">{product.description}</p>
 
         <div className="space-y-3 mt-auto">
-          {/* Price */}
+          {/* Price (follows the selected dose) */}
           <div>
-            {p.salePrice != null ? (
+            {selected.salePrice != null ? (
               <div className="flex items-baseline gap-2">
-                <span className="text-[1.25rem] font-bold text-[oklch(0.50_0.18_25)]">${p.salePrice}</span>
-                <span className="text-[0.875rem] line-through text-[oklch(0.60_0.01_260)]">${p.price}</span>
+                <span className="text-[1.25rem] font-bold text-[oklch(0.50_0.18_25)]">${selected.salePrice}</span>
+                <span className="text-[0.875rem] line-through text-[oklch(0.60_0.01_260)]">${selected.price}</span>
               </div>
             ) : (
-              <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${p.price}</span>
+              <span className="text-[1.25rem] font-bold text-[oklch(0.13_0.01_260)]">${selected.price}</span>
             )}
             {label && available && (
               <p className="text-[0.6875rem] text-amber-600 font-semibold mt-0.5">{label}</p>
@@ -123,7 +143,7 @@ function ProductCard({ p }: { p: FlatProduct }) {
           {/* COA + Add to Cart (own row so they never overlap the price) */}
           <div className="flex items-center justify-between gap-2">
             <a
-              href={coaLibraryHref(p.cartCode)}
+              href={coaLibraryHref(selected.cartCode)}
               className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors flex-shrink-0"
             >
               <FileText className="w-3.5 h-3.5" /> COA
@@ -159,26 +179,6 @@ export default function Shop() {
   const { products } = useProducts();
   const [activeCategory, setActiveCategory] = useState("all");
 
-  const allProducts: FlatProduct[] = products.flatMap((product) =>
-    product.variants.map((variant, idx) => ({
-      id: variant.id,
-      name: product.name,
-      dose: variant.dose,
-      lot: variant.lot,
-      price: variant.price,
-      salePrice: variant.salePrice,
-      category: product.category,
-      categorySlug: CATEGORY_SLUG_MAP[product.category] ?? "other",
-      tagline: product.tagline,
-      description: product.description,
-      img: variant.img,
-      cardBg: product.cardBg,
-      cartCode: variant.cartCode,
-      badge: idx === 0 && product.badge ? product.badge : null,
-      detailSlug: product.slug,
-    }))
-  );
-
   // Read ?category= URL param on mount so footer links filter correctly
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -192,8 +192,8 @@ export default function Shop() {
 
   const filtered =
     activeCategory === "all"
-      ? allProducts
-      : allProducts.filter((p) => p.categorySlug === activeCategory);
+      ? products
+      : products.filter((p) => (CATEGORY_SLUG_MAP[p.category] ?? "other") === activeCategory);
 
   return (
     <div className="min-h-screen bg-page">
@@ -267,7 +267,7 @@ export default function Shop() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filtered.map((p) => (
-            <ProductCard key={p.id} p={p} />
+            <ProductCard key={p.slug} product={p} />
           ))}
         </div>
 

@@ -191,6 +191,8 @@ export default function ProductDetail() {
               key={selected.img}
               src={selected.img}
               alt={`${product.name} ${selected.dose} research peptide vial`}
+              fetchPriority="high"
+              decoding="async"
               className="w-full h-full object-cover transition-opacity duration-200"
             />
           </div>

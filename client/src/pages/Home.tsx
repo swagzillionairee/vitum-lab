@@ -141,6 +141,8 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
           <img
             src={selected.img}
             alt={`${name} ${selected.dose} research peptide vial`}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
           />
         </div>
@@ -259,6 +261,8 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
           <img
             src={p.img}
             alt={`${p.name} ${p.dose} research peptide vial`}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
           />
         </div>
@@ -320,8 +324,6 @@ function bannerTextColor(hex?: string): string {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Home() {
   const [activeTab, setActiveTab] = useState(0);
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
 
   const heroRef = useReveal();
   const guaranteeRef = useReveal();
@@ -365,11 +367,6 @@ export default function Home() {
       .catch(() => {});
     return () => { stale = true; };
   }, []);
-
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email) setSubscribed(true);
-  };
 
   return (
     <div className="min-h-screen bg-page">
@@ -446,17 +443,17 @@ export default function Home() {
           <div className="relative flex items-end justify-center w-full px-6 py-10 lg:py-0 lg:-mb-[5%]">
             {/* Left vial */}
             <div className="relative flex-shrink-0 w-[48%] z-10 vial-float-a mr-[-55px] lg:mr-[-195px]" style={{transform: 'rotate(-6deg)', transformOrigin: 'bottom center'}}>
-              <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu 50mg research peptide vial" className="w-full object-contain" />
+              <img src="/GHKCU%2050mg%20vial%20only.webp" alt="GHK-Cu 50mg research peptide vial" width={1254} height={1254} decoding="async" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/18 blur-lg pointer-events-none" />
             </div>
-            {/* Centre vial */}
+            {/* Centre vial — the hero LCP image */}
             <div className="relative flex-shrink-0 w-[62%] z-20 vial-float-b">
-              <img src="/GLP3%2020mg%20vial%20only.png" alt="GLP-3 (R) 20mg research peptide vial" className="w-full object-contain" />
+              <img src="/GLP3%2020mg%20vial%20only.webp" alt="GLP-3 (R) 20mg research peptide vial" width={1254} height={1254} fetchPriority="high" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/20 blur-lg pointer-events-none" />
             </div>
             {/* Right vial */}
             <div className="relative flex-shrink-0 w-[48%] z-10 vial-float-c ml-[-55px] lg:ml-[-195px]" style={{transform: 'rotate(6deg)', transformOrigin: 'bottom center'}}>
-              <img src="/NAD-500mg-vial-only.png" alt="NAD+ 500mg research peptide vial" className="w-full object-contain" />
+              <img src="/NAD-500mg-vial-only.webp" alt="NAD+ 500mg research peptide vial" width={1254} height={1254} decoding="async" className="w-full object-contain" />
               <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[55%] h-4 rounded-full bg-black/18 blur-lg pointer-events-none" />
             </div>
           </div>
@@ -612,7 +609,7 @@ export default function Home() {
       <section ref={qualityRef} className="reveal relative py-20 bg-dark-navy text-white overflow-hidden">
         {/* Vial: absolutely spans full section height, top-aligned with section padding */}
         <div className="hidden lg:flex absolute right-0 top-0 bottom-0 w-[45%] items-start justify-center py-20 pointer-events-none">
-          <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" className="h-full w-auto object-contain drop-shadow-2xl" />
+          <img src="/GHKCU%2050mg%20vial%20only.webp" alt="GHK-Cu research peptide vial — 99%+ purity, third-party tested" width={1254} height={1254} loading="lazy" decoding="async" className="h-full w-auto object-contain drop-shadow-2xl" />
         </div>
         <div className="container">
           <div className="flex flex-wrap gap-8 mb-12">
@@ -670,41 +667,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          8. NEWSLETTER
-      ═══════════════════════════════════════════════════════════════ */}
-      <section className="py-16 bg-dark-navy text-white">
-        <div className="container max-w-xl mx-auto text-center">
-          <p className="text-[0.75rem] font-semibold tracking-widest uppercase text-white/50 mb-3">Research Updates</p>
-          <h2 className="text-[1.75rem] font-bold mb-2">Stay current with new compounds and COA releases.</h2>
-          <p className="text-[0.9rem] text-white/60 mb-7">
-            New product announcements, batch COA releases, and research literature updates. No spam — unsubscribe anytime.
-          </p>
-          {subscribed ? (
-            <div className="flex items-center justify-center gap-2 text-white/80">
-              <CheckCircle2 className="w-5 h-5 text-[oklch(0.70_0.15_155)]" />
-              <span className="font-semibold">You're subscribed. Thank you.</span>
-            </div>
-          ) : (
-            <form onSubmit={handleSubscribe} className="flex gap-2 max-w-sm mx-auto">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="flex-1 bg-white/10 border border-white/20 text-white placeholder:text-white/40 rounded-full px-4 py-3 text-[0.9rem] outline-none focus:border-white/50 transition-colors"
-              />
-              <button type="submit" className="btn-primary whitespace-nowrap">
-                Subscribe
-              </button>
-            </form>
-          )}
-          <p className="text-[0.75rem] text-white/40 mt-4">
-            By subscribing you confirm you are a researcher. Research use only.
-          </p>
-        </div>
-      </section>
     </div>
   );
 }
