@@ -132,7 +132,8 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
           )}
           {!available && (
             <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
-              <span className="bg-white/90 text-[oklch(0.13_0.01_260)] text-[0.75rem] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full">
+              {/* hex ink (not the oklch literal) so the dark-mode text override can't turn it white-on-white */}
+              <span className="bg-white/90 text-[#14161f] text-[0.75rem] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full">
                 Out of Stock
               </span>
             </div>
@@ -249,7 +250,8 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
           )}
           {!available && (
             <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
-              <span className="bg-white/90 text-[oklch(0.13_0.01_260)] text-[0.75rem] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full">
+              {/* hex ink (not the oklch literal) so the dark-mode text override can't turn it white-on-white */}
+              <span className="bg-white/90 text-[#14161f] text-[0.75rem] font-bold tracking-widest uppercase px-3 py-1.5 rounded-full">
                 Out of Stock
               </span>
             </div>
@@ -404,7 +406,7 @@ export default function Home() {
               <span className="w-1.5 h-1.5 rounded-full bg-[oklch(0.40_0.16_260)] inline-block" />
               Research Use Only
             </div>
-            <h1 className="text-[3rem] sm:text-[3.5rem] lg:text-[4rem] font-bold leading-[1.05] tracking-tight text-[oklch(0.13_0.01_260)] mb-6">
+            <h1 className="text-[clamp(2rem,10.5vw,3rem)] sm:text-[3.5rem] lg:text-[4rem] font-bold leading-[1.05] tracking-tight text-[oklch(0.13_0.01_260)] mb-6">
               Research-grade peptides.<br />
               <span className="text-[oklch(0.40_0.16_260)]">Independently tested.</span>
             </h1>
@@ -437,8 +439,11 @@ export default function Home() {
           </div>
         </div>
         {/* Right: product vials on light background */}
-        <div className="relative order-1 lg:order-2 flex items-center justify-center overflow-visible lg:overflow-hidden z-0" style={{backgroundColor: '#f0f4f0'}}>
-          <div className="relative flex items-end justify-center w-full px-6" style={{marginBottom: '-5%'}}>
+        {/* bg via class (not inline style) so dark mode can restyle it; the -5% bottom
+            bleed is lg-only — the section's overflow-x-clip also clips vertically
+            (CSS: clip on one axis forces the other), amputating the vials on mobile. */}
+        <div className="relative order-1 lg:order-2 flex items-center justify-center overflow-visible lg:overflow-hidden z-0 bg-[#f0f4f0] dark:bg-[oklch(0.17_0.025_155)]">
+          <div className="relative flex items-end justify-center w-full px-6 py-10 lg:py-0 lg:-mb-[5%]">
             {/* Left vial */}
             <div className="relative flex-shrink-0 w-[48%] z-10 vial-float-a mr-[-55px] lg:mr-[-195px]" style={{transform: 'rotate(-6deg)', transformOrigin: 'bottom center'}}>
               <img src="/GHKCU%2050mg%20vial%20only.png" alt="GHK-Cu 50mg research peptide vial" className="w-full object-contain" />
@@ -707,13 +712,14 @@ export default function Home() {
 // ─── FaqItem ──────────────────────────────────────────────────────────────────
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
+  const panelId = `faq-${q.replace(/\W+/g, "-").toLowerCase()}`;
   return (
     <div className="border-b border-[oklch(0.91_0.004_260)]">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between py-5 text-left gap-4">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={panelId} className="w-full flex items-center justify-between py-5 text-left gap-4">
         <span className="text-[1rem] font-semibold text-[oklch(0.13_0.01_260)] leading-snug">{q}</span>
         {open ? <ChevronUp className="w-5 h-5 flex-shrink-0 text-[oklch(0.52_0.01_260)]" /> : <ChevronDown className="w-5 h-5 flex-shrink-0 text-[oklch(0.52_0.01_260)]" />}
       </button>
-      {open && <p className="pb-5 text-[0.9375rem] text-[oklch(0.40_0.01_260)] leading-relaxed">{a}</p>}
+      {open && <p id={panelId} className="pb-5 text-[0.9375rem] text-[oklch(0.40_0.01_260)] leading-relaxed">{a}</p>}
     </div>
   );
 }

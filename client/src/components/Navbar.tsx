@@ -168,6 +168,7 @@ export default function Navbar() {
               className="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Toggle menu"
+              aria-expanded={mobileOpen}
             >
               {mobileOpen ? (
                 <X className="w-5 h-5 text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)]" />

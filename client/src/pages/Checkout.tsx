@@ -397,11 +397,20 @@ export default function Checkout() {
 
   const inputBase = "border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent";
   const inputClass = `${inputBase} w-full`;
+  const labelClass = "block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)] mb-1.5";
 
   // Enabled methods in tile order.
   const enabledMethods = (["square", "zelle", "cashapp", "venmo", "ach", "crypto"] as PayMethod[])
     .filter((m) => isMethodEnabled(payments, m));
   const saleActive = !!sale?.active && (!saleEndsAt || saleEndsAt > now);
+
+  // The pay buttons are disabled until the research-use box is ticked — say why,
+  // instead of showing a dead button (only the Card method had this hint before).
+  const attestHint = !attested && (
+    <p className="text-[0.75rem] text-[oklch(0.52_0.01_260)] text-center">
+      Tick the research-use confirmation above to enable payment.
+    </p>
+  );
 
   if (loading || !session) {
     return (
@@ -443,29 +452,52 @@ export default function Checkout() {
           {/* Shipping address */}
           <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6">
             <h2 className="text-[1rem] font-bold text-[oklch(0.13_0.01_260)] mb-4">Shipping address</h2>
+            {/* Persistent labels (not placeholder-only): placeholders vanish on input,
+                which hurts review-before-submit and screen-reader labeling. */}
             <div className="space-y-3">
-              <input type="text" autoComplete="name" value={ship.name} onChange={(e) => setShipField("name", e.target.value)} placeholder="Full name" className={inputClass} />
-              <AddressAutocomplete
-                value={ship.line1}
-                onChange={(v) => setShipField("line1", v)}
-                onSelect={(p) => setShip((prev) => ({
-                  ...prev,
-                  line1: p.line1 || prev.line1,
-                  city: p.city || prev.city,
-                  state: p.state || prev.state,
-                  postal_code: p.postal_code || prev.postal_code,
-                  country: p.country || prev.country,
-                }))}
-                placeholder="Street address"
-                className={inputClass}
-              />
-              <input type="text" autoComplete="address-line2" value={ship.line2} onChange={(e) => setShipField("line2", e.target.value)} placeholder="Apt, suite, unit (optional)" className={inputClass} />
+              <label className="block">
+                <span className={labelClass}>Full name</span>
+                <input type="text" autoComplete="name" value={ship.name} onChange={(e) => setShipField("name", e.target.value)} placeholder="Full name" className={inputClass} />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Street address</span>
+                <AddressAutocomplete
+                  value={ship.line1}
+                  onChange={(v) => setShipField("line1", v)}
+                  onSelect={(p) => setShip((prev) => ({
+                    ...prev,
+                    line1: p.line1 || prev.line1,
+                    city: p.city || prev.city,
+                    state: p.state || prev.state,
+                    postal_code: p.postal_code || prev.postal_code,
+                    country: p.country || prev.country,
+                  }))}
+                  placeholder="Street address"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Apt, suite, unit <span className="font-normal">(optional)</span></span>
+                <input type="text" autoComplete="address-line2" value={ship.line2} onChange={(e) => setShipField("line2", e.target.value)} placeholder="Apt, suite, unit (optional)" className={inputClass} />
+              </label>
               <div className="flex gap-3">
-                <input type="text" autoComplete="address-level2" value={ship.city} onChange={(e) => setShipField("city", e.target.value)} placeholder="City" className={`${inputBase} flex-1 min-w-0`} />
-                <input type="text" autoComplete="address-level1" maxLength={2} value={ship.state} onChange={(e) => setShipField("state", e.target.value)} placeholder="State" className={`${inputBase} w-20`} />
-                <input type="text" autoComplete="postal-code" inputMode="numeric" value={ship.postal_code} onChange={(e) => setShipField("postal_code", e.target.value)} placeholder="ZIP" className={`${inputBase} w-28`} />
+                <label className="block flex-1 min-w-0">
+                  <span className={labelClass}>City</span>
+                  <input type="text" autoComplete="address-level2" value={ship.city} onChange={(e) => setShipField("city", e.target.value)} placeholder="City" className={`${inputBase} w-full`} />
+                </label>
+                <label className="block w-20">
+                  <span className={labelClass}>State</span>
+                  <input type="text" autoComplete="address-level1" maxLength={2} value={ship.state} onChange={(e) => setShipField("state", e.target.value)} placeholder="State" className={`${inputBase} w-full`} />
+                </label>
+                <label className="block w-28">
+                  <span className={labelClass}>ZIP</span>
+                  <input type="text" autoComplete="postal-code" inputMode="numeric" value={ship.postal_code} onChange={(e) => setShipField("postal_code", e.target.value)} placeholder="ZIP" className={`${inputBase} w-full`} />
+                </label>
               </div>
-              <input type="tel" autoComplete="tel" value={ship.phone} onChange={(e) => setShipField("phone", e.target.value)} placeholder="Phone (for delivery, optional)" className={inputClass} />
+              <label className="block">
+                <span className={labelClass}>Phone <span className="font-normal">(for delivery, optional)</span></span>
+                <input type="tel" autoComplete="tel" value={ship.phone} onChange={(e) => setShipField("phone", e.target.value)} placeholder="Phone (for delivery, optional)" className={inputClass} />
+              </label>
               <p className="text-[0.6875rem] text-[oklch(0.55_0.01_260)]">Ships within the United States only.</p>
             </div>
           </section>
@@ -473,7 +505,8 @@ export default function Checkout() {
 
         {/* ── Right 1/3: order summary ─────────────────────────────── */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6 lg:sticky lg:top-24 space-y-4">
+          {/* top-44 clears the full sticky header stack (marquee + compliance bar + nav ≈ 125px+) */}
+          <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6 lg:sticky lg:top-44 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-[1rem] font-bold text-[oklch(0.13_0.01_260)]">Order summary</h2>
               <button onClick={openCart} className="text-[0.75rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">Edit cart</button>
@@ -518,13 +551,13 @@ export default function Checkout() {
 
             {/* Promo */}
             <div className="border-t border-[oklch(0.93_0.004_260)] pt-4">
-              <button onClick={() => setPromoOpen(!promoOpen)} className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline">
+              <button onClick={() => setPromoOpen(!promoOpen)} aria-expanded={promoOpen} aria-controls="promo-entry" className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline">
                 <Tag className="w-3.5 h-3.5" /> Have a promo code?
               </button>
               {promoOpen && (
-                <div className="mt-2 flex gap-2">
+                <div id="promo-entry" className="mt-2 flex gap-2">
                   <input type="text" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(""); setPromoApplied(false); setDiscountPct(0); setDiscountFlat(0); setAffiliateId(undefined); }} placeholder="Enter code" className={`${inputBase} flex-1 min-w-0 py-2`} />
-                  <button onClick={handleApplyPromo} disabled={promoLoading} className="flex-shrink-0 px-4 py-2 rounded-lg bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors disabled:opacity-60">
+                  <button onClick={handleApplyPromo} disabled={promoLoading} className="flex-shrink-0 px-4 py-2 rounded-full bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors disabled:opacity-60">
                     {promoLoading ? "…" : "Apply"}
                   </button>
                 </div>
@@ -616,9 +649,12 @@ export default function Checkout() {
             </label>
 
             {total <= 0 ? (
-              <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
-                {busy ? "Processing…" : (<>Place Order <ArrowRight className="w-4 h-4" /></>)}
-              </button>
+              <div className="space-y-3">
+                <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
+                  {busy ? "Processing…" : (<>Place Order <ArrowRight className="w-4 h-4" /></>)}
+                </button>
+                {attestHint}
+              </div>
             ) : enabledMethods.length === 0 ? (
               <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] text-center py-2">
                 No payment methods are available right now. Please contact <a href="mailto:hello@vitumlab.com" className="text-[oklch(0.40_0.16_260)] font-semibold hover:underline">hello@vitumlab.com</a>.
@@ -636,8 +672,9 @@ export default function Checkout() {
                   </div>
                 )}
 
-                {/* Payment method selector */}
-                <div className={`grid gap-2 ${enabledMethods.length >= 4 ? "grid-cols-4" : enabledMethods.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+                {/* Payment method selector — 5-6 methods wrap as tidy 3-col rows
+                    (a 4-col grid leaves an unbalanced 4+2 second row) */}
+                <div className={`grid gap-2 ${enabledMethods.length >= 5 ? "grid-cols-3" : enabledMethods.length === 4 ? "grid-cols-4" : enabledMethods.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
                   {enabledMethods.map((m) => {
                     const { label, Icon } = METHOD_META[m];
                     const st = METHOD_STYLE[m];
@@ -648,7 +685,7 @@ export default function Checkout() {
                         type="button"
                         disabled={busy}
                         onClick={() => { setPayMethod(m); setError(""); }}
-                        className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-3 px-1 text-[0.8125rem] font-semibold transition-colors disabled:opacity-60 ${
+                        className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-3 px-1 min-h-[70px] text-[0.8125rem] font-semibold transition-colors disabled:opacity-60 ${
                           selected
                             ? st.sel
                             : `border-[oklch(0.90_0.004_260)] text-[oklch(0.35_0.01_260)] dark:border-[oklch(0.30_0.01_260)] dark:text-[oklch(0.72_0.01_260)] ${st.hover}`
@@ -691,6 +728,7 @@ export default function Checkout() {
                     <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl text-white text-[0.9375rem] font-bold bg-[oklch(0.42_0.13_155)] hover:bg-[oklch(0.37_0.13_155)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
                       {busy ? "Placing order…" : (<><Building2 className="w-4 h-4" /> Pay with Bank</>)}
                     </button>
+                    {attestHint}
                     <div className="rounded-xl border border-[oklch(0.88_0.05_155)] bg-[oklch(0.98_0.02_155)] px-4 py-3 text-[0.75rem] text-[oklch(0.38_0.10_155)] leading-relaxed">
                       <span className="font-bold">How it works:</span> Place your order, then send the bank transfer to the details we provide — include your order number in the memo. Use a US checking account with available funds. We confirm and ship as soon as it clears.
                     </div>
@@ -699,16 +737,22 @@ export default function Checkout() {
 
                 {/* Manual wallets (Venmo / Cash App / Zelle) — place order → modal */}
                 {MANUAL_METHODS.includes(payMethod) && payMethod !== "ach" && (
-                  <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
-                    {busy ? "Placing order…" : (<>Pay with {METHOD_META[payMethod].label} <ArrowRight className="w-4 h-4" /></>)}
-                  </button>
+                  <>
+                    <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
+                      {busy ? "Placing order…" : (<>Pay with {METHOD_META[payMethod].label} <ArrowRight className="w-4 h-4" /></>)}
+                    </button>
+                    {attestHint}
+                  </>
                 )}
 
                 {/* Crypto — redirect to the NowPayments invoice */}
                 {payMethod === "crypto" && (
-                  <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
-                    {busy ? "Processing…" : (<>Continue with crypto <ArrowRight className="w-4 h-4" /></>)}
-                  </button>
+                  <>
+                    <button onClick={() => handlePay()} disabled={busy || !attested} className="flex items-center justify-center gap-2 w-full btn-primary py-3.5 text-[0.9375rem] disabled:opacity-60 disabled:cursor-not-allowed">
+                      {busy ? "Processing…" : (<>Continue with crypto <ArrowRight className="w-4 h-4" /></>)}
+                    </button>
+                    {attestHint}
+                  </>
                 )}
               </div>
             )}
