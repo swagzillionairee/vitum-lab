@@ -15,7 +15,7 @@ Vitum Lab (`vitumlab.com`) is a research-peptide e-commerce site (Retatrutide/GL
 ```bash
 pnpm dev          # Vite dev server (port 3000) — API routes handled inline via vitePluginLocalApi
 pnpm build        # vite build → dist/public
-pnpm check        # TypeScript type-check (no emit)
+pnpm check        # TypeScript type-check for the client and Vercel API (no emit)
 pnpm test         # Vitest (run once) — unit (Node) + component (jsdom)
 pnpm test:watch   # Vitest watch mode
 pnpm test:e2e     # Playwright e2e (checkout) — run `pnpm exec playwright install chromium` first
@@ -237,7 +237,7 @@ VITE_GOOGLE_MAPS_API_KEY=           # optional — Places autocomplete at checko
 
 - Vercel auto-deploys on push to `main`. Build → `dist/public` (static). API routes = `/api/*.ts`. COA PDFs are static in `public/coa/`.
 - **Always ship to production without asking — standing owner approval.** For each change: open a PR, wait for CI (the Vercel deploy) to pass, then squash-merge to `main` yourself. Don't open drafts that sit waiting; don't ask "should I merge?". Note genuine risks in chat but proceed unless told to hold.
-- `api/` is **excluded from `tsconfig.json`** — `pnpm check` does not type-check serverless functions; the Vercel preview build is the real compile check for them.
+- `api/` has its own strict `tsconfig.api.json`; `pnpm check` validates both the client and serverless handlers. The Vercel preview remains the final runtime compile check.
 
 ---
 

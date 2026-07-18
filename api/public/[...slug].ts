@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_lib/http.js";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { isSitewideActive } from "../_lib/pricing.js";
 import { squareConfigured } from "../_lib/square.js";
