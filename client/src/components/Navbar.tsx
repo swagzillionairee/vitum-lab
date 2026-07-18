@@ -60,6 +60,42 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // A route change can happen from the account/cart shortcuts as well as the
+  // menu itself. Always release the mobile navigation when navigation wins.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location]);
+
+  // Treat the expanded mobile navigation like an overlay: keep the page from
+  // scrolling underneath it, allow Escape to close it, and release the lock if
+  // the viewport grows into the desktop layout.
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    const onResize = () => {
+      if (window.innerWidth >= 768) setMobileOpen(false);
+    };
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onResize);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [mobileOpen]);
+
+  const handleOpenCart = () => {
+    setMobileOpen(false);
+    openCart();
+  };
+
   return (
     <header className={`sticky top-0 z-50 bg-white dark:bg-[oklch(0.13_0.02_260)] border-b border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] transition-shadow duration-200 ${scrolled ? "shadow-[0_2px_16px_oklch(0.13_0.01_260/0.12)] dark:shadow-[0_2px_16px_oklch(0_0_0/0.5)]" : "shadow-[0_1px_4px_oklch(0.13_0.01_260/0.06)] dark:shadow-[0_1px_4px_oklch(0_0_0/0.3)]"}`}>
 
@@ -137,7 +173,7 @@ export default function Navbar() {
             {/* Dark mode toggle */}
             <button
               onClick={toggleTheme}
-              className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
+              className="flex items-center justify-center w-11 h-11 md:w-9 md:h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
               aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             >
               {theme === "dark" ? (
@@ -148,8 +184,8 @@ export default function Navbar() {
             </button>
 
             <button
-              onClick={openCart}
-              className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
+              onClick={handleOpenCart}
+              className="relative flex items-center justify-center w-11 h-11 md:w-9 md:h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
               aria-label="Shopping cart"
             >
               <ShoppingCart className="w-5 h-5 text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)]" />
@@ -162,7 +198,7 @@ export default function Navbar() {
 
             <Link
               href={session ? "/account" : "/login"}
-              className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
+              className="flex items-center justify-center w-11 h-11 md:w-9 md:h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
               aria-label={session ? "My account" : "Login"}
             >
               <User className="w-5 h-5 text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)]" />
@@ -173,10 +209,11 @@ export default function Navbar() {
             </Link>
 
             <button
-              className="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
+              className="md:hidden flex items-center justify-center w-11 h-11 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Toggle menu"
               aria-expanded={mobileOpen}
+              aria-controls="mobile-navigation"
             >
               {mobileOpen ? (
                 <X className="w-5 h-5 text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)]" />
@@ -191,30 +228,32 @@ export default function Navbar() {
       {/* Mobile menu */}
       {mobileOpen && (
         <div className="md:hidden border-t border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] bg-white dark:bg-[oklch(0.13_0.02_260)]">
-          <nav className="container py-4 flex flex-col gap-1">
-            {navLinks.map((link) => (
+          <nav id="mobile-navigation" className="container max-h-[50dvh] overflow-y-auto overscroll-contain py-4">
+            <div className="grid grid-cols-2 gap-1">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex min-h-11 items-center text-sm ${link.href === "/shop" ? "font-bold" : "font-medium"} px-3 rounded-xl transition-colors ${
+                    location === link.href
+                      ? "bg-[oklch(0.96_0.003_260)] dark:bg-[oklch(0.20_0.02_260)] text-[oklch(0.13_0.01_260)] dark:text-[oklch(0.94_0.006_260)]"
+                      : "text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)]"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
               <Link
-                key={link.href}
-                href={link.href}
+                href={session ? "/account" : "/login"}
                 onClick={() => setMobileOpen(false)}
-                className={`text-sm ${link.href === "/shop" ? "font-bold" : "font-medium"} py-2.5 px-3 rounded-xl transition-colors ${
-                  location === link.href
-                    ? "bg-[oklch(0.96_0.003_260)] dark:bg-[oklch(0.20_0.02_260)] text-[oklch(0.13_0.01_260)] dark:text-[oklch(0.94_0.006_260)]"
-                    : "text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)]"
-                }`}
+                className="flex min-h-11 items-center text-sm font-medium px-3 rounded-xl text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
               >
-                {link.label}
+                {session ? "My Account" : "Login"}
               </Link>
-            ))}
-            <Link
-              href={session ? "/account" : "/login"}
-              onClick={() => setMobileOpen(false)}
-              className="text-sm font-medium py-2.5 px-3 rounded-xl text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
-            >
-              {session ? "My Account" : "Login"}
-            </Link>
+            </div>
             <div className="pt-3 border-t border-[oklch(0.91_0.004_260)] dark:border-[oklch(0.24_0.02_260)] mt-2">
-              <Link href="/shop" onClick={() => setMobileOpen(false)} className="btn-primary block text-center text-sm">
+              <Link href="/shop" onClick={() => setMobileOpen(false)} className="btn-primary flex min-h-11 w-full text-center text-sm">
                 Shop Now
               </Link>
             </div>

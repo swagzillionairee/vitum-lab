@@ -43,7 +43,7 @@ export default function CookieConsent() {
   if (!visible) return null;
 
   return (
-        <div className="cookie-banner-enter fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 pointer-events-none">
+        <div className="cookie-banner-enter safe-area-bottom fixed bottom-0 left-0 right-0 z-50 px-4 pointer-events-none">
           <div className="pointer-events-auto max-w-3xl mx-auto bg-[oklch(1_0_0)] dark:bg-[oklch(0.18_0.02_260)] border border-[oklch(0.90_0.004_260)] dark:border-[oklch(0.28_0.02_260)] rounded-2xl shadow-xl px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
             {/* Icon */}
             <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-[oklch(0.96_0.012_240)] dark:bg-[oklch(0.24_0.03_260)] items-center justify-center">
@@ -63,17 +63,17 @@ export default function CookieConsent() {
             <div className="flex items-center justify-end gap-1.5 flex-shrink-0">
               <button
                 onClick={handleDecline}
-                className="text-xs font-medium text-[oklch(0.55_0.01_260)] dark:text-[oklch(0.70_0.01_260)] hover:text-[oklch(0.13_0.01_260)] dark:hover:text-[oklch(0.94_0.006_260)] transition-colors px-2.5 py-1.5 rounded-full"
+                className="min-h-11 text-xs font-medium text-[oklch(0.55_0.01_260)] dark:text-[oklch(0.70_0.01_260)] hover:text-[oklch(0.13_0.01_260)] dark:hover:text-[oklch(0.94_0.006_260)] transition-colors px-3 py-1.5 rounded-full"
               >
                 Decline
               </button>
-              <button onClick={handleAccept} className="btn-primary text-xs py-1.5 px-4">
+              <button onClick={handleAccept} className="btn-primary min-h-11 text-xs py-1.5 px-4">
                 Accept
               </button>
               <button
                 onClick={handleDecline}
                 aria-label="Dismiss"
-                className="ml-0.5 text-[oklch(0.70_0.01_260)] hover:text-[oklch(0.45_0.01_260)] dark:text-[oklch(0.55_0.01_260)] dark:hover:text-[oklch(0.80_0.01_260)] transition-colors"
+                className="ml-0.5 flex h-11 w-11 items-center justify-center rounded-full text-[oklch(0.70_0.01_260)] hover:text-[oklch(0.45_0.01_260)] dark:text-[oklch(0.55_0.01_260)] dark:hover:text-[oklch(0.80_0.01_260)] transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>

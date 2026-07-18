@@ -39,6 +39,7 @@ async function seedBrowser(page: Page) {
         },
       };
       localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(session));
+      localStorage.setItem("vitum_cookie_consent", "accepted");
       sessionStorage.setItem("vitum_cart", JSON.stringify(cart));
     },
     { ref: PROJECT_REF, email: CUSTOMER_EMAIL, cart: CART },
@@ -180,4 +181,81 @@ test("manual method (Venmo) shows the payment-instructions modal, not the empty 
   await expect(page.getByText(/Missing order ID = automatic refund/i)).toBeVisible();
   await expect(page.getByRole("button", { name: /I've Sent the Payment/i })).toBeVisible();
   await expect(page.getByText("Your cart is empty")).toHaveCount(0);
+});
+
+test("mobile checkout fields and payment methods remain comfortably usable", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only layout regression coverage");
+
+  await seedBrowser(page);
+  await mockApi(page, {});
+  await page.route("**/api/public/site**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      sitewide: { active: false },
+      quantity_tiers: [],
+      payments: {
+        square: { enabled: false },
+        zelle: { enabled: true, handle: "payments@example.com", instructions: "" },
+        cashapp: { enabled: true, handle: "$vitumlab", instructions: "" },
+        venmo: { enabled: true, handle: "@vitumlab", instructions: "" },
+        ach: { enabled: false, handle: "", instructions: "" },
+        crypto: { enabled: true },
+      },
+    }) }),
+  );
+
+  await page.goto("/checkout");
+  await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
+
+  const cityBox = await page.getByPlaceholder("City").boundingBox();
+  const stateBox = await page.getByPlaceholder("State").boundingBox();
+  const zipBox = await page.getByPlaceholder("ZIP").boundingBox();
+  expect(cityBox?.width).toBeGreaterThan(200);
+  expect(stateBox?.width).toBeGreaterThan(100);
+  expect(zipBox?.width).toBeGreaterThan(100);
+
+  for (const name of ["Zelle", "Cash App", "Venmo", "Crypto"]) {
+    const button = page.getByRole("button", { name, exact: true });
+    await expect(button).toBeVisible();
+    const box = await button.boundingBox();
+    expect(box?.width).toBeGreaterThan(100);
+    expect(box?.height).toBeGreaterThanOrEqual(70);
+  }
+
+  const viewportMetrics = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+  }));
+  expect(viewportMetrics.documentWidth).toBeLessThanOrEqual(viewportMetrics.viewportWidth);
+});
+
+test("mobile navigation and cart controls stay reachable at 320px", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile-only shell regression coverage");
+
+  await seedBrowser(page);
+  await mockApi(page, {});
+  await page.goto("/faq");
+  await expect(page.getByRole("heading", { name: "Frequently Asked Questions" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Toggle menu" }).click();
+  await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
+  const shopNow = page.getByRole("link", { name: "Shop Now" }).last();
+  await shopNow.scrollIntoViewIfNeeded();
+  await expect(shopNow).toBeInViewport();
+
+  await page.getByRole("button", { name: "Toggle menu" }).click();
+  await page.getByRole("button", { name: "Shopping cart" }).click();
+  await expect(page.getByRole("dialog", { name: "Shopping cart" })).toBeVisible();
+
+  for (const name of ["Close cart", "Decrease quantity", "Increase quantity", "Remove GLP-3 (R)"]) {
+    const control = page.getByRole("button", { name });
+    const box = await control.boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+  }
+
+  const viewportMetrics = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+  }));
+  expect(viewportMetrics.documentWidth).toBeLessThanOrEqual(viewportMetrics.viewportWidth);
 });

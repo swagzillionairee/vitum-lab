@@ -110,7 +110,7 @@ function ProductCard({ product }: { product: Product }) {
                 key={v.dose}
                 onClick={() => { setSelectedIdx(i); setAdded(false); }}
                 aria-pressed={i === selectedIdx}
-                className={`text-[0.6875rem] font-bold px-3 py-1 rounded-full border transition-colors duration-150 ${
+                className={`min-h-11 text-[0.6875rem] font-bold px-3 py-1 rounded-full border transition-colors duration-150 ${
                   i === selectedIdx
                     ? "bg-[oklch(0.13_0.01_260)] dark:bg-[oklch(0.40_0.16_260)] text-white border-[oklch(0.13_0.01_260)] dark:border-[oklch(0.40_0.16_260)]"
                     : "bg-white text-[oklch(0.40_0.01_260)] border-[oklch(0.88_0.004_260)] hover:border-[oklch(0.60_0.01_260)]"
@@ -143,14 +143,14 @@ function ProductCard({ product }: { product: Product }) {
           <div className="flex items-center justify-between gap-2">
             <a
               href={coaLibraryHref(selected.cartCode)}
-              className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors flex-shrink-0"
+              className="flex min-h-11 items-center gap-1 px-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors flex-shrink-0"
             >
               <FileText className="w-3.5 h-3.5" /> COA
             </a>
             {available ? (
               <button
                 onClick={handleAdd}
-                className={`text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
+                className={`min-h-11 text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
                   added ? "bg-[oklch(0.40_0.14_155)] text-white" : "btn-primary"
                 }`}
               >
@@ -161,7 +161,7 @@ function ProductCard({ product }: { product: Product }) {
                 )}
               </button>
             ) : (
-              <span className="text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.52_0.01_260)]">
+              <span className="inline-flex min-h-11 items-center text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.52_0.01_260)]">
                 Out of Stock
               </span>
             )}
@@ -245,7 +245,7 @@ export default function Shop() {
               <button
                 key={c.slug}
                 onClick={() => setActiveCategory(c.slug)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-[0.8125rem] font-semibold transition-colors ${
+                className={`min-h-11 flex-shrink-0 px-4 py-2 rounded-full text-[0.8125rem] font-semibold transition-colors ${
                   activeCategory === c.slug
                     ? "bg-[oklch(0.13_0.01_260)] dark:bg-[oklch(0.40_0.16_260)] text-white"
                     : "bg-[oklch(0.96_0.003_260)] dark:bg-[oklch(0.20_0.02_260)] text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.80_0.01_260)] hover:bg-[oklch(0.92_0.005_260)] dark:hover:bg-[oklch(0.26_0.02_260)]"

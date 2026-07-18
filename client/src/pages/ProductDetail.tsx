@@ -236,7 +236,7 @@ export default function ProductDetail() {
                     <button
                       key={v.dose}
                       onClick={() => setSelectedIdx(i)}
-                      className={`px-5 py-2.5 rounded-full border text-[0.875rem] font-semibold transition-colors duration-150 ${
+                      className={`min-h-11 px-5 py-2.5 rounded-full border text-[0.875rem] font-semibold transition-colors duration-150 ${
                         i === selectedIdx
                           ? "bg-[oklch(0.13_0.01_260)] dark:bg-[oklch(0.40_0.16_260)] text-white border-[oklch(0.13_0.01_260)] dark:border-[oklch(0.40_0.16_260)]"
                           : "bg-white dark:bg-[oklch(0.18_0.02_260)] text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.80_0.01_260)] border-[oklch(0.88_0.004_260)] dark:border-[oklch(0.28_0.02_260)] hover:border-[oklch(0.60_0.01_260)]"
@@ -267,7 +267,7 @@ export default function ProductDetail() {
                         <button
                           key={t.min_qty}
                           onClick={() => setQuantity(t.min_qty)}
-                          className={`px-4 py-2 rounded-xl border text-[0.8125rem] font-semibold transition-colors ${
+                          className={`min-h-11 px-4 py-2 rounded-xl border text-[0.8125rem] font-semibold transition-colors ${
                             t.min_qty === activeMin
                               ? "border-[oklch(0.40_0.16_260)] bg-[oklch(0.96_0.03_260)] text-[oklch(0.30_0.14_260)]"
                               : "border-[oklch(0.88_0.004_260)] text-[oklch(0.40_0.01_260)] hover:border-[oklch(0.60_0.01_260)]"
@@ -282,11 +282,11 @@ export default function ProductDetail() {
                 <div className="flex items-center gap-3">
                   <span className="text-[0.8125rem] font-semibold text-[oklch(0.40_0.01_260)]">Quantity</span>
                   <div className="flex items-center border border-[oklch(0.88_0.004_260)] rounded-full overflow-hidden">
-                    <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-9 h-9 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] active:scale-95" aria-label="Decrease quantity">
+                    <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-11 h-11 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] active:scale-95" aria-label="Decrease quantity">
                       <Minus className="w-3.5 h-3.5" />
                     </button>
                     <span className="w-10 text-center text-[0.9375rem] font-semibold text-[oklch(0.13_0.01_260)]">{quantity}</span>
-                    <button onClick={() => setQuantity((q) => q + 1)} className="w-9 h-9 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] active:scale-95" aria-label="Increase quantity">
+                    <button onClick={() => setQuantity((q) => q + 1)} className="w-11 h-11 flex items-center justify-center text-[oklch(0.40_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] active:scale-95" aria-label="Increase quantity">
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -298,7 +298,7 @@ export default function ProductDetail() {
             )}
 
             {/* Price + Add to Cart */}
-            <div className="flex items-center gap-5 mb-2">
+            <div className="flex flex-col items-stretch gap-3 mb-2 sm:flex-row sm:items-center sm:gap-5">
               {unitPrice < selected.price ? (
                 <span className="flex items-baseline gap-2">
                   <span className="text-[2rem] font-bold text-[oklch(0.50_0.18_25)]">${fmtPrice(unitPrice)}</span>
@@ -357,7 +357,7 @@ export default function ProductDetail() {
                 href={product.coaHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[0.875rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors mb-8"
+                className="inline-flex min-h-11 items-center gap-1.5 text-[0.875rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors mb-8"
               >
                 <FileText className="w-4 h-4" /> View Certificate of Analysis
               </a>

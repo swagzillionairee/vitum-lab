@@ -452,15 +452,15 @@ export default function Checkout() {
   }
 
   return (
-    <div className="container py-10">
+    <div className="container py-8 sm:py-10">
       <SEO title="Checkout" description="Complete your Vitum Lab order." />
-      <h1 className="text-[1.75rem] font-bold tracking-tight text-[oklch(0.13_0.01_260)] mb-8">Checkout</h1>
+      <h1 className="text-[1.75rem] font-bold tracking-tight text-[oklch(0.13_0.01_260)] mb-6 sm:mb-8">Checkout</h1>
 
       <div className="grid lg:grid-cols-3 gap-8 items-start">
         {/* ── Left 2/3: contact + shipping ─────────────────────────── */}
         <div className="lg:col-span-2 space-y-8">
           {/* Contact */}
-          <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6">
+          <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-4 sm:p-6">
             <h2 className="text-[1rem] font-bold text-[oklch(0.13_0.01_260)] mb-4">Contact</h2>
             <label className="block text-[0.8125rem] font-semibold text-[oklch(0.35_0.01_260)] mb-1.5">Email for order confirmation</label>
             <input type="email" value={email} readOnly aria-readonly className={`${inputClass} bg-[oklch(0.97_0.003_260)] text-[oklch(0.45_0.01_260)] cursor-not-allowed`} />
@@ -468,7 +468,7 @@ export default function Checkout() {
           </section>
 
           {/* Shipping address */}
-          <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6">
+          <section className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-4 sm:p-6">
             <h2 className="text-[1rem] font-bold text-[oklch(0.13_0.01_260)] mb-4">Shipping address</h2>
             {/* Persistent labels (not placeholder-only): placeholders vanish on input,
                 which hurts review-before-submit and screen-reader labeling. */}
@@ -498,16 +498,16 @@ export default function Checkout() {
                 <span className={labelClass}>Apt, suite, unit <span className="font-normal">(optional)</span></span>
                 <input type="text" autoComplete="address-line2" value={ship.line2} onChange={(e) => setShipField("line2", e.target.value)} placeholder="Apt, suite, unit (optional)" className={inputClass} />
               </label>
-              <div className="flex gap-3">
-                <label className="block flex-1 min-w-0">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_5rem_7rem]">
+                <label className="col-span-2 block min-w-0 sm:col-span-1">
                   <span className={labelClass}>City</span>
                   <input type="text" autoComplete="address-level2" value={ship.city} onChange={(e) => setShipField("city", e.target.value)} placeholder="City" className={`${inputBase} w-full`} />
                 </label>
-                <label className="block w-20">
+                <label className="block min-w-0">
                   <span className={labelClass}>State</span>
                   <input type="text" autoComplete="address-level1" maxLength={2} value={ship.state} onChange={(e) => setShipField("state", e.target.value)} placeholder="State" className={`${inputBase} w-full`} />
                 </label>
-                <label className="block w-28">
+                <label className="block min-w-0">
                   <span className={labelClass}>ZIP</span>
                   <input type="text" autoComplete="postal-code" inputMode="numeric" value={ship.postal_code} onChange={(e) => setShipField("postal_code", e.target.value)} placeholder="ZIP" className={`${inputBase} w-full`} />
                 </label>
@@ -524,10 +524,10 @@ export default function Checkout() {
         {/* ── Right 1/3: order summary ─────────────────────────────── */}
         <div className="lg:col-span-1">
           {/* top-44 clears the full sticky header stack (marquee + compliance bar + nav ≈ 125px+) */}
-          <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-6 lg:sticky lg:top-44 space-y-4">
+          <div className="bg-white rounded-2xl border border-[oklch(0.93_0.004_260)] p-4 sm:p-6 lg:sticky lg:top-44 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-[1rem] font-bold text-[oklch(0.13_0.01_260)]">Order summary</h2>
-              <button onClick={openCart} className="text-[0.75rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">Edit cart</button>
+              <button onClick={openCart} className="inline-flex min-h-11 items-center px-1 text-[0.75rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">Edit cart</button>
             </div>
 
             {/* Free-shipping progress — a little colour + a nudge toward $75 */}
@@ -569,13 +569,13 @@ export default function Checkout() {
 
             {/* Promo */}
             <div className="border-t border-[oklch(0.93_0.004_260)] pt-4">
-              <button onClick={() => setPromoOpen(!promoOpen)} aria-expanded={promoOpen} aria-controls="promo-entry" className="flex items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline">
+              <button onClick={() => setPromoOpen(!promoOpen)} aria-expanded={promoOpen} aria-controls="promo-entry" className="flex min-h-11 items-center gap-1.5 text-[0.8125rem] text-[oklch(0.40_0.16_260)] font-semibold hover:underline">
                 <Tag className="w-3.5 h-3.5" /> Have a promo code?
               </button>
               {promoOpen && (
                 <div id="promo-entry" className="mt-2 flex gap-2">
                   <input type="text" value={promoCode} onChange={(e) => { setPromoCode(e.target.value); setPromoError(""); setPromoApplied(false); setDiscountPct(0); setDiscountFlat(0); setAffiliateId(undefined); }} placeholder="Enter code" className={`${inputBase} flex-1 min-w-0 py-2`} />
-                  <button onClick={handleApplyPromo} disabled={promoLoading} className="flex-shrink-0 px-4 py-2 rounded-full bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors disabled:opacity-60">
+                  <button onClick={handleApplyPromo} disabled={promoLoading} className="min-h-11 flex-shrink-0 px-4 py-2 rounded-full bg-[oklch(0.13_0.02_260)] text-white text-[0.8125rem] font-semibold hover:bg-[oklch(0.22_0.02_260)] transition-colors disabled:opacity-60">
                     {promoLoading ? "…" : "Apply"}
                   </button>
                 </div>
@@ -690,9 +690,9 @@ export default function Checkout() {
                   </div>
                 )}
 
-                {/* Payment method selector — 5-6 methods wrap as tidy 3-col rows
-                    (a 4-col grid leaves an unbalanced 4+2 second row) */}
-                <div className={`grid gap-2 ${enabledMethods.length >= 5 ? "grid-cols-3" : enabledMethods.length === 4 ? "grid-cols-4" : enabledMethods.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+                {/* Phones keep two comfortably tappable columns; larger screens
+                    retain the compact, balanced 3/4-column layout. */}
+                <div className={`grid gap-2 ${enabledMethods.length === 1 ? "grid-cols-1" : enabledMethods.length === 2 ? "grid-cols-2" : enabledMethods.length === 3 ? "grid-cols-2 sm:grid-cols-3" : enabledMethods.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3"}`}>
                   {enabledMethods.map((m) => {
                     const { label, Icon } = METHOD_META[m];
                     const st = METHOD_STYLE[m];

@@ -16,7 +16,16 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     trace: "on-first-retry",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "mobile-chromium",
+      use: {
+        ...devices["Pixel 5"],
+        viewport: { width: 320, height: 568 },
+      },
+    },
+  ],
   webServer: {
     // Pin the port (vite.config has strictPort: false) so baseURL is deterministic.
     command: `pnpm exec vite --host --port ${PORT} --strictPort`,

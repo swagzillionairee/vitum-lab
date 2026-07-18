@@ -47,7 +47,7 @@ export default function ManualPaymentModal({ data, onSent, onClose }: {
   );
 
   const CopyBtn = ({ text, which, label }: { text: string; which: "handle" | "order"; label: string }) => (
-    <button onClick={() => copy(text, which)} className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg bg-[oklch(0.96_0.003_260)] border border-[oklch(0.90_0.004_260)] text-[0.8125rem] font-semibold text-[oklch(0.30_0.01_260)] hover:bg-[oklch(0.94_0.004_260)] transition-colors">
+    <button onClick={() => copy(text, which)} className="inline-flex min-h-11 items-center gap-1.5 mt-2 px-3 py-1.5 rounded-lg bg-[oklch(0.96_0.003_260)] border border-[oklch(0.90_0.004_260)] text-[0.8125rem] font-semibold text-[oklch(0.30_0.01_260)] hover:bg-[oklch(0.94_0.004_260)] transition-colors">
       {copied === which ? <><Check className="w-3.5 h-3.5 text-[oklch(0.45_0.14_155)]" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> {label}</>}
     </button>
   );
@@ -55,8 +55,8 @@ export default function ManualPaymentModal({ data, onSent, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="relative p-7 sm:p-8">
-          <button onClick={onClose} aria-label="Close" className="absolute top-4 right-4 text-[oklch(0.60_0.01_260)] hover:text-[oklch(0.30_0.01_260)]">
+        <div className="relative p-5 pt-12 sm:p-8">
+          <button onClick={onClose} aria-label="Close" className="absolute top-2 right-2 flex h-11 w-11 items-center justify-center rounded-full text-[oklch(0.60_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] hover:text-[oklch(0.30_0.01_260)]">
             <X className="w-5 h-5" />
           </button>
 
