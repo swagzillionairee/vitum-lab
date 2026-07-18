@@ -162,7 +162,7 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
             <button
               key={v.dose}
               onClick={() => setSelectedIdx(i)}
-              className={`text-[0.6875rem] font-bold px-3 py-1 rounded-full border transition-colors duration-150 ${
+              className={`min-h-11 text-[0.6875rem] font-bold px-3 py-1 rounded-full border transition-colors duration-150 ${
                 i === selectedIdx
                   ? "bg-[oklch(0.13_0.01_260)] text-white border-[oklch(0.13_0.01_260)]"
                   : "bg-white text-[oklch(0.40_0.01_260)] border-[oklch(0.88_0.004_260)] hover:border-[oklch(0.60_0.01_260)]"
@@ -187,14 +187,14 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
           <div className="flex items-center gap-2">
             <a
               href={coaLibraryHref(selected.cartCode)}
-              className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors"
+              className="flex min-h-11 items-center gap-1 px-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors"
             >
               <FileText className="w-3.5 h-3.5" /> COA
             </a>
             {available ? (
               <button
                 onClick={handleAdd}
-                className={`text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
+                className={`min-h-11 text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
                   added
                     ? "bg-[oklch(0.40_0.14_155)] text-white"
                     : "btn-primary"
@@ -207,7 +207,7 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
                 )}
               </button>
             ) : (
-              <button disabled className="text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.55_0.01_260)] cursor-not-allowed">
+              <button disabled className="min-h-11 text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.55_0.01_260)] cursor-not-allowed">
                 Out of Stock
               </button>
             )}
@@ -287,21 +287,21 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
           <div className="flex items-center gap-2">
             <a
               href={coaLibraryHref(p.cartCode)}
-              className="flex items-center gap-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors"
+              className="flex min-h-11 items-center gap-1 px-1 text-[0.75rem] font-semibold text-[oklch(0.52_0.01_260)] hover:text-[oklch(0.13_0.01_260)] transition-colors"
             >
               <FileText className="w-3.5 h-3.5" /> COA
             </a>
             {available ? (
               <button
                 onClick={handleAdd}
-                className={`text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
+                className={`min-h-11 text-[0.8125rem] py-2 px-4 rounded-full font-semibold transition-all duration-200 active:scale-95 ${
                   added ? "bg-[oklch(0.40_0.14_155)] text-white" : "btn-primary"
                 }`}
               >
                 {added ? <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Added</span> : "Add to Cart"}
               </button>
             ) : (
-              <button disabled className="text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.55_0.01_260)] cursor-not-allowed">
+              <button disabled className="min-h-11 text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.55_0.01_260)] cursor-not-allowed">
                 Out of Stock
               </button>
             )}

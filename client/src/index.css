@@ -361,6 +361,15 @@ html[data-cookie-banner] .floating-cart-btn { display: none; }
     font-family: 'Sora', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
+  /* iOS Safari zooms the viewport when a focused form control is under 16px.
+     Keep the compact desktop typography while preserving the mobile viewport. */
+  @media (max-width: 639px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea {
+      font-size: 1rem !important;
+    }
+  }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
   [type="button"]:not(:disabled),
@@ -380,6 +389,15 @@ html[data-cookie-banner] .floating-cart-btn { display: none; }
     margin-right: auto;
     padding-left: 1.25rem;
     padding-right: 1.25rem;
+  }
+  .safe-area-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .safe-area-bottom-5 {
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+  .safe-area-floating-bottom {
+    bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 0.75rem));
   }
   @media (min-width: 640px) {
     .container {
