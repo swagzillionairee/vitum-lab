@@ -1,21 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  round2,
-  grossFromItems,
-  commissionAmount,
-  isFreeOrder,
-  applyCredit,
-  isPromoUsable,
-  isSitewideActive,
-  sitewideSalePrice,
-  promoAlreadyRedeemed,
-  promoRedemptionCount,
-  quantityDiscountPercent,
-  computeStackedDiscounts,
-  shippingFee,
-  SHIPPING_FEE,
-  FREE_SHIPPING_THRESHOLD,
-} from "./pricing";
+import { round2, grossFromItems, commissionAmount, isFreeOrder, applyCredit, isPromoUsable, isSitewideActive, sitewideSalePrice, promoAlreadyRedeemed, promoRedemptionCount, quantityDiscountPercent, computeStackedDiscounts, shippingFee, orderCashDue, SHIPPING_FEE, FREE_SHIPPING_THRESHOLD } from "./pricing";
 
 describe("shippingFee", () => {
   it("charges the flat fee under the free-shipping threshold", () => {
@@ -35,6 +19,16 @@ describe("shippingFee", () => {
   });
 });
 
+describe("orderCashDue", () => {
+  it("includes shipping, subtracts credit, and rounds to cents", () => {
+    expect(orderCashDue(80.005, 10, 5)).toBe(85.01);
+  });
+
+  it("never returns a negative balance", () => {
+    expect(orderCashDue(5, 0, 10)).toBe(0);
+  });
+});
+
 describe("round2", () => {
   it("rounds to two decimal places", () => {
     expect(round2(9.999)).toBe(10);
@@ -49,7 +43,12 @@ describe("round2", () => {
 
 describe("grossFromItems", () => {
   it("sums price × quantity", () => {
-    expect(grossFromItems([{ price: 129, quantity: 1 }, { price: 12, quantity: 2 }])).toBe(153);
+    expect(
+      grossFromItems([
+        { price: 129, quantity: 1 },
+        { price: 12, quantity: 2 },
+      ])
+    ).toBe(153);
   });
   it("treats free items as $0", () => {
     expect(grossFromItems([{ price: 0, quantity: 1 }])).toBe(0);
@@ -91,13 +90,22 @@ describe("applyCredit", () => {
     expect(applyCredit(50, 0)).toEqual({ creditApplied: 0, amountDue: 50 });
   });
   it("rounds to cents", () => {
-    expect(applyCredit(19.999, 5.005)).toEqual({ creditApplied: 5.01, amountDue: 14.99 });
+    expect(applyCredit(19.999, 5.005)).toEqual({
+      creditApplied: 5.01,
+      amountDue: 14.99,
+    });
   });
 });
 
 describe("isPromoUsable", () => {
   const now = new Date("2026-06-10T00:00:00Z");
-  const base = { is_active: true, expires_at: null, max_uses: null, used_count: 0, min_subtotal: 0 };
+  const base = {
+    is_active: true,
+    expires_at: null,
+    max_uses: null,
+    used_count: 0,
+    min_subtotal: 0,
+  };
 
   it("accepts an active, unexpired, under-cap code meeting the minimum", () => {
     expect(isPromoUsable(base, 100, now)).toBe(true);
@@ -124,7 +132,11 @@ describe("isPromoUsable", () => {
 });
 
 describe("quantityDiscountPercent", () => {
-  const tiers = [{ min_qty: 3, percent: 5 }, { min_qty: 5, percent: 10 }, { min_qty: 10, percent: 15 }];
+  const tiers = [
+    { min_qty: 3, percent: 5 },
+    { min_qty: 5, percent: 10 },
+    { min_qty: 10, percent: 15 },
+  ];
   it("picks the highest qualifying tier", () => {
     expect(quantityDiscountPercent(tiers, 1)).toBe(0);
     expect(quantityDiscountPercent(tiers, 3)).toBe(5);
@@ -149,22 +161,40 @@ describe("computeStackedDiscounts", () => {
   });
   it("stacks a promo % on top of the quantity discount (sequential)", () => {
     // $200, 10% qty → 180, then 10% promo → 18 off → net 162
-    const r = computeStackedDiscounts({ gross: 200, units: 3, tiers, code: { kind: "promo", label: "Promo (SAVE10)", percent: 10 } });
+    const r = computeStackedDiscounts({
+      gross: 200,
+      units: 3,
+      tiers,
+      code: { kind: "promo", label: "Promo (SAVE10)", percent: 10 },
+    });
     expect(r.totalDiscount).toBe(38);
     expect(r.net).toBe(162);
-    expect(r.lines.map((l) => l.type)).toEqual(["quantity", "promo"]);
+    expect(r.lines.map(l => l.type)).toEqual(["quantity", "promo"]);
   });
   it("applies a flat referral $ off, capped at the remaining subtotal", () => {
-    const r = computeStackedDiscounts({ gross: 50, units: 1, code: { kind: "referral", label: "Referral", amount: 10 } });
+    const r = computeStackedDiscounts({
+      gross: 50,
+      units: 1,
+      code: { kind: "referral", label: "Referral", amount: 10 },
+    });
     expect(r.totalDiscount).toBe(10);
     expect(r.net).toBe(40);
-    const capped = computeStackedDiscounts({ gross: 8, units: 1, code: { kind: "referral", label: "Referral", amount: 10 } });
+    const capped = computeStackedDiscounts({
+      gross: 8,
+      units: 1,
+      code: { kind: "referral", label: "Referral", amount: 10 },
+    });
     expect(capped.totalDiscount).toBe(8); // never more than the subtotal
     expect(capped.net).toBe(0);
   });
   it("omits zero lines (no qualifying tier)", () => {
-    const r = computeStackedDiscounts({ gross: 100, units: 1, tiers, code: { kind: "promo", label: "P", percent: 10 } });
-    expect(r.lines.map((l) => l.type)).toEqual(["promo"]);
+    const r = computeStackedDiscounts({
+      gross: 100,
+      units: 1,
+      tiers,
+      code: { kind: "promo", label: "P", percent: 10 },
+    });
+    expect(r.lines.map(l => l.type)).toEqual(["promo"]);
     expect(r.net).toBe(90);
   });
 });
@@ -180,9 +210,37 @@ describe("isSitewideActive", () => {
     expect(isSitewideActive({ sitewide_active: true, sitewide_percent: 20 }, now)).toBe(true);
   });
   it("respects the scheduled start/end window", () => {
-    expect(isSitewideActive({ sitewide_active: true, sitewide_percent: 20, sitewide_starts_at: "2026-06-01T00:00:00Z", sitewide_ends_at: "2026-06-30T00:00:00Z" }, now)).toBe(true);
-    expect(isSitewideActive({ sitewide_active: true, sitewide_percent: 20, sitewide_starts_at: "2026-07-01T00:00:00Z" }, now)).toBe(false);
-    expect(isSitewideActive({ sitewide_active: true, sitewide_percent: 20, sitewide_ends_at: "2026-06-01T00:00:00Z" }, now)).toBe(false);
+    expect(
+      isSitewideActive(
+        {
+          sitewide_active: true,
+          sitewide_percent: 20,
+          sitewide_starts_at: "2026-06-01T00:00:00Z",
+          sitewide_ends_at: "2026-06-30T00:00:00Z",
+        },
+        now
+      )
+    ).toBe(true);
+    expect(
+      isSitewideActive(
+        {
+          sitewide_active: true,
+          sitewide_percent: 20,
+          sitewide_starts_at: "2026-07-01T00:00:00Z",
+        },
+        now
+      )
+    ).toBe(false);
+    expect(
+      isSitewideActive(
+        {
+          sitewide_active: true,
+          sitewide_percent: 20,
+          sitewide_ends_at: "2026-06-01T00:00:00Z",
+        },
+        now
+      )
+    ).toBe(false);
   });
 });
 

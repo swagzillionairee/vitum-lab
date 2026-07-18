@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
-import { sendOrderEvent, sendAffiliateCommission, type EmailOrder } from "./_lib/email.js";
+import { sendOrderEvent, type EmailOrder } from "./_lib/email.js";
 import { paidIpnAction } from "./_lib/orderLifecycle.js";
-import { confirmPaidOrder, refundClawback, recordLatePayment } from "./_lib/fulfillment.js";
+import { confirmPaidOrder, refundClawback, recordLatePayment, sendConfirmationEmails, ORDER_COLS } from "./_lib/fulfillment.js";
 import { releaseDiscountRedemption } from "./_lib/credit.js";
+import { estimateNowPaymentUsd, estimatedUsdCoversOrder, verifyNowPayment } from "./_lib/nowPayments.js";
+import { orderCashDue } from "./_lib/pricing.js";
 
 function sortKeys(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return obj;
@@ -15,35 +17,16 @@ function sortKeys(obj: unknown): unknown {
     }, {});
 }
 
-const ORDER_COLS =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, credit_applied, referral_code, shipping_address, status, fulfillment_status, affiliate_id, commission_amount, emails_sent, admin_notes";
-
-// Email the attributed affiliate their commission (once, via emails_sent).
-async function notifyAffiliate(order: any) {
-  const commission = Number(order.commission_amount) || 0;
-  if (!order.affiliate_id || commission <= 0) return;
-  const { data: aff } = await supabaseAdmin
-    .from("affiliates").select("email, code").eq("id", order.affiliate_id).maybeSingle();
-  if (aff?.email) {
-    await sendAffiliateCommission(order as EmailOrder, { email: aff.email, code: aff.code, commission });
-  }
-}
-
 export const config = { api: { bodyParser: false } };
-
 const MAX_WEBHOOK_BYTES = 1024 * 1024;
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== "POST") {
-    res.status(405).send("Method not allowed");
-    return;
-  }
+  if (req.method !== "POST") return res.status(405).send("Method not allowed");
 
   const secret = process.env.NOWPAYMENTS_IPN_SECRET;
   if (!secret) {
     console.error("NOWPAYMENTS_IPN_SECRET is not configured; rejecting webhook");
-    res.status(503).send("Webhook unavailable");
-    return;
+    return res.status(503).send("Webhook unavailable");
   }
 
   const chunks: Buffer[] = [];
@@ -51,170 +34,91 @@ export default async function handler(req: any, res: any) {
   for await (const chunk of req) {
     const buffer = Buffer.from(chunk);
     bytes += buffer.length;
-    if (bytes > MAX_WEBHOOK_BYTES) {
-      res.status(413).send("Payload too large");
-      return;
-    }
+    if (bytes > MAX_WEBHOOK_BYTES) return res.status(413).send("Payload too large");
     chunks.push(buffer);
   }
-  const rawBody = Buffer.concat(chunks).toString("utf8");
-
-  const signature = req.headers["x-nowpayments-sig"] as string;
 
   try {
-    const payload = JSON.parse(rawBody);
-    const sorted = sortKeys(payload);
-    const hmac = crypto.createHmac("sha512", secret);
-    hmac.update(JSON.stringify(sorted));
-    const computed = hmac.digest("hex");
-
-    const sigBuf = Buffer.from(signature ?? "");
-    const cmpBuf = Buffer.from(computed);
-    if (sigBuf.length !== cmpBuf.length || !crypto.timingSafeEqual(cmpBuf, sigBuf)) {
-      res.status(401).send("Invalid signature");
-      return;
+    const payload = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, any>;
+    const computed = crypto
+      .createHmac("sha512", secret)
+      .update(JSON.stringify(sortKeys(payload)))
+      .digest("hex");
+    const supplied = Buffer.from(String(req.headers["x-nowpayments-sig"] ?? ""));
+    const expected = Buffer.from(computed);
+    if (supplied.length !== expected.length || !crypto.timingSafeEqual(expected, supplied)) {
+      return res.status(401).send("Invalid signature");
     }
 
-    const status: string = payload.payment_status;
-    console.log(`ℹ️  NowPayments IPN — order ${payload.order_id}: ${status}`);
+    const status = String(payload.payment_status ?? "").toLowerCase();
+    const orderId = String(payload.order_id ?? "");
+    if (!orderId || orderId.length > 64) return res.status(200).send("OK");
 
-    const { data: order } = await supabaseAdmin
-      .from("orders")
-      .select(ORDER_COLS)
-      .eq("id", payload.order_id)
-      .maybeSingle();
+    const { data: order } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("id", orderId).maybeSingle();
+    if (!order) return res.status(200).send("OK");
 
-    if (!order) {
-      res.status(200).send("OK");
-      return;
-    }
+    // `confirmed` only means blockchain confirmation. Fulfillment waits for
+    // `finished`, when NOWPayments says funds reached the merchant wallet.
+    if (status === "finished") {
+      const meta = {
+        payCurrency: payload.pay_currency ?? null,
+        payAmount: payload.actually_paid ?? payload.pay_amount ?? null,
+        paymentId: payload.payment_id != null ? String(payload.payment_id) : null,
+      };
+      const amountCheck = verifyNowPayment(payload, order);
+      if (!amountCheck.ok) {
+        await recordLatePayment(order, meta, `NOWPayments finished payment was not auto-fulfilled: ${amountCheck.reason} Review the signed payment before shipping.`).catch(error => console.error("Failed to flag payment mismatch:", error));
+        return res.status(200).send("OK");
+      }
+      const estimatedUsd = await estimateNowPaymentUsd(payload, process.env.NOWPAYMENTS_API_KEY ?? "").catch(() => null);
+      const dueUsd = orderCashDue(order.net_amount, order.shipping_amount, order.credit_applied);
+      if (!estimatedUsdCoversOrder(estimatedUsd, dueUsd)) {
+        await recordLatePayment(order, meta, `NOWPayments finished payment was not auto-fulfilled because the actually received asset could not be verified at the $${dueUsd.toFixed(2)} order value. Review before shipping.`).catch(() => {});
+        return res.status(200).send("OK");
+      }
 
-    if (status === "finished" || status === "confirmed") {
       const action = paidIpnAction(order.status);
-
       if (action === "late_payment") {
-        // Money arrived on a cancelled/failed order — e.g. the customer paid the
-        // crypto invoice after the 24h auto-expiry. The order stays dead (no
-        // stock decrement, no customer "confirmed" email); record the payment
-        // and alert the admin once so it can be refunded or fulfilled manually.
+        await recordLatePayment(order, meta, `NOWPayments payment ${payload.payment_id ?? "unknown"} finished after this order became ${order.status}. Refund or fulfill it manually.`).catch(error => console.error("Failed to flag late payment:", error));
+        return res.status(200).send("OK");
+      }
+
+      let emailable = action === "resend_emails";
+      if (action === "fulfill") {
         try {
-          if (!order.emails_sent?.admin_late_payment) {
-            const note = `⚠️ Payment received (IPN "${status}", payment id ${payload.payment_id ?? "unknown"}) AFTER this order was ${order.status}. Not fulfilled automatically — refund the customer or fulfill manually.`;
-            await supabaseAdmin
-              .from("orders")
-              .update({
-                admin_notes: order.admin_notes ? `${order.admin_notes}\n\n${note}` : note,
-                pay_currency: payload.pay_currency ?? null,
-                pay_amount: payload.actually_paid ?? payload.pay_amount ?? null,
-                payment_id: payload.payment_id != null ? String(payload.payment_id) : null,
-              })
-              .eq("id", payload.order_id);
-            await sendOrderEvent(order as EmailOrder, "admin_late_payment");
-          }
-        } catch (err) {
-          console.error("Failed to flag late payment:", err);
-        }
-        res.status(200).send("OK");
-        return;
-      }
-
-      // Amount-guard: the invoice was created
-      // with price_amount = the order's server-computed amountDue in USD. If the
-      // IPN's fiat amount doesn't match the order's due (net + shipping − credit),
-      // flag for review instead of fulfilling — defense-in-depth against a
-      // misclassified under-payment. price_amount absent → skip (legacy payloads).
-      if (action === "fulfill" && payload.price_amount != null) {
-        const dueUsd = Number(order.net_amount ?? 0) + Number(order.shipping_amount ?? 0) - Number(order.credit_applied ?? 0);
-        const paidUsd = Number(payload.price_amount);
-        if (!Number.isFinite(paidUsd) || Math.abs(paidUsd - dueUsd) > 0.01) {
-          try {
-            if (!order.emails_sent?.admin_late_payment) {
-              const note = `⚠️ NowPayments IPN "${status}" reports price_amount $${payload.price_amount} but the order is due $${dueUsd.toFixed(2)} — NOT fulfilled. Review before shipping.`;
-              await supabaseAdmin.from("orders")
-                .update({ admin_notes: order.admin_notes ? `${order.admin_notes}\n\n${note}` : note })
-                .eq("id", payload.order_id);
-              await sendOrderEvent(order as EmailOrder, "admin_late_payment");
-            }
-          } catch (err) {
-            console.error("Failed to flag amount mismatch:", err);
-          }
-          res.status(200).send("OK");
-          return;
+          emailable = await confirmPaidOrder(order, meta);
+        } catch (error) {
+          console.error("NOWPayments fulfillment transaction failed:", error);
+          await recordLatePayment(order, meta, `NOWPayments payment finished but automatic fulfillment failed: ${error instanceof Error ? error.message : "unknown error"}. Review inventory and fulfill or refund manually.`).catch(() => {});
+          return res.status(200).send("OK");
         }
       }
 
-      // Confirm the order exactly once (NowPayments fires both `confirmed`
-      // and `finished` for the same payment). confirmPaidOrder atomically claims
-      // the pending→confirmed transition, so parallel IPNs can't double-decrement
-      // stock or double-count the promo — a duplicate is a no-op.
-      let claimed = false;
-      try {
-        if (action === "fulfill") {
-          claimed = await confirmPaidOrder(order, {
-            payCurrency: payload.pay_currency ?? null,
-            payAmount: payload.actually_paid ?? payload.pay_amount ?? null,
-            paymentId: payload.payment_id != null ? String(payload.payment_id) : null,
-          });
-        }
-      } catch (err) {
-        console.error("Failed to update order/stock:", err);
-      }
-
-      // Only email "confirmed" when the order really IS confirmed. A fulfill
-      // attempt that lost its claim may have lost to a duplicate IPN (fine —
-      // resend idempotently) or to the hourly expiry cancelling the order right
-      // as the payment landed (NOT fine — alert the admin, don't tell the
-      // customer their cancelled order is confirmed).
-      let emailable = action === "resend_emails" || claimed;
-      if (action === "fulfill" && !claimed) {
-        const { data: now } = await supabaseAdmin.from("orders").select("status").eq("id", payload.order_id).maybeSingle();
-        emailable = now?.status === "confirmed" || now?.status === "finished";
+      if (!emailable) {
+        const { data: current } = await supabaseAdmin.from("orders").select("status").eq("id", orderId).maybeSingle();
+        emailable = current?.status === "confirmed" || current?.status === "finished";
         if (!emailable) {
-          await recordLatePayment(order, {
-            payCurrency: payload.pay_currency ?? null,
-            payAmount: payload.actually_paid ?? payload.pay_amount ?? null,
-            paymentId: payload.payment_id != null ? String(payload.payment_id) : null,
-          }, `⚠️ NowPayments "${status}" payment landed while this order was being ${now?.status ?? "removed"} (expiry race). Not fulfilled automatically — refund or fulfill manually.`).catch((err) => console.error("Failed to flag expiry race:", err));
+          await recordLatePayment(order, meta, `NOWPayments payment finished during an order status race (${current?.status ?? "missing"}). Refund or fulfill manually.`).catch(() => {});
         }
       }
-
-      // Emails are idempotent via orders.emails_sent — safe across duplicate IPNs.
-      if (emailable) {
-        try {
-          await sendOrderEvent(order as EmailOrder, "confirmed");
-          await sendOrderEvent(order as EmailOrder, "admin_new_order");
-          await notifyAffiliate(order);
-        } catch (err) {
-          console.error("Failed to send confirmation emails:", err);
-        }
-      }
+      if (emailable) await sendConfirmationEmails(order).catch(error => console.error("Failed to send confirmation emails:", error));
     }
 
     if ((status === "failed" || status === "expired" || status === "refunded") && order.status === "pending") {
-      try {
-        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", payload.order_id);
-        // Free the promo/referral one-use slot right away (not just via the hourly
-        // sweep) so the customer can retry checkout with the same code immediately.
-        await releaseDiscountRedemption(payload.order_id).catch(() => {});
-        await sendOrderEvent(order as EmailOrder, "failed");
-      } catch (err) {
-        console.error("Failed to process failed payment:", err);
+      const { data: claimed } = await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId).eq("status", "pending").select("id").maybeSingle();
+      if (claimed) {
+        await releaseDiscountRedemption(orderId).catch(() => {});
+        await sendOrderEvent(order as EmailOrder, "failed").catch(error => console.error("Failed to send failed-payment email:", error));
       }
     }
 
-    // A refund on an already-confirmed order → claw it back (revert to cancelled
-    // so rewards, commission, and referral credit are reversed). Idempotent.
     if (status === "refunded" && (order.status === "confirmed" || order.status === "finished")) {
-      try {
-        await refundClawback(order, `Refunded via NowPayments (IPN "${status}")`);
-      } catch (err) {
-        console.error("Failed to process refund clawback:", err);
-      }
+      await refundClawback(order, "Refunded via NOWPayments").catch(error => console.error("Failed to process refund clawback:", error));
     }
 
-    res.status(200).send("OK");
-  } catch (err) {
-    console.error("Webhook error:", err);
-    res.status(400).send("Bad request");
+    return res.status(200).send("OK");
+  } catch (error) {
+    console.error("Webhook error:", error);
+    return res.status(400).send("Bad request");
   }
 }

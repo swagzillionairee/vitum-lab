@@ -1,27 +1,8 @@
 import type { VercelRequest, VercelResponse } from "../_lib/http.js";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { isSitewideActive } from "../_lib/pricing.js";
-import { squareConfigured } from "../_lib/square.js";
-
-// Shape the admin payment_config into the offer the checkout renders. A manual
-// method is offered only when enabled AND it has a handle; Square only when
-// enabled AND the server has credentials; crypto defaults on.
-function buildPayments(raw: unknown) {
-  const cfg = (raw ?? {}) as Record<string, { enabled?: boolean; handle?: string; instructions?: string }>;
-  const manual = (key: string) => {
-    const m = cfg[key] ?? {};
-    const handle = String(m.handle ?? "").trim();
-    return { enabled: !!m.enabled && handle.length > 0, handle, instructions: String(m.instructions ?? "") };
-  };
-  return {
-    square: { enabled: !!cfg.square?.enabled && squareConfigured() },
-    zelle: manual("zelle"),
-    cashapp: manual("cashapp"),
-    venmo: manual("venmo"),
-    ach: manual("ach"),
-    crypto: { enabled: cfg.crypto?.enabled !== false },
-  };
-}
+import { clientIp } from "../_lib/clientIp.js";
+import { buildPaymentOffer } from "../_lib/paymentConfig.js";
 
 // Public (no-auth) endpoints: the site-wide sale banner and customer order
 // tracking. Consolidated into one catch-all to stay within the Vercel function
@@ -66,28 +47,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // enabled AND it has a handle to send to; Square appears only when enabled
       // AND its server credentials are present. Handles are public (customers
       // must see them to pay).
-      payments: buildPayments(s?.payment_config),
+      payments: buildPaymentOffer(s?.payment_config),
     });
   }
 
   // ── /api/public/track?order=ID&email=EMAIL — public order tracking ──────────
   if (route === "track") {
     if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    const ip = clientIp(req);
+    const { data: allowed, error: rateError } = await supabaseAdmin.rpc("rate_limit_hit", {
+      p_bucket: `track:${ip}`,
+      p_max: 30,
+      p_window_seconds: 600,
+    });
+    if (rateError || allowed !== true) {
+      return res.status(rateError ? 503 : 429).json({
+        error: rateError ? "Tracking is temporarily unavailable." : "Too many tracking attempts. Please wait and try again.",
+      });
+    }
     const orderId = String(req.query?.order ?? "").trim();
-    const email = String(req.query?.email ?? "").trim().toLowerCase();
-    if (!orderId || !email) return res.status(400).json({ error: "Order number and email are required." });
+    const email = String(req.query?.email ?? "")
+      .trim()
+      .toLowerCase();
+    if (!orderId || orderId.length > 64 || !email || email.length > 320) return res.status(400).json({ error: "Order number and email are required." });
 
-    const { data: order } = await supabaseAdmin
-      .from("orders")
-      .select(
-        "id, email, items, net_amount, shipping_amount, status, fulfillment_status, tracking_number, carrier, created_at, confirmed_at, shipped_at, delivered_at, cancelled_at, cancel_reason",
-      )
-      .eq("id", orderId)
-      .maybeSingle();
+    const { data: order } = await supabaseAdmin.from("orders").select("id, email, items, net_amount, shipping_amount, status, fulfillment_status, tracking_number, carrier, created_at, confirmed_at, shipped_at, delivered_at, cancelled_at, cancel_reason").eq("id", orderId).maybeSingle();
 
     // Generic 404 on a miss OR an email mismatch — never reveal which failed,
     // and require the email to match so an order number alone isn't enough.
-    if (!order || String(order.email ?? "").trim().toLowerCase() !== email) {
+    if (
+      !order ||
+      String(order.email ?? "")
+        .trim()
+        .toLowerCase() !== email
+    ) {
       return res.status(404).json({ error: "No order found for that order number and email." });
     }
 
