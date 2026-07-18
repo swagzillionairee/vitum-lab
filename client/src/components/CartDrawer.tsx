@@ -9,7 +9,6 @@
  */
 
 import { useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -58,30 +57,20 @@ export default function CartDrawer() {
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <AnimatePresence>
-      {isOpen && (
         <>
           {/* Backdrop */}
-          <motion.div
-            key="cart-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-[2px]"
+          <div
+            className="cart-backdrop-enter fixed inset-0 z-[9998] bg-black/40 backdrop-blur-[2px]"
             onClick={closeCart}
             aria-hidden
           />
 
           {/* Drawer panel */}
-          <motion.div
-            key="cart-drawer"
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 340, damping: 36, mass: 0.9 }}
-            className="fixed top-0 right-0 bottom-0 z-[9999] w-full sm:max-w-[420px] bg-white shadow-2xl flex flex-col"
+          <div
+            className="cart-drawer-enter fixed top-0 right-0 bottom-0 z-[9999] w-full sm:max-w-[420px] bg-white shadow-2xl flex flex-col"
             role="dialog"
             aria-label="Shopping cart"
             aria-modal="true"
@@ -130,11 +119,9 @@ export default function CartDrawer() {
                 </p>
               )}
               <div className="mt-2 h-1.5 rounded-full bg-[oklch(0.91_0.004_260)] overflow-hidden">
-                <motion.div
+                <div
                   className="h-full rounded-full bg-[oklch(0.35_0.15_260)]"
-                  initial={false}
-                  animate={{ width: `${freeShippingProgress}%` }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
+                  style={{ width: `${freeShippingProgress}%`, transition: "width 400ms ease-out" }}
                 />
               </div>
             </div>
@@ -158,16 +145,11 @@ export default function CartDrawer() {
                   </button>
                 </div>
               ) : (
-                <AnimatePresence initial={false}>
+                <>
                   {items.map((item) => (
-                    <motion.div
+                    <div
                       key={item.id}
-                      layout
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, x: 40, transition: { duration: 0.18 } }}
-                      transition={{ duration: 0.22, ease: "easeOut" }}
-                      className="flex gap-3 p-3 rounded-xl border border-[oklch(0.91_0.004_260)] bg-white hover:border-[oklch(0.82_0.008_260)] transition-colors"
+                      className="cart-item-enter flex gap-3 p-3 rounded-xl border border-[oklch(0.91_0.004_260)] bg-white hover:border-[oklch(0.82_0.008_260)] transition-colors"
                     >
                       {/* Product image */}
                       <div
@@ -237,9 +219,9 @@ export default function CartDrawer() {
                           </div>
                         )}
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
-                </AnimatePresence>
+                </>
               )}
             </div>
 
@@ -268,9 +250,7 @@ export default function CartDrawer() {
                 </p>
               </div>
             )}
-          </motion.div>
+          </div>
         </>
-      )}
-    </AnimatePresence>
   );
 }

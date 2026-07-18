@@ -9,7 +9,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Cookie, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 const STORAGE_KEY = "vitum_cookie_consent";
 
@@ -41,16 +40,10 @@ export default function CookieConsent() {
     setVisible(false);
   }
 
+  if (!visible) return null;
+
   return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 100, opacity: 0 }}
-          transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-          className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 pointer-events-none"
-        >
+        <div className="cookie-banner-enter fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 pointer-events-none">
           <div className="pointer-events-auto max-w-3xl mx-auto bg-[oklch(1_0_0)] dark:bg-[oklch(0.18_0.02_260)] border border-[oklch(0.90_0.004_260)] dark:border-[oklch(0.28_0.02_260)] rounded-2xl shadow-xl px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
             {/* Icon */}
             <div className="hidden sm:flex flex-shrink-0 w-8 h-8 rounded-full bg-[oklch(0.96_0.012_240)] dark:bg-[oklch(0.24_0.03_260)] items-center justify-center">
@@ -86,8 +79,6 @@ export default function CookieConsent() {
               </button>
             </div>
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        </div>
   );
 }
