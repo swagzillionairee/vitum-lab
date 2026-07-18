@@ -820,7 +820,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (ids.length === 0) return res.status(400).json({ error: "id or ids required" });
       const { data: candidates, error: readError } = await supabaseAdmin.from("orders").select("id, status").in("id", ids);
       if (readError) return res.status(500).json({ error: "Failed to inspect orders" });
-      if ((candidates ?? []).length !== ids.length || (candidates ?? []).some(row => row.status !== "failed" && row.status !== "cancelled")) {
+      if ((candidates ?? []).length !== ids.length || (candidates ?? []).some((row: { status: string | null }) => row.status !== "failed" && row.status !== "cancelled")) {
         return res.status(409).json({
           error: "Only failed or cancelled orders can be permanently deleted",
         });
