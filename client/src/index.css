@@ -1,6 +1,42 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@keyframes cart-backdrop-enter {
+  from { opacity: 0; }
+}
+
+@keyframes cart-drawer-enter {
+  from { transform: translateX(100%); }
+}
+
+@keyframes cart-item-enter {
+  from { opacity: 0; transform: translateY(-0.5rem); }
+}
+
+@keyframes cookie-banner-enter {
+  from { opacity: 0; transform: translateY(6.25rem); }
+}
+
+@keyframes floating-cart-enter {
+  from { opacity: 0; transform: translateY(1.5rem) scale(0.95); }
+}
+
+.cart-backdrop-enter { animation: cart-backdrop-enter 200ms ease-out; }
+.cart-drawer-enter { animation: cart-drawer-enter 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+.cart-item-enter { animation: cart-item-enter 220ms ease-out; }
+.cookie-banner-enter { animation: cookie-banner-enter 350ms cubic-bezier(0.23, 1, 0.32, 1); }
+.floating-cart-enter { animation: floating-cart-enter 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cart-backdrop-enter,
+  .cart-drawer-enter,
+  .cart-item-enter,
+  .cookie-banner-enter,
+  .floating-cart-enter {
+    animation: none;
+  }
+}
+
 /*
  * index.css — Vitum Lab
  * Design: Clean Research / Amino Club-inspired

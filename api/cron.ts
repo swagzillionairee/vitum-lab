@@ -166,7 +166,8 @@ export default async function handler(req: any, res: any) {
     // 3. Low-stock digest to INVENTORY_EMAIL — once per day.
     if (new Date().getUTCHours() === LOW_STOCK_DIGEST_HOUR_UTC) {
       const { data: inv } = await supabaseAdmin.from("inventory").select("cart_code, stock");
-      const low = (inv ?? [])
+      type InventoryRow = { cart_code: string; stock: number };
+      const low = ((inv ?? []) as InventoryRow[])
         .filter((r) => r.stock <= LOW_STOCK_THRESHOLD)
         .sort((a, b) => a.stock - b.stock)
         .map((r) => ({ cartCode: r.cart_code as string, stock: r.stock as number }));

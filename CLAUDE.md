@@ -14,8 +14,8 @@ Vitum Lab (`vitumlab.com`) is a research-peptide e-commerce site (Retatrutide/GL
 
 ```bash
 pnpm dev          # Vite dev server (port 3000) — API routes handled inline via vitePluginLocalApi
-pnpm build        # vite build → dist/public, then esbuild server → dist/index.js
-pnpm check        # TypeScript type-check (no emit)
+pnpm build        # vite build → dist/public
+pnpm check        # TypeScript type-check for the client and Vercel API (no emit)
 pnpm test         # Vitest (run once) — unit (Node) + component (jsdom)
 pnpm test:watch   # Vitest watch mode
 pnpm test:e2e     # Playwright e2e (checkout) — run `pnpm exec playwright install chromium` first
@@ -104,7 +104,6 @@ api/                Vercel serverless functions — ALL relative imports MUST us
     fulfillment.ts     Shared confirm-paid-order steps (stock, emails, loyalty/referral, late-payment) — all idempotent
     requireUser/requireAdmin/requireAffiliate.ts  JWT validation (reject unverified email); admins/affiliates table checks
 
-server/index.ts       Legacy Express server (never runs in prod or `pnpm dev`; only local path to test the NowPayments webhook)
 supabase/migrations/  SQL migrations
 ```
 
@@ -229,14 +228,16 @@ VITE_GOOGLE_MAPS_API_KEY=           # optional — Places autocomplete at checko
 - **Legibility:** `.font-bold` is overridden to `font-weight:800` site-wide (heavier headers), and the muted-grey text tokens were darkened (e.g. `oklch(0.42/0.52/0.55/0.60 …)`) for contrast. Checkout item names use `text-[0.9375rem] font-bold`; dose/qty use `text-[0.8125rem]` with the Qty count emphasised.
 - **Checkout method tiles** are brand-coloured via the `METHOD_STYLE` map in `Checkout.tsx` (square=indigo, zelle=purple, cashapp=green, venmo=blue, ach=teal, crypto=bitcoin-orange); the Card tile renders inline-SVG accepted-card marks (`CardBrands()`, forced light via `bg-[oklch(1_0_0)]` so the dark override can't invert them).
 - **Favicon:** the browser-tab icon is the full Vitum Lab logo (monogram + wordmark) on white — `client/public/favicon.ico` + `favicon-16x16.png`/`favicon-32x32.png`/`apple-touch-icon.png`, linked in `client/index.html` (`theme-color #ffffff`).
+- Storefront product/hero art is served as WebP. Do not restore the retired multi-megabyte PNG originals.
+- Global cart, cookie-banner, and floating-cart transitions use the lightweight keyframes in `index.css`; keep them CSS-only so an animation runtime is not added to the initial bundle.
 
 ---
 
 ## Deployment
 
-- Vercel auto-deploys on push to `main`. Build → `dist/public` (static) + `dist/index.js` (unused Express fallback). API routes = `/api/*.ts`. COA PDFs are static in `public/coa/`.
+- Vercel auto-deploys on push to `main`. Build → `dist/public` (static). API routes = `/api/*.ts`. COA PDFs are static in `public/coa/`.
 - **Always ship to production without asking — standing owner approval.** For each change: open a PR, wait for CI (the Vercel deploy) to pass, then squash-merge to `main` yourself. Don't open drafts that sit waiting; don't ask "should I merge?". Note genuine risks in chat but proceed unless told to hold.
-- `api/` is **excluded from `tsconfig.json`** — `pnpm check` does not type-check serverless functions; the Vercel preview build is the real compile check for them.
+- `api/` has its own strict `tsconfig.api.json`; `pnpm check` validates both the client and serverless handlers. The Vercel preview remains the final runtime compile check.
 
 ---
 
@@ -297,6 +298,6 @@ Customer login is the single entry point (admins land on `/admin` automatically 
 
 **Security — outstanding owner actions (dashboards, not code):** (1) Supabase Auth → confirm "Confirm email" ON + enable leaked-password protection; (2) Google Cloud → restrict `VITE_GOOGLE_MAPS_API_KEY` by HTTP referrer; (3) assess the Supabase `pg_net` extension warning during a maintenance window (the installed extension is non-relocatable even though its functions live in `net`).
 
-**Security audit (July 2026):** server-only RPC EXECUTE grants are re-asserted in migrations; role rows bind atomically to an auth `user_id`; self-serve referral rows cannot pass curated-affiliate authorization; webhook secrets fail closed and raw bodies are capped; contact, checkout, discount validation, and waitlist abuse paths are bounded by trusted-IP/account/email rate limits; cart quantities and duplicate variants are capped and re-priced server-side; welcome-email claims are atomic; redirects and contact HTML/headers are sanitized; CSP/security headers are set in `vercel.json`; the standalone Express build delegates to the same hardened API handlers as Vercel. The public product-image bucket independently enforces a 5 MB limit and image MIME allowlist.
+**Security audit (July 2026):** server-only RPC EXECUTE grants are re-asserted in migrations; role rows bind atomically to an auth `user_id`; self-serve referral rows cannot pass curated-affiliate authorization; webhook secrets fail closed and raw bodies are capped; contact, checkout, discount validation, and waitlist abuse paths are bounded by trusted-IP/account/email rate limits; cart quantities and duplicate variants are capped and re-priced server-side; welcome-email claims are atomic; redirects and contact HTML/headers are sanitized; CSP/security headers are set in `vercel.json`. The public product-image bucket independently enforces a 5 MB limit and image MIME allowlist.
 
 **Testing:** Vitest unit/component + a Playwright checkout e2e. Next: more coverage + CI to run `pnpm test` on PRs.

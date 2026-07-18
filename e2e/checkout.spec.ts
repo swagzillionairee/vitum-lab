@@ -115,7 +115,7 @@ test("customer can fill checkout, apply a promo, and submit", async ({ page }) =
 
   // Attest, then submit via the (only enabled) crypto method — the mock returns
   // a "free" order so the app navigates to /order-success in-app.
-  await page.getByRole("checkbox").check();
+  await page.getByRole("checkbox", { name: /I confirm I am at least 21/i }).check();
   await page.getByRole("button", { name: /Continue with crypto/i }).click();
   await page.waitForURL(/\/order-success/);
 
@@ -167,7 +167,7 @@ test("manual method (Venmo) shows the payment-instructions modal, not the empty 
   await page.getByPlaceholder("State").fill("TX");
   await page.getByPlaceholder("ZIP").fill("78701");
   // Required research-use attestation.
-  await page.getByRole("checkbox").check();
+  await page.getByRole("checkbox", { name: /I confirm I am at least 21/i }).check();
 
   // Select Venmo and place the order.
   await page.getByRole("button", { name: "Venmo", exact: false }).first().click();

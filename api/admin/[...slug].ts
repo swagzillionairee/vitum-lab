@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_lib/http.js";
 import { requireAdmin } from "../_lib/requireAdmin.js";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { sendOrderEvent, sendBackInStock, sendAffiliateCommission, deferEmail, type EmailOrder, type OrderEmailEvent } from "../_lib/email.js";
@@ -98,7 +98,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!batch || batch.length < 1000) break;
     }
 
-    const users = (data.users ?? []).map((u) => {
+    const users = (data.users ?? []).map((u: {
+      id: string; email?: string; created_at: string; last_sign_in_at?: string | null;
+      app_metadata?: Record<string, unknown>;
+    }) => {
       const s = spend[(u.email ?? "").toLowerCase()];
       return {
         id: u.id,
@@ -178,7 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const isPaid = (s: string) => s === "confirmed" || s === "finished";
-    const num = (v: number | string) => Number(v) || 0;
+    const num = (v: unknown) => Number(v) || 0;
 
     const paid = rows.filter((o) => isPaid(o.status));
     const revenueAll = paid.reduce((sum, o) => sum + num(o.net_amount), 0);
@@ -646,7 +649,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from("orders")
       .select("id, email, items, net_amount, shipping_amount, shipping_address, label_url, tracking_number, carrier, created_at")
       .in("id", ids.slice(0, 100));
-    const orders = ids.map((id) => (rows ?? []).find((r) => r.id === id)).filter(Boolean) as Array<{
+    const orders = ids.map((id) => (rows ?? []).find((r: { id: string }) => r.id === id)).filter(Boolean) as Array<{
       id: string; items: { name: string; dose: string; quantity: number; cartCode?: string }[] | null;
       net_amount: number | string; shipping_amount: number | string | null; shipping_address: Record<string, string> | null;
       label_url: string | null; tracking_number: string | null; carrier: string | null; created_at: string;
@@ -868,9 +871,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const round2 = (n: number) => Math.round(n * 100) / 100;
-      const result = (affs ?? []).map((a) => {
-        const rows = (payouts ?? []).filter((p) => p.affiliate_id === a.id);
-        const paidOut = rows.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      type AffiliateRow = { id: string; [key: string]: unknown };
+      type PayoutRow = { affiliate_id: string; amount: number | string | null; [key: string]: unknown };
+      const result = (affs ?? []).map((a: AffiliateRow) => {
+        const rows = (payouts ?? []).filter((p: PayoutRow) => p.affiliate_id === a.id);
+        const paidOut = rows.reduce((s: number, p: PayoutRow) => s + (Number(p.amount) || 0), 0);
         const earned = earnedTally[a.id]?.earned ?? 0;
         return {
           ...a,

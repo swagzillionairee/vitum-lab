@@ -5,7 +5,6 @@
  */
 
 import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -158,16 +157,14 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light" switchable={true}>
-        <TooltipProvider>
-          <AuthProvider>
-            <CartProvider>
-              <Toaster />
-              <AppLayout />
-              <CartDrawer />
-              <Analytics />
-            </CartProvider>
-          </AuthProvider>
-        </TooltipProvider>
+        <AuthProvider>
+          <CartProvider>
+            <Toaster />
+            <AppLayout />
+            <CartDrawer />
+            <Analytics />
+          </CartProvider>
+        </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

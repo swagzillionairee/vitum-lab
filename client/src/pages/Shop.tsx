@@ -13,7 +13,6 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { FileText, ShieldCheck, Truck, ArrowLeft, ShoppingCart, Check } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
-import { AnimatePresence, motion } from "framer-motion";
 import SEO from "@/components/SEO";
 import { useProducts } from "@/hooks/useProducts";
 import { useInventory } from "@/hooks/useInventory";
@@ -305,16 +304,10 @@ export default function Shop() {
       </div>
 
       {/* ── Floating View Cart button ─────────────────────────────────────── */}
-      <AnimatePresence>
-        {totalItems > 0 && (
-          <motion.button
-            key="floating-cart"
-            initial={{ opacity: 0, y: 24, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 24, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 380, damping: 30 }}
+      {totalItems > 0 && (
+          <button
             onClick={openCart}
-            className="floating-cart-btn fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[oklch(0.13_0.01_260)] text-white pl-4 pr-5 py-3.5 rounded-full shadow-[0_4px_20px_oklch(0.13_0.01_260/0.35)] hover:bg-[oklch(0.20_0.02_260)] active:scale-95 transition-all duration-150 font-semibold text-[0.9375rem]"
+            className="floating-cart-enter floating-cart-btn fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[oklch(0.13_0.01_260)] text-white pl-4 pr-5 py-3.5 rounded-full shadow-[0_4px_20px_oklch(0.13_0.01_260/0.35)] hover:bg-[oklch(0.20_0.02_260)] active:scale-95 transition-all duration-150 font-semibold text-[0.9375rem]"
             aria-label={`View cart — ${totalItems} item${totalItems !== 1 ? "s" : ""}`}
           >
             <div className="relative">
@@ -324,9 +317,8 @@ export default function Shop() {
               </span>
             </div>
             View Cart
-          </motion.button>
-        )}
-      </AnimatePresence>
+          </button>
+      )}
     </div>
   );
 }

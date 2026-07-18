@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_lib/http.js";
 import { requireAffiliate } from "../_lib/requireAffiliate.js";
 import { supabaseAdmin } from "../_lib/supabase-admin.js";
 
