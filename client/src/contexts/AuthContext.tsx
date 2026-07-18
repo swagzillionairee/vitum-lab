@@ -6,7 +6,13 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
+
+// Supabase's browser client is sizeable and auth is not needed to paint the
+// public storefront. Load it after React mounts so new visitors can render the
+// landing page without parsing the auth SDK on the critical path.
+async function loadSupabase() {
+  return (await import("@/lib/supabase")).supabase;
+}
 
 interface AuthContextValue {
   session: Session | null;
@@ -24,21 +30,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-    });
-    return () => sub.subscription.unsubscribe();
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+
+    void loadSupabase()
+      .then(async (supabase) => {
+        if (!active || !supabase) {
+          if (active) setLoading(false);
+          return;
+        }
+
+        const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+          if (active) setSession(nextSession);
+        });
+        unsubscribe = () => sub.subscription.unsubscribe();
+
+        const { data } = await supabase.auth.getSession();
+        if (active) {
+          setSession(data.session);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
   }, []);
 
   const signInWithGoogle = async (redirectTo: string) => {
+    const supabase = await loadSupabase();
     if (!supabase) return;
     await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -47,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithEmail = async (email: string, redirectTo: string) => {
+    const supabase = await loadSupabase();
     if (!supabase) return { error: "Auth not configured" };
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -56,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    const supabase = await loadSupabase();
     if (!supabase) return;
     await supabase.auth.signOut();
   };

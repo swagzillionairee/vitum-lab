@@ -13,10 +13,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── /api/affiliate/stats ──────────────────────────────────────────────────
   if (route === "stats") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
     // Page past PostgREST's 1000-row response cap (stable order so pages can't
     // skip/duplicate rows) — a single un-paged select silently undercounted
     // revenue/commission once an affiliate passed 1000 paid orders.
-    const orders: { net_amount: number | string | null; discount_amount: number | string | null; commission_amount: number | string | null; status: string; created_at: string }[] = [];
+    const orders: {
+      net_amount: number | string | null;
+      discount_amount: number | string | null;
+      commission_amount: number | string | null;
+      status: string;
+      created_at: string;
+    }[] = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabaseAdmin
         .from("orders")
@@ -32,10 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const totalOrders = orders.length;
     const revenue = orders.reduce((s, o) => s + Number(o.net_amount || 0), 0);
     const discountsGiven = orders.reduce((s, o) => s + Number(o.discount_amount || 0), 0);
-    const commission = orders.reduce(
-      (s, o) => s + Number(o.commission_amount ?? (Number(o.net_amount || 0) * affiliate.commission_percent) / 100),
-      0,
-    );
+    const commission = orders.reduce((s, o) => s + Number(o.commission_amount ?? (Number(o.net_amount || 0) * affiliate.commission_percent) / 100), 0);
 
     const days: Record<string, number> = {};
     const today = new Date();
@@ -48,27 +52,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const key = new Date(o.created_at).toISOString().slice(0, 10);
       if (key in days) days[key] += 1;
     }
-    const series = Object.entries(days).map(([date, count]) => ({ date, count }));
+    const series = Object.entries(days).map(([date, count]) => ({
+      date,
+      count,
+    }));
 
     return res.json({
-      code: affiliate.code, name: affiliate.name,
-      discountPercent: affiliate.discount_percent, commissionPercent: affiliate.commission_percent,
-      totalOrders, revenue: Number(revenue.toFixed(2)),
+      code: affiliate.code,
+      name: affiliate.name,
+      discountPercent: affiliate.discount_percent,
+      commissionPercent: affiliate.commission_percent,
+      totalOrders,
+      revenue: Number(revenue.toFixed(2)),
       discountsGiven: Number(discountsGiven.toFixed(2)),
-      commission: Number(commission.toFixed(2)), series,
+      commission: Number(commission.toFixed(2)),
+      series,
     });
   }
 
   // ── /api/affiliate/orders ─────────────────────────────────────────────────
   if (route === "orders") {
     if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-    const page = Math.max(1, parseInt((req.query?.page as string) || "1", 10));
+    const parsedPage = Number.parseInt((req.query?.page as string) || "1", 10);
+    const page = Number.isSafeInteger(parsedPage) ? Math.min(100000, Math.max(1, parsedPage)) : 1;
     const perPage = 25;
     const from = (page - 1) * perPage;
     const { data, error, count } = await supabaseAdmin
       .from("orders")
       .select("id, net_amount, discount_amount, commission_amount, status, created_at", { count: "exact" })
       .eq("affiliate_id", affiliate.id)
+      .in("status", ["confirmed", "finished"])
       .order("created_at", { ascending: false })
       .range(from, from + perPage - 1);
     if (error) return res.status(500).json({ error: "Failed to fetch orders" });

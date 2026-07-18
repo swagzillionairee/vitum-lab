@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, sendLowStockDigest, sendAffiliateStatement, type EmailOrder } from "./_lib/email.js";
 import { getTrackingStatus, shippoConfigured } from "./_lib/shippo.js";
+import crypto from "node:crypto";
 
 const LOW_STOCK_THRESHOLD = 5;
 // Send the low-stock digest once a day, at 14:00 UTC (~9–10am ET).
@@ -10,17 +11,19 @@ const FOLLOWUP_AFTER_DAYS = 7;
 // Affiliate monthly statements go out on the 1st of the month at 15:00 UTC.
 const AFFILIATE_STATEMENT_HOUR_UTC = 15;
 
-const ORDER_COLS =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, shipping_address, status, cancel_reason, emails_sent";
-const ORDER_COLS_FULL =
-  "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, shipping_address, status, fulfillment_status, tracking_number, carrier, delivered_at, emails_sent";
+const ORDER_COLS = "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, shipping_address, status, cancel_reason, emails_sent";
+const ORDER_COLS_FULL = "id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, shipping_address, status, fulfillment_status, tracking_number, carrier, delivered_at, emails_sent";
 
 // Affiliate monthly statements for the previous calendar month.
 async function sendAffiliateStatements(results: { statements: number; errors: number }) {
   const now = new Date();
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const monthLabel = start.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const monthLabel = start.toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
   const { data: affs } = await supabaseAdmin.from("affiliates").select("id, email, code");
   if (!affs || affs.length === 0) return;
@@ -86,13 +89,22 @@ async function sendAffiliateStatements(results: { statements: number; errors: nu
  */
 export default async function handler(req: any, res: any) {
   const secret = process.env.CRON_SECRET;
-  const provided = (req.headers["x-cron-secret"] as string) || (req.query?.secret as string) || "";
-  if (!secret || provided !== secret) {
+  const provided = String(req.headers["x-cron-secret"] ?? "");
+  const valid = !!secret && Buffer.byteLength(provided) === Buffer.byteLength(secret) && crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret));
+  if (!valid) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  const results = { expired: 0, emailed: 0, errors: 0, lowStockDigest: 0, delivered: 0, followup: 0, statements: 0 };
+  const results = {
+    expired: 0,
+    emailed: 0,
+    errors: 0,
+    lowStockDigest: 0,
+    delivered: 0,
+    followup: 0,
+    statements: 0,
+  };
 
   try {
     // 1. Expire stale pending orders (mirrors the expire_stale_orders pg_cron
@@ -106,7 +118,11 @@ export default async function handler(req: any, res: any) {
     // Automated: crypto/square, or legacy rows with no payment_method.
     const { data: autoExpired } = await supabaseAdmin
       .from("orders")
-      .update({ status: "cancelled", cancelled_at: nowIso, cancel_reason: "auto-expired: payment not received in time" })
+      .update({
+        status: "cancelled",
+        cancelled_at: nowIso,
+        cancel_reason: "auto-expired: payment not received in time",
+      })
       .eq("status", "pending")
       .lt("created_at", cutoff24)
       .or("payment_method.is.null,payment_method.eq.crypto,payment_method.eq.square")
@@ -115,7 +131,11 @@ export default async function handler(req: any, res: any) {
     // Manual transfers — longer grace window.
     const { data: manualExpired } = await supabaseAdmin
       .from("orders")
-      .update({ status: "cancelled", cancelled_at: nowIso, cancel_reason: "auto-expired: payment not received in time" })
+      .update({
+        status: "cancelled",
+        cancelled_at: nowIso,
+        cancel_reason: "auto-expired: payment not received in time",
+      })
       .eq("status", "pending")
       .lt("created_at", cutoffManual)
       .in("payment_method", MANUAL_METHODS)
@@ -125,7 +145,12 @@ export default async function handler(req: any, res: any) {
 
     for (const order of expired ?? []) {
       try {
-        if (await sendOrderEvent(order as EmailOrder, "cancelled", { wasPending: true })) results.emailed++;
+        if (
+          await sendOrderEvent(order as EmailOrder, "cancelled", {
+            wasPending: true,
+          })
+        )
+          results.emailed++;
       } catch (err) {
         console.error(`cron: cancelled email failed for ${order.id}:`, err);
         results.errors++;
@@ -145,18 +170,16 @@ export default async function handler(req: any, res: any) {
 
     // 2. Sweep auto-expired orders (last 7 days) missing their email.
     const sweepSince = new Date(Date.now() - 7 * 86400 * 1000).toISOString();
-    const { data: unemailed } = await supabaseAdmin
-      .from("orders")
-      .select(ORDER_COLS)
-      .eq("status", "cancelled")
-      .like("cancel_reason", "auto-expired%")
-      .gte("created_at", sweepSince)
-      .filter("emails_sent->cancelled", "is", "null")
-      .limit(100);
+    const { data: unemailed } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("status", "cancelled").like("cancel_reason", "auto-expired%").gte("created_at", sweepSince).filter("emails_sent->cancelled", "is", "null").limit(100);
 
     for (const order of unemailed ?? []) {
       try {
-        if (await sendOrderEvent(order as EmailOrder, "cancelled", { wasPending: true })) results.emailed++;
+        if (
+          await sendOrderEvent(order as EmailOrder, "cancelled", {
+            wasPending: true,
+          })
+        )
+          results.emailed++;
       } catch (err) {
         console.error(`cron: sweep email failed for ${order.id}:`, err);
         results.errors++;
@@ -168,9 +191,12 @@ export default async function handler(req: any, res: any) {
       const { data: inv } = await supabaseAdmin.from("inventory").select("cart_code, stock");
       type InventoryRow = { cart_code: string; stock: number };
       const low = ((inv ?? []) as InventoryRow[])
-        .filter((r) => r.stock <= LOW_STOCK_THRESHOLD)
+        .filter(r => r.stock <= LOW_STOCK_THRESHOLD)
         .sort((a, b) => a.stock - b.stock)
-        .map((r) => ({ cartCode: r.cart_code as string, stock: r.stock as number }));
+        .map(r => ({
+          cartCode: r.cart_code as string,
+          stock: r.stock as number,
+        }));
       if (low.length > 0) {
         try {
           await sendLowStockDigest(low);
@@ -184,17 +210,18 @@ export default async function handler(req: any, res: any) {
 
     // 4. Auto-detect USPS delivery via Shippo for shipped orders w/ tracking.
     if (shippoConfigured()) {
-      const { data: inTransit } = await supabaseAdmin
-        .from("orders")
-        .select(ORDER_COLS_FULL)
-        .eq("fulfillment_status", "shipped")
-        .not("tracking_number", "is", null)
-        .limit(60);
+      const { data: inTransit } = await supabaseAdmin.from("orders").select(ORDER_COLS_FULL).eq("fulfillment_status", "shipped").not("tracking_number", "is", null).limit(60);
       for (const o of inTransit ?? []) {
         try {
           const status = await getTrackingStatus(o.tracking_number as string);
           if (status === "DELIVERED") {
-            await supabaseAdmin.from("orders").update({ fulfillment_status: "delivered", delivered_at: new Date().toISOString() }).eq("id", o.id);
+            await supabaseAdmin
+              .from("orders")
+              .update({
+                fulfillment_status: "delivered",
+                delivered_at: new Date().toISOString(),
+              })
+              .eq("id", o.id);
             await sendOrderEvent(o as EmailOrder, "delivered");
             await sendOrderEvent(o as EmailOrder, "admin_delivered");
             results.delivered++;
@@ -208,13 +235,7 @@ export default async function handler(req: any, res: any) {
 
     // 5. Post-delivery follow-up — FOLLOWUP_AFTER_DAYS after delivery, once.
     const followupBefore = new Date(Date.now() - FOLLOWUP_AFTER_DAYS * 86400 * 1000).toISOString();
-    const { data: toFollow } = await supabaseAdmin
-      .from("orders")
-      .select(ORDER_COLS_FULL)
-      .eq("fulfillment_status", "delivered")
-      .lt("delivered_at", followupBefore)
-      .filter("emails_sent->followup", "is", "null")
-      .limit(50);
+    const { data: toFollow } = await supabaseAdmin.from("orders").select(ORDER_COLS_FULL).eq("fulfillment_status", "delivered").lt("delivered_at", followupBefore).filter("emails_sent->followup", "is", "null").limit(50);
     for (const o of toFollow ?? []) {
       try {
         if (await sendOrderEvent(o as EmailOrder, "followup")) results.followup++;

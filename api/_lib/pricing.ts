@@ -50,6 +50,11 @@ export function applyCredit(net: number, balance: number): { creditApplied: numb
   return { creditApplied, amountDue: round2(owed - creditApplied) };
 }
 
+/** Cash still owed on a persisted order (merchandise + shipping - store credit). */
+export function orderCashDue(net: unknown, shipping: unknown, credit: unknown): number {
+  return round2(Math.max(0, (Number(net) || 0) + (Number(shipping) || 0) - (Number(credit) || 0)));
+}
+
 /**
  * Per-unit price after a site-wide sale of `percentOff` is applied to `base`,
  * rounded UP to the nearest whole dollar (so the storefront shows clean prices
@@ -66,17 +71,11 @@ export function sitewideSalePrice(base: number, percentOff: number): number {
  * promo codes are limited to one use per customer (affiliate codes are exempt
  * and never passed here). Comparison is case-insensitive on both fields.
  */
-export function promoAlreadyRedeemed(
-  priorOrders: { email?: string | null; discount_code?: string | null }[],
-  email: string,
-  code: string,
-): boolean {
+export function promoAlreadyRedeemed(priorOrders: { email?: string | null; discount_code?: string | null }[], email: string, code: string): boolean {
   const e = (email ?? "").trim().toLowerCase();
   const c = (code ?? "").trim().toUpperCase();
   if (!e || !c) return false;
-  return priorOrders.some(
-    (o) => (o.email ?? "").trim().toLowerCase() === e && (o.discount_code ?? "").trim().toUpperCase() === c,
-  );
+  return priorOrders.some(o => (o.email ?? "").trim().toLowerCase() === e && (o.discount_code ?? "").trim().toUpperCase() === c);
 }
 
 /**
@@ -84,17 +83,11 @@ export function promoAlreadyRedeemed(
  * used to enforce a promo's per-customer usage limit (a code allows up to
  * per_customer_limit uses per account; 1 = the classic one-use-per-customer).
  */
-export function promoRedemptionCount(
-  priorOrders: { email?: string | null; discount_code?: string | null }[],
-  email: string,
-  code: string,
-): number {
+export function promoRedemptionCount(priorOrders: { email?: string | null; discount_code?: string | null }[], email: string, code: string): number {
   const e = (email ?? "").trim().toLowerCase();
   const c = (code ?? "").trim().toUpperCase();
   if (!e || !c) return 0;
-  return priorOrders.filter(
-    (o) => (o.email ?? "").trim().toLowerCase() === e && (o.discount_code ?? "").trim().toUpperCase() === c,
-  ).length;
+  return priorOrders.filter(o => (o.email ?? "").trim().toLowerCase() === e && (o.discount_code ?? "").trim().toUpperCase() === c).length;
 }
 
 export interface PromoRecord {
@@ -153,8 +146,18 @@ export function computeStackedDiscounts(opts: {
   gross: number;
   units: number;
   tiers?: QuantityTier[] | null;
-  code?: { kind: "promo" | "affiliate" | "referral"; label: string; percent?: number; amount?: number } | null;
-}): { lines: DiscountLine[]; totalDiscount: number; net: number; qtyPercent: number } {
+  code?: {
+    kind: "promo" | "affiliate" | "referral";
+    label: string;
+    percent?: number;
+    amount?: number;
+  } | null;
+}): {
+  lines: DiscountLine[];
+  totalDiscount: number;
+  net: number;
+  qtyPercent: number;
+} {
   const gross = round2(opts.gross);
   const qtyPercent = quantityDiscountPercent(opts.tiers, opts.units);
   const qtyDiscount = round2((gross * qtyPercent) / 100);
@@ -162,7 +165,11 @@ export function computeStackedDiscounts(opts: {
 
   const lines: DiscountLine[] = [];
   if (qtyDiscount > 0) {
-    lines.push({ type: "quantity", label: `Quantity discount (${qtyPercent}% off ${opts.units} items)`, amount: qtyDiscount });
+    lines.push({
+      type: "quantity",
+      label: `Quantity discount (${qtyPercent}% off ${opts.units} items)`,
+      amount: qtyDiscount,
+    });
   }
 
   let codeDiscount = 0;
@@ -173,7 +180,12 @@ export function computeStackedDiscounts(opts: {
     } else if (opts.code.percent != null) {
       codeDiscount = round2((afterQty * opts.code.percent) / 100);
     }
-    if (codeDiscount > 0) lines.push({ type: opts.code.kind, label: opts.code.label, amount: codeDiscount });
+    if (codeDiscount > 0)
+      lines.push({
+        type: opts.code.kind,
+        label: opts.code.label,
+        amount: codeDiscount,
+      });
   }
 
   const totalDiscount = round2(qtyDiscount + codeDiscount);

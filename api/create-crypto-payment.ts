@@ -1,23 +1,24 @@
 import { supabaseAdmin } from "./_lib/supabase-admin.js";
 import { sendOrderEvent, deferEmail, type EmailOrder } from "./_lib/email.js";
 import { grossFromItems, commissionAmount as calcCommission, isFreeOrder, applyCredit, isPromoUsable, promoRedemptionCount, computeStackedDiscounts, sitewideSalePrice, isSitewideActive, shippingFee, SHIPPING_PROTECTION_FEE, type QuantityTier } from "./_lib/pricing.js";
-import { getBalance, reserveCredit, reserveDiscountRedemption, releaseDiscountRedemption, getRewardConfig, earnLoyalty, grantReferralReward, type RewardConfig } from "./_lib/credit.js";
+import { getBalance, reserveCredit, reserveDiscountRedemption, releaseDiscountRedemption, getRewardConfig, type RewardConfig } from "./_lib/credit.js";
 import { validateAddress } from "./_lib/shippo.js";
 import { buildOrderId } from "./_lib/orderId.js";
 import { requireUser } from "./_lib/requireUser.js";
 import { chargeSquare, squareConfigured } from "./_lib/square.js";
-import { confirmPaidOrder, sendConfirmationEmails, ORDER_COLS } from "./_lib/fulfillment.js";
+import { confirmPaidOrder, sendConfirmationEmails, recordLatePayment, ORDER_COLS } from "./_lib/fulfillment.js";
+import { normalizeShippingAddress } from "./_lib/address.js";
+import { buildPaymentOffer, isManualPaymentMethod, isPaymentMethod, paymentMethodEnabled, type PaymentMethod } from "./_lib/paymentConfig.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 
 // Manual peer-to-peer methods: the order is placed as pending and the admin
 // confirms it in Admin → Orders once the transfer lands (no automated callback).
-const MANUAL_METHODS = ["zelle", "cashapp", "venmo", "ach"];
-
 const FREE_GIFT_CODE = "bac-water-free";
 const FREE_GIFT_THRESHOLD = 100; // paid subtotal that unlocks the free BAC Water
 const MAX_CART_LINES = 25;
 const MAX_ITEM_QUANTITY = 100;
+const MAX_ORDER_AMOUNT = 1_000_000;
 const CHECKOUT_RATE_MAX = 10;
 const CHECKOUT_RATE_WINDOW_SECONDS = 600;
 
@@ -34,20 +35,21 @@ function validText(value: unknown, maxLength: number, required = true): boolean 
  * price, else the base price.
  */
 async function loadCatalog(): Promise<Record<string, { name: string; dose: string; price: number }>> {
-  const [{ data: products }, { data: settings }] = await Promise.all([
-    supabaseAdmin.from("products").select("name, variants"),
-    supabaseAdmin
-      .from("store_settings")
-      .select("sitewide_active, sitewide_percent, sitewide_starts_at, sitewide_ends_at")
-      .maybeSingle(),
-  ]);
+  const [{ data: products }, { data: settings }] = await Promise.all([supabaseAdmin.from("products").select("name, variants"), supabaseAdmin.from("store_settings").select("sitewide_active, sitewide_percent, sitewide_starts_at, sitewide_ends_at").maybeSingle()]);
 
   const sitewidePct = isSitewideActive(settings) ? Number(settings!.sitewide_percent) : null;
   const now = new Date();
   const map: Record<string, { name: string; dose: string; price: number }> = {};
 
   for (const p of products ?? []) {
-    const variants = (p.variants as { cart_code?: string; dose?: string; price?: number; sale_price?: number | null; sale_ends_at?: string | null }[]) ?? [];
+    const variants =
+      (p.variants as {
+        cart_code?: string;
+        dose?: string;
+        price?: number;
+        sale_price?: number | null;
+        sale_ends_at?: string | null;
+      }[]) ?? [];
     for (const v of variants) {
       if (!v.cart_code) continue;
       const base = Number(v.price) || 0;
@@ -70,8 +72,19 @@ async function loadCatalog(): Promise<Record<string, { name: string; dose: strin
  * A code is either an affiliate code (sets affiliate + commission) or a row
  * in promo_codes (validated for active/expiry/uses/min-subtotal).
  */
-async function resolveDiscount(code: string, gross: number, email: string, userId: string, cfg: RewardConfig): Promise<
-  | { kind: "affiliate"; percent: number; affiliateId: string; commissionPercent: number }
+async function resolveDiscount(
+  code: string,
+  gross: number,
+  email: string,
+  userId: string,
+  cfg: RewardConfig
+): Promise<
+  | {
+      kind: "affiliate";
+      percent: number;
+      affiliateId: string;
+      commissionPercent: number;
+    }
   | { kind: "promo"; percent: number }
   | { kind: "referral"; amountOff: number; referrerEmail: string }
   | null
@@ -79,11 +92,7 @@ async function resolveDiscount(code: string, gross: number, email: string, userI
   const normalized = code.trim().toUpperCase();
   if (!normalized) return null;
 
-  const { data: aff } = await supabaseAdmin
-    .from("affiliates")
-    .select("id, discount_percent, commission_percent, is_referral, email, user_id")
-    .eq("code", normalized)
-    .maybeSingle();
+  const { data: aff } = await supabaseAdmin.from("affiliates").select("id, discount_percent, commission_percent, is_referral, email, user_id").eq("code", normalized).maybeSingle();
   if (aff) {
     // Self-serve referral codes can't be redeemed by the person who created them
     // (anti-self-referral: no farming your own discount + payout). Block on either
@@ -93,14 +102,15 @@ async function resolveDiscount(code: string, gross: number, email: string, userI
       const sameAccount = !!aff.user_id && aff.user_id === userId;
       if (sameEmail || sameAccount) return null;
     }
-    return { kind: "affiliate", percent: aff.discount_percent, affiliateId: aff.id, commissionPercent: aff.commission_percent };
+    return {
+      kind: "affiliate",
+      percent: aff.discount_percent,
+      affiliateId: aff.id,
+      commissionPercent: aff.commission_percent,
+    };
   }
 
-  const { data: promo } = await supabaseAdmin
-    .from("promo_codes")
-    .select("code, percent_off, min_subtotal, max_uses, used_count, starts_at, expires_at, is_active")
-    .eq("code", normalized)
-    .maybeSingle();
+  const { data: promo } = await supabaseAdmin.from("promo_codes").select("code, percent_off, min_subtotal, max_uses, used_count, starts_at, expires_at, is_active").eq("code", normalized).maybeSingle();
   if (promo) return isPromoUsable(promo, gross) ? { kind: "promo", percent: promo.percent_off } : null;
 
   // Referral code (customer-to-customer): a flat $ off for a NEW referee only.
@@ -108,10 +118,13 @@ async function resolveDiscount(code: string, gross: number, email: string, userI
   if (ref) {
     if ((ref.email || "").toLowerCase() === email.toLowerCase()) return null; // no self-referral
     if (gross < cfg.referralMinSubtotal) return null;
-    const { data: prior } = await supabaseAdmin
-      .from("orders").select("id").eq("email", email).in("status", ["confirmed", "finished"]).limit(1);
+    const { data: prior } = await supabaseAdmin.from("orders").select("id").eq("email", email).in("status", ["confirmed", "finished"]).limit(1);
     if (prior && prior.length > 0) return null; // referral discount is first-order only
-    return { kind: "referral", amountOff: cfg.refereeAmount, referrerEmail: ref.email };
+    return {
+      kind: "referral",
+      amountOff: cfg.refereeAmount,
+      referrerEmail: ref.email,
+    };
   }
   return null;
 }
@@ -143,22 +156,28 @@ export default async function handler(req: any, res: any) {
     });
     if (error || allowed !== true) {
       res.status(error ? 503 : 429).json({
-        error: error
-          ? "Checkout protection is temporarily unavailable. Please try again shortly."
-          : "Too many checkout attempts. Please wait a few minutes and try again.",
+        error: error ? "Checkout protection is temporarily unavailable. Please try again shortly." : "Too many checkout attempts. Please wait a few minutes and try again.",
       });
       return;
     }
   } catch (err) {
     console.error("checkout rate-limit check failed:", err);
-    res.status(503).json({ error: "Checkout protection is temporarily unavailable. Please try again shortly." });
+    res.status(503).json({
+      error: "Checkout protection is temporarily unavailable. Please try again shortly.",
+    });
     return;
   }
 
   try {
     const { items, discountCode, shipping, attestation, total, paymentMethod, shippingProtection } = (req.body ?? {}) as {
       paymentMethod?: string;
-      items: { name: string; dose: string; quantity: number; cartCode: string; price: number }[];
+      items: {
+        name: string;
+        dose: string;
+        quantity: number;
+        cartCode: string;
+        price: number;
+      }[];
       total: number;
       discountCode?: string;
       affiliateId?: string;
@@ -166,8 +185,14 @@ export default async function handler(req: any, res: any) {
       attestation?: boolean;
       shippingProtection?: boolean;
       shipping?: {
-        name: string; line1: string; line2?: string; city: string;
-        state: string; postal_code: string; country: string; phone?: string;
+        name: string;
+        line1: string;
+        line2?: string;
+        city: string;
+        state: string;
+        postal_code: string;
+        country: string;
+        phone?: string;
       };
     };
 
@@ -182,22 +207,22 @@ export default async function handler(req: any, res: any) {
 
     // Require the research-use / age acknowledgment from checkout.
     if (attestation !== true) {
-      res.status(400).json({ error: "A research-use acknowledgment is required to place an order." });
+      res.status(400).json({
+        error: "A research-use acknowledgment is required to place an order.",
+      });
       return;
     }
 
-    if (
-      !shipping ||
-      !validText(shipping.name, 200) ||
-      !validText(shipping.line1, 200) ||
-      !validText(shipping.line2, 200, false) ||
-      !validText(shipping.city, 100) ||
-      !validText(shipping.state, 100) ||
-      !validText(shipping.postal_code, 32) ||
-      !validText(shipping.country, 100, false) ||
-      !validText(shipping.phone, 40, false)
-    ) {
-      res.status(400).json({ error: "A complete shipping address is required" });
+    const normalizedShipping = normalizeShippingAddress(shipping);
+    if (!normalizedShipping) {
+      res.status(400).json({ error: "A valid contiguous-US shipping address is required." });
+      return;
+    }
+    const rawMethod = String(paymentMethod ?? "")
+      .trim()
+      .toLowerCase();
+    if (!isPaymentMethod(rawMethod)) {
+      res.status(400).json({ error: "Choose a valid payment method." });
       return;
     }
     if (discountCode != null && !validText(discountCode, 64)) {
@@ -229,14 +254,22 @@ export default async function handler(req: any, res: any) {
       }
       const quantity = (quantities.get(i.cartCode) ?? 0) + rawQuantity;
       if (quantity > MAX_ITEM_QUANTITY) {
-        res.status(400).json({ error: `Maximum quantity for ${entry.name} is ${MAX_ITEM_QUANTITY}.` });
+        res.status(400).json({
+          error: `Maximum quantity for ${entry.name} is ${MAX_ITEM_QUANTITY}.`,
+        });
         return;
       }
       quantities.set(i.cartCode, quantity);
     }
     const paidItems = Array.from(quantities.entries()).map(([cartCode, quantity]) => {
       const entry = catalog[cartCode];
-      return { name: entry.name, dose: entry.dose, quantity, cartCode, price: entry.price };
+      return {
+        name: entry.name,
+        dose: entry.dose,
+        quantity,
+        cartCode,
+        price: entry.price,
+      };
     });
     if (paidItems.length === 0) {
       res.status(400).json({ error: "Your cart has no purchasable items." });
@@ -247,11 +280,7 @@ export default async function handler(req: any, res: any) {
     // unavailable — every sellable variant has one (the storefront hides
     // variants without a row), so its absence means "not sellable", not "∞".
     for (const item of paidItems) {
-      const { data } = await supabaseAdmin
-        .from("inventory")
-        .select("stock")
-        .eq("cart_code", item.cartCode)
-        .maybeSingle();
+      const { data } = await supabaseAdmin.from("inventory").select("stock").eq("cart_code", item.cartCode).maybeSingle();
 
       if (!data || data.stock < item.quantity) {
         res.status(409).json({ error: `${item.name} ${item.dose} is out of stock.` });
@@ -262,9 +291,11 @@ export default async function handler(req: any, res: any) {
     // Burn the external Shippo quota only after the cheap cart and stock checks
     // have succeeded. A Shippo outage remains non-blocking; only a definitive
     // invalid-address response rejects the order.
-    const addrCheck = await validateAddress(shipping);
+    const addrCheck = await validateAddress(normalizedShipping);
     if (addrCheck && !addrCheck.valid) {
-      res.status(400).json({ error: `We couldn't verify that shipping address. ${addrCheck.messages[0] || "Please double-check it and try again."}` });
+      res.status(400).json({
+        error: `We couldn't verify that shipping address. ${addrCheck.messages[0] || "Please double-check it and try again."}`,
+      });
       return;
     }
 
@@ -273,10 +304,20 @@ export default async function handler(req: any, res: any) {
 
     // Re-add the free BAC Water ($0, qty 1) only when the paid subtotal clears
     // the threshold — server-authoritative mirror of the cart's auto-gift.
-    const wantsFreeGift = items.some((i) => i.cartCode === FREE_GIFT_CODE);
-    const orderItems = wantsFreeGift && grossAmount >= FREE_GIFT_THRESHOLD
-      ? [...paidItems, { name: "BAC Water (Free Gift)", dose: "10 ML", quantity: 1, cartCode: FREE_GIFT_CODE, price: 0 }]
-      : paidItems;
+    const wantsFreeGift = items.some(i => i.cartCode === FREE_GIFT_CODE);
+    const orderItems =
+      wantsFreeGift && grossAmount >= FREE_GIFT_THRESHOLD
+        ? [
+            ...paidItems,
+            {
+              name: "BAC Water (Free Gift)",
+              dose: "10 ML",
+              quantity: 1,
+              cartCode: FREE_GIFT_CODE,
+              price: 0,
+            },
+          ]
+        : paidItems;
 
     // Reward config (loyalty % + referral amounts) — admin-adjustable.
     const cfg = await getRewardConfig();
@@ -295,11 +336,7 @@ export default async function handler(req: any, res: any) {
     // recreating a code resets the limit for everyone. Affiliate/referral exempt.
     let promoPerCustomerLimit = 1;
     if (discount?.kind === "promo") {
-      const { data: promoRow } = await supabaseAdmin
-        .from("promo_codes")
-        .select("created_at, per_customer_limit, max_uses, used_count")
-        .eq("code", discountCodeNorm!)
-        .maybeSingle();
+      const { data: promoRow } = await supabaseAdmin.from("promo_codes").select("created_at, per_customer_limit, max_uses, used_count").eq("code", discountCodeNorm!).maybeSingle();
       promoPerCustomerLimit = promoRow?.per_customer_limit == null ? 1 : Number(promoRow.per_customer_limit);
 
       // Codes are A–Z0–9 so ILIKE on the code is safe; the exact email match is
@@ -313,9 +350,7 @@ export default async function handler(req: any, res: any) {
           .gte("created_at", promoRow?.created_at ?? "1970-01-01T00:00:00Z");
         if (promoRedemptionCount(prior ?? [], email, discountCodeNorm!) >= promoPerCustomerLimit) {
           res.status(400).json({
-            error: promoPerCustomerLimit === 1
-              ? "You've already used this promo code — it's limited to one use per customer."
-              : `You've reached the ${promoPerCustomerLimit}-use limit for this promo code.`,
+            error: promoPerCustomerLimit === 1 ? "You've already used this promo code — it's limited to one use per customer." : `You've reached the ${promoPerCustomerLimit}-use limit for this promo code.`,
           });
           return;
         }
@@ -327,9 +362,7 @@ export default async function handler(req: any, res: any) {
       // Counting pending holders closes that window. (Slightly conservative: a
       // pending order that later dies frees its slot via the hourly sweep.)
       if (promoRow?.max_uses != null) {
-        const { count: pendingCount } = await supabaseAdmin
-          .from("orders").select("id", { count: "exact", head: true })
-          .eq("discount_code", discountCodeNorm!).eq("status", "pending");
+        const { count: pendingCount } = await supabaseAdmin.from("orders").select("id", { count: "exact", head: true }).eq("discount_code", discountCodeNorm!).eq("status", "pending");
         if ((Number(promoRow.used_count) || 0) + (pendingCount ?? 0) >= Number(promoRow.max_uses)) {
           res.status(400).json({ error: "This promo code has reached its usage limit." });
           return;
@@ -354,10 +387,7 @@ export default async function handler(req: any, res: any) {
       const reserved = await reserveDiscountRedemption(email, reservationKey, orderId, reservationLimit);
       if (!reserved) {
         res.status(400).json({
-          error:
-            discount.kind === "referral"
-              ? "This referral code has already been used on an order."
-              : "You've already used this promo code — it's limited to one use per customer.",
+          error: discount.kind === "referral" ? "This referral code has already been used on an order." : "You've already used this promo code — it's limited to one use per customer.",
         });
         return;
       }
@@ -367,26 +397,33 @@ export default async function handler(req: any, res: any) {
     // the tier % comes off first, then the code (promo/affiliate % or referral $)
     // off the remainder.
     const units = paidItems.reduce((sum, i) => sum + i.quantity, 0);
-    const { data: settings } = await supabaseAdmin.from("store_settings").select("quantity_tiers").maybeSingle();
+    const { data: settings } = await supabaseAdmin.from("store_settings").select("quantity_tiers, payment_config").maybeSingle();
     const tiers = (settings?.quantity_tiers as QuantityTier[] | null) ?? [];
     const codeArg = discount
       ? discount.kind === "referral"
-        ? { kind: "referral" as const, label: `Referral (${discountCodeNorm})`, amount: discount.amountOff }
+        ? {
+            kind: "referral" as const,
+            label: `Referral (${discountCodeNorm})`,
+            amount: discount.amountOff,
+          }
         : {
             kind: discount.kind,
             label: discount.kind === "affiliate" ? `Affiliate (${discountCodeNorm})` : `Promo (${discountCodeNorm})`,
             percent: discount.percent,
           }
       : null;
-    const { lines: discountLines, totalDiscount: discountAmount, net: netAmount } = computeStackedDiscounts({
+    const {
+      lines: discountLines,
+      totalDiscount: discountAmount,
+      net: netAmount,
+    } = computeStackedDiscounts({
       gross: grossAmount,
       units,
       tiers,
       code: codeArg,
     });
     const affiliateId = discount?.kind === "affiliate" ? discount.affiliateId : null;
-    const commissionAmount =
-      discount?.kind === "affiliate" ? calcCommission(netAmount, discount.commissionPercent) : null;
+    const commissionAmount = discount?.kind === "affiliate" ? calcCommission(netAmount, discount.commissionPercent) : null;
 
     // Flat shipping fee on sub-$75 orders (free at $75+, pre-discount basis —
     // mirrors the free-gift threshold). Commission stays on the merchandise net.
@@ -401,13 +438,23 @@ export default async function handler(req: any, res: any) {
     // and it covers shipping too).
     const balance = await getBalance(email);
     const { creditApplied, amountDue } = applyCredit(netAmount + shippingAmount, balance);
+    if (!Number.isFinite(amountDue) || amountDue > MAX_ORDER_AMOUNT) {
+      await releaseDiscountRedemption(orderId);
+      res.status(400).json({ error: "Order total is outside the supported range." });
+      return;
+    }
 
     // The client sends the total it DISPLAYED at checkout. If the server-computed
     // amount due differs (stale catalog cache, a sale that ended mid-checkout, a
     // credit balance the client didn't see), refuse rather than charge an amount
     // the customer never agreed to. Tolerance 1¢ for rounding; absent → legacy skip.
     const displayedTotal = Number(total);
-    if (Number.isFinite(displayedTotal) && Math.abs(displayedTotal - amountDue) > 0.01) {
+    if (!Number.isFinite(displayedTotal) || displayedTotal < 0) {
+      await releaseDiscountRedemption(orderId);
+      res.status(400).json({ error: "A valid checkout total is required." });
+      return;
+    }
+    if (Math.abs(displayedTotal - amountDue) > 0.01) {
       await releaseDiscountRedemption(orderId);
       res.status(409).json({
         error: `Your order total is now $${amountDue.toFixed(2)} (it was $${displayedTotal.toFixed(2)} when the page loaded) — prices or your store credit changed. Please refresh and try again.`,
@@ -416,9 +463,7 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const description = paidItems
-      .map((i) => `${i.name} ${i.dose} x${i.quantity}`)
-      .join(", ");
+    const description = paidItems.map(i => `${i.name} ${i.dose} x${i.quantity}`).join(", ");
     const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
 
     // ── Nothing due ($0 — covered by discounts and/or store credit): confirm now,
@@ -427,8 +472,7 @@ export default async function handler(req: any, res: any) {
       const { error: insertError } = await supabaseAdmin.from("orders").insert({
         id: orderId,
         email,
-        status: "confirmed",
-        confirmed_at: new Date().toISOString(),
+        status: "pending",
         items: orderItems,
         gross_amount: grossAmount,
         discount_amount: discountAmount,
@@ -440,7 +484,7 @@ export default async function handler(req: any, res: any) {
         credit_applied: creditApplied,
         affiliate_id: affiliateId,
         commission_amount: commissionAmount,
-        shipping_address: shipping,
+        shipping_address: normalizedShipping,
         pay_amount: 0,
       });
       if (insertError) {
@@ -455,35 +499,50 @@ export default async function handler(req: any, res: any) {
       if (!(await reserveCredit(email, creditApplied, orderId))) {
         await supabaseAdmin.from("orders").delete().eq("id", orderId);
         await releaseDiscountRedemption(orderId);
-        res.status(409).json({ error: "Your store credit balance changed — please review your order and try again." });
+        res.status(409).json({
+          error: "Your store credit balance changed — please review your order and try again.",
+        });
         return;
       }
-      for (const item of paidItems) {
-        const { error: decErr } = await supabaseAdmin.rpc("decrement_stock", { p_cart_code: item.cartCode, p_qty: item.quantity });
-        // Order is already confirmed ($0 due) — never block on a decrement
-        // failure; log the oversell for reconciliation (mirrors fulfillment.ts).
-        if (decErr) {
-          console.error(`⚠️ OVERSOLD: decrement_stock failed for free order ${orderId} — ${item.cartCode} x${item.quantity}: ${decErr.message}`);
+      const { data: pendingFree } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("id", orderId).maybeSingle();
+      try {
+        if (
+          !pendingFree ||
+          !(await confirmPaidOrder(pendingFree, {
+            payCurrency: "USD",
+            payAmount: 0,
+            paymentId: null,
+          }))
+        ) {
+          throw new Error("The free order could not claim its confirmation transition.");
         }
+      } catch (err) {
+        console.error("Free order confirmation failed:", err);
+        await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId).eq("status", "pending");
+        await releaseDiscountRedemption(orderId);
+        res.status(409).json({
+          error: "One of those items just sold out. Please review your cart and try again.",
+        });
+        return;
       }
-      if (discountCodeNorm) {
-        await supabaseAdmin.rpc("increment_promo_use", { p_code: discountCodeNorm }).then(() => {}, () => {});
-      }
-      // Confirmed now → earn loyalty + grant the referrer's reward (idempotent).
-      const rewardOrder = { id: orderId, email, net_amount: netAmount, credit_applied: creditApplied, referral_code: referralCode };
-      await earnLoyalty(rewardOrder, cfg.loyaltyPercent);
-      await grantReferralReward(rewardOrder, cfg.referrerAmount);
 
       const freeOrder: EmailOrder = {
-        id: orderId, email, items: orderItems, gross_amount: grossAmount, discount_amount: discountAmount,
-        discount_code: discountCodeNorm, net_amount: netAmount, shipping_amount: shippingAmount,
-        shipping_address: shipping, emails_sent: {},
+        id: orderId,
+        email,
+        items: orderItems,
+        gross_amount: grossAmount,
+        discount_amount: discountAmount,
+        discount_code: discountCodeNorm,
+        net_amount: netAmount,
+        shipping_amount: shippingAmount,
+        shipping_address: normalizedShipping,
+        emails_sent: {},
       };
       deferEmail(
         (async () => {
           await sendOrderEvent(freeOrder, "confirmed");
           await sendOrderEvent(freeOrder, "admin_new_order");
-        })(),
+        })()
       );
 
       res.status(200).json({ free: true, orderId });
@@ -492,11 +551,15 @@ export default async function handler(req: any, res: any) {
 
     // Normalize the chosen payment method. A card token → Square. No token + a
     // manual method → awaiting-transfer order. Otherwise crypto.
-    const rawMethod = String(paymentMethod ?? "").toLowerCase();
-    const payMethod =
-      rawMethod === "square" || MANUAL_METHODS.includes(rawMethod) || rawMethod === "crypto"
-        ? rawMethod
-        : "crypto";
+    // The storefront setting is an authorization decision too: a crafted
+    // request cannot resurrect a method the owner disabled.
+    const payMethod: PaymentMethod = rawMethod;
+    const paymentOffer = buildPaymentOffer(settings?.payment_config);
+    if (!paymentMethodEnabled(paymentOffer, payMethod)) {
+      await releaseDiscountRedemption(orderId);
+      res.status(400).json({ error: "That payment method is not available right now." });
+      return;
+    }
 
     // Persist pending order
     const { error: insertError } = await supabaseAdmin.from("orders").insert({
@@ -515,7 +578,7 @@ export default async function handler(req: any, res: any) {
       credit_applied: creditApplied,
       affiliate_id: affiliateId,
       commission_amount: commissionAmount,
-      shipping_address: shipping,
+      shipping_address: normalizedShipping,
     });
     if (insertError) {
       console.error("Order insert failed:", insertError);
@@ -529,15 +592,25 @@ export default async function handler(req: any, res: any) {
     if (!(await reserveCredit(email, creditApplied, orderId))) {
       await supabaseAdmin.from("orders").delete().eq("id", orderId);
       await releaseDiscountRedemption(orderId);
-      res.status(409).json({ error: "Your store credit balance changed — please review your order and try again." });
+      res.status(409).json({
+        error: "Your store credit balance changed — please review your order and try again.",
+      });
       return;
     }
 
     const emailOrderBase = (): EmailOrder => ({
-      id: orderId, email, items: orderItems, gross_amount: grossAmount,
-      discount_amount: discountAmount, discount_code: discountCodeNorm,
-      net_amount: netAmount, shipping_amount: shippingAmount, credit_applied: creditApplied,
-      payment_method: payMethod, shipping_address: shipping, emails_sent: {},
+      id: orderId,
+      email,
+      items: orderItems,
+      gross_amount: grossAmount,
+      discount_amount: discountAmount,
+      discount_code: discountCodeNorm,
+      net_amount: netAmount,
+      shipping_amount: shippingAmount,
+      credit_applied: creditApplied,
+      payment_method: payMethod,
+      shipping_address: normalizedShipping,
+      emails_sent: {},
     });
 
     // ── Square (live card processing) — charge the exact amountDue ───────────
@@ -545,23 +618,58 @@ export default async function handler(req: any, res: any) {
     // single-use `squareToken` (source_id); we charge the server-computed
     // amountDue via the Payments API (never a client price).
     if (payMethod === "square") {
-      const squareToken = typeof (req.body as { squareToken?: unknown }).squareToken === "string"
-        ? (req.body as { squareToken: string }).squareToken
-        : "";
+      const squareToken = typeof (req.body as { squareToken?: unknown }).squareToken === "string" ? (req.body as { squareToken: string }).squareToken : "";
       if (!squareToken || !squareConfigured()) {
         await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId);
         await releaseDiscountRedemption(orderId);
-        res.status(400).json({ error: "Card payments aren't available right now. Please choose another method." });
+        res.status(400).json({
+          error: "Card payments aren't available right now. Please choose another method.",
+        });
         return;
       }
       try {
-        const result = await chargeSquare({ sourceId: squareToken, amountDue, orderId, email });
-        await supabaseAdmin.from("orders").update({ payment_id: result.paymentId || null }).eq("id", orderId);
+        const result = await chargeSquare({
+          sourceId: squareToken,
+          amountDue,
+          orderId,
+          email,
+        });
+        await supabaseAdmin
+          .from("orders")
+          .update({ payment_id: result.paymentId || null })
+          .eq("id", orderId);
         if (result.status === "succeeded") {
           const { data: ord } = await supabaseAdmin.from("orders").select(ORDER_COLS).eq("id", orderId).maybeSingle();
-          if (ord) {
-            await confirmPaidOrder(ord, { payCurrency: "USD", payAmount: amountDue, paymentId: result.paymentId });
-            deferEmail(sendConfirmationEmails(ord));
+          try {
+            const claimed =
+              !!ord &&
+              (await confirmPaidOrder(ord, {
+                payCurrency: "USD",
+                payAmount: amountDue,
+                paymentId: result.paymentId,
+              }));
+            if (!claimed) {
+              const { data: current } = await supabaseAdmin.from("orders").select("status").eq("id", orderId).maybeSingle();
+              if (current?.status !== "confirmed" && current?.status !== "finished") {
+                throw new Error(`Paid Square order could not be confirmed (current status: ${current?.status ?? "missing"}).`);
+              }
+            }
+            if (ord) deferEmail(sendConfirmationEmails(ord));
+          } catch (confirmError) {
+            console.error("Square payment captured but fulfillment needs review:", confirmError);
+            if (ord) {
+              await recordLatePayment(
+                ord,
+                {
+                  payCurrency: "USD",
+                  payAmount: amountDue,
+                  paymentId: result.paymentId,
+                },
+                `Payment captured by Square but order confirmation failed: ${confirmError instanceof Error ? confirmError.message : "unknown error"}. Review inventory and fulfill or refund manually.`
+              ).catch(() => {});
+            }
+            res.status(202).json({ paid: true, pendingReview: true, orderId });
+            return;
           }
           res.status(200).json({ paid: true, orderId });
           return;
@@ -584,8 +692,8 @@ export default async function handler(req: any, res: any) {
     // No automated confirmation exists for these — the order stays pending with
     // the send-to instructions shown to the customer, and the admin marks it
     // paid in Admin → Orders once the money lands. Reserved credit/promo slots
-    // are held (like a crypto invoice) until it's confirmed or auto-expires (14d).
-    if (MANUAL_METHODS.includes(payMethod)) {
+    // are held (like a crypto invoice) until it's confirmed or auto-expires (4d).
+    if (isManualPaymentMethod(payMethod)) {
       deferEmail(sendOrderEvent(emailOrderBase(), "order_created"));
       // The order auto-expires 4 days after creation (mirrors expire_stale_orders);
       // the client shows a live countdown from this.
@@ -625,6 +733,22 @@ export default async function handler(req: any, res: any) {
 
     const data = (await nowRes.json()) as { invoice_url: string };
     const invoiceUrl = data.invoice_url;
+    let invoiceHost = "";
+    try {
+      const parsed = new URL(invoiceUrl);
+      if (parsed.protocol === "https:") invoiceHost = parsed.hostname.toLowerCase();
+    } catch {
+      /* handled below */
+    }
+    if (!invoiceHost || (invoiceHost !== "nowpayments.io" && !invoiceHost.endsWith(".nowpayments.io"))) {
+      console.error("NOWPayments returned an invalid invoice URL");
+      await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", orderId).eq("status", "pending");
+      await releaseDiscountRedemption(orderId);
+      res.status(502).json({
+        error: "Payment provider returned an invalid invoice. Please try again.",
+      });
+      return;
+    }
 
     // "Order received / awaiting payment" email — after the response via waitUntil.
     const emailOrder: EmailOrder = {
@@ -636,7 +760,7 @@ export default async function handler(req: any, res: any) {
       discount_code: discountCodeNorm,
       net_amount: netAmount,
       shipping_amount: shippingAmount,
-      shipping_address: shipping,
+      shipping_address: normalizedShipping,
       emails_sent: {},
     };
     deferEmail(sendOrderEvent(emailOrder, "order_created", { invoiceUrl }));

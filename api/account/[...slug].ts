@@ -2,6 +2,7 @@ import { supabaseAdmin } from "../_lib/supabase-admin.js";
 import { requireUser } from "../_lib/requireUser.js";
 import { getBalance, getOrCreateReferralCode } from "../_lib/credit.js";
 import { sendOrderEvent, type EmailOrder } from "../_lib/email.js";
+import { normalizeShippingAddress } from "../_lib/address.js";
 
 /**
  * Handles all /api/account/* routes for the logged-in customer:
@@ -27,13 +28,7 @@ export default async function handler(req: any, res: any) {
       res.status(405).json({ error: "Method not allowed" });
       return;
     }
-    const { data, error } = await supabaseAdmin
-      .from("orders")
-      .select(
-        "id, items, gross_amount, discount_amount, net_amount, shipping_amount, credit_applied, payment_method, status, fulfillment_status, tracking_number, carrier, created_at, confirmed_at, shipped_at, delivered_at, cancelled_at, cancel_reason, shipping_address",
-      )
-      .eq("email", user.email)
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabaseAdmin.from("orders").select("id, items, gross_amount, discount_amount, net_amount, shipping_amount, credit_applied, payment_method, status, fulfillment_status, tracking_number, carrier, created_at, confirmed_at, shipped_at, delivered_at, cancelled_at, cancel_reason, shipping_address").eq("email", user.email).order("created_at", { ascending: false });
 
     if (error) {
       res.status(500).json({ error: "Failed to fetch orders" });
@@ -51,14 +46,7 @@ export default async function handler(req: any, res: any) {
 
       if (!address) {
         // Fall back to the most recent order's address for returning customers.
-        const { data: lastOrder } = await supabaseAdmin
-          .from("orders")
-          .select("shipping_address")
-          .eq("email", user.email)
-          .not("shipping_address", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const { data: lastOrder } = await supabaseAdmin.from("orders").select("shipping_address").eq("email", user.email).not("shipping_address", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
         address = lastOrder?.shipping_address ?? null;
       }
 
@@ -67,26 +55,23 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === "PUT") {
-      const { shipping_address } = req.body as {
-        shipping_address?: {
-          name?: string; line1?: string; line2?: string; city?: string;
-          state?: string; postal_code?: string; country?: string; phone?: string;
-        };
-      };
-      if (!shipping_address?.line1) {
-        res.status(400).json({ error: "shipping_address with line1 is required" });
+      const shippingAddress = normalizeShippingAddress(req.body?.shipping_address);
+      if (!shippingAddress) {
+        res.status(400).json({
+          error: "A valid contiguous-US shipping address is required",
+        });
         return;
       }
       const { data } = await supabaseAdmin.auth.admin.getUserById(user.id);
       const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>;
       const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-        user_metadata: { ...meta, shipping_address },
+        user_metadata: { ...meta, shipping_address: shippingAddress },
       });
       if (error) {
         res.status(500).json({ error: "Failed to save address" });
         return;
       }
-      res.status(200).json({ shipping_address });
+      res.status(200).json({ shipping_address: shippingAddress });
       return;
     }
 
@@ -96,21 +81,22 @@ export default async function handler(req: any, res: any) {
 
   // ── GET /api/account/credit — store-credit balance + recent ledger ──────────
   if (route === "credit") {
-    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+    if (req.method !== "GET") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
     const balance = await getBalance(user.email);
-    const { data: ledger } = await supabaseAdmin
-      .from("store_credit_ledger")
-      .select("amount, reason, order_id, created_at")
-      .eq("email", user.email)
-      .order("created_at", { ascending: false })
-      .limit(50);
+    const { data: ledger } = await supabaseAdmin.from("store_credit_ledger").select("amount, reason, order_id, created_at").eq("email", user.email).order("created_at", { ascending: false }).limit(50);
     res.status(200).json({ balance, ledger: ledger ?? [] });
     return;
   }
 
   // ── GET /api/account/referral — the customer's referral code + share link ───
   if (route === "referral") {
-    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+    if (req.method !== "GET") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
     const code = await getOrCreateReferralCode(user.email);
     const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
     res.status(200).json({ code, link: `${baseUrl}/?ref=${code}` });
@@ -122,13 +108,16 @@ export default async function handler(req: any, res: any) {
   // auth user (user_id), so it can't be lost or claimed by someone else. Lazily
   // creates (or adopts a legacy by-email) code on first view. ─────────────────
   if (route === "referral-program") {
-    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+    if (req.method !== "GET") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
 
-    const { data: cfg } = await supabaseAdmin
-      .from("store_settings")
-      .select("referral_program_active, referral_buyer_discount, referral_bounty_amount, referral_bounty_orders, referral_min_order")
-      .maybeSingle();
-    if (!cfg?.referral_program_active) { res.status(200).json({ active: false }); return; }
+    const { data: cfg } = await supabaseAdmin.from("store_settings").select("referral_program_active, referral_buyer_discount, referral_bounty_amount, referral_bounty_orders, referral_min_order").maybeSingle();
+    if (!cfg?.referral_program_active) {
+      res.status(200).json({ active: false });
+      return;
+    }
 
     const buyerDiscount = Math.max(0, Math.min(100, Number(cfg.referral_buyer_discount) || 10));
     const bountyOrders = Math.max(1, Number(cfg.referral_bounty_orders) || 5);
@@ -143,42 +132,30 @@ export default async function handler(req: any, res: any) {
     // characters that are special inside PostgREST's .or() grammar (same
     // pattern as api/me.ts).
     {
-      const { data: byUser } = await supabaseAdmin
-        .from("affiliates").select("code").eq("is_referral", false).eq("user_id", user.id).limit(1).maybeSingle();
-      const aff = byUser ?? (await supabaseAdmin
-        .from("affiliates").select("code").eq("is_referral", false).eq("email", user.email).is("user_id", null).limit(1).maybeSingle()).data;
-      if (aff) { res.status(200).json({ active: true, already_affiliate: true, affiliate_code: aff.code }); return; }
+      const { data: byUser } = await supabaseAdmin.from("affiliates").select("code").eq("is_referral", false).eq("user_id", user.id).limit(1).maybeSingle();
+      const aff = byUser ?? (await supabaseAdmin.from("affiliates").select("code").eq("is_referral", false).eq("email", user.email).is("user_id", null).limit(1).maybeSingle()).data;
+      if (aff) {
+        res.status(200).json({
+          active: true,
+          already_affiliate: true,
+          affiliate_code: aff.code,
+        });
+        return;
+      }
     }
 
     // 1) Already have a code tied to this account?
     let ref: { id: string; code: string } | null = null;
     {
-      const { data } = await supabaseAdmin
-        .from("affiliates")
-        .select("id, code")
-        .eq("is_referral", true)
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const { data } = await supabaseAdmin.from("affiliates").select("id, code").eq("is_referral", true).eq("user_id", user.id).maybeSingle();
       ref = data ?? null;
     }
 
     // 2) Adopt a legacy by-email code (created before account-locking) → bind it.
     if (!ref) {
-      const { data: byEmail } = await supabaseAdmin
-        .from("affiliates")
-        .select("id, code")
-        .eq("is_referral", true)
-        .eq("email", user.email)
-        .is("user_id", null)
-        .maybeSingle();
+      const { data: byEmail } = await supabaseAdmin.from("affiliates").select("id, code").eq("is_referral", true).eq("email", user.email).is("user_id", null).maybeSingle();
       if (byEmail) {
-        const { data: linked } = await supabaseAdmin
-          .from("affiliates")
-          .update({ user_id: user.id })
-          .eq("id", byEmail.id)
-          .is("user_id", null)
-          .select("id, code")
-          .maybeSingle();
+        const { data: linked } = await supabaseAdmin.from("affiliates").update({ user_id: user.id }).eq("id", byEmail.id).is("user_id", null).select("id, code").maybeSingle();
         if (linked) ref = { id: linked.id, code: linked.code };
       }
     }
@@ -193,7 +170,11 @@ export default async function handler(req: any, res: any) {
       const meta = (udata.user?.user_metadata ?? {}) as Record<string, unknown>;
       const rawName = String(meta.full_name ?? meta.name ?? "").trim();
       const seed = rawName ? rawName.split(/\s+/)[0] : user.email.split("@")[0];
-      const base = (String(seed).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12)) || "REF";
+      const base =
+        String(seed)
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "")
+          .slice(0, 12) || "REF";
       const { data: taken } = await supabaseAdmin.from("affiliates").select("code").ilike("code", `${base}%`);
       const takenSet = new Set((taken ?? []).map((r: any) => String(r.code).toUpperCase()));
 
@@ -212,25 +193,40 @@ export default async function handler(req: any, res: any) {
         const { data: inserted, error } = await supabaseAdmin
           .from("affiliates")
           .insert({
-            code: candidate, name: rawName || null, email: user.email, is_referral: true, user_id: user.id,
-            discount_percent: buyerDiscount, commission_percent: 0,
+            code: candidate,
+            name: rawName || null,
+            email: user.email,
+            is_referral: true,
+            user_id: user.id,
+            discount_percent: buyerDiscount,
+            commission_percent: 0,
           })
           .select("id, code")
           .maybeSingle();
-        if (inserted) { ref = inserted; break; }
+        if (inserted) {
+          ref = inserted;
+          break;
+        }
         // 23505 = unique_violation. If the CODE was taken by a race, try the next
         // candidate. If it's the user_id/email that collided, this account already
         // has a code — re-fetch it and use that (idempotent).
         if (error?.code === "23505") {
-          const { data: mine } = await supabaseAdmin
-            .from("affiliates").select("id, code").eq("is_referral", true).eq("user_id", user.id).maybeSingle();
-          if (mine) { ref = mine; break; }
+          const { data: mine } = await supabaseAdmin.from("affiliates").select("id, code").eq("is_referral", true).eq("user_id", user.id).maybeSingle();
+          if (mine) {
+            ref = mine;
+            break;
+          }
           candidate = charForAttempt();
           continue;
         }
         break; // non-conflict error — stop retrying
       }
-      if (!ref) { res.status(500).json({ error: "Couldn't create your referral code — please try again." }); return; }
+      if (!ref) {
+        res.status(500).json({
+          error: "Couldn't create your referral code — please try again.",
+        });
+        return;
+      }
     }
 
     // Qualifying referrals = UNIQUE buyers (distinct email) who placed a
@@ -239,7 +235,10 @@ export default async function handler(req: any, res: any) {
     // (they leave confirmed/finished), so a refund claws the referral back. One
     // buyer ordering repeatedly counts once, so a single friend can't farm a
     // payout. Paged past the 1000-row cap so a popular code never undercounts.
-    const refOrders: { email: string | null; net_amount: number | string | null }[] = [];
+    const refOrders: {
+      email: string | null;
+      net_amount: number | string | null;
+    }[] = [];
     for (let from = 0; ; from += 1000) {
       const { data: batch } = await supabaseAdmin
         .from("orders")
@@ -251,11 +250,7 @@ export default async function handler(req: any, res: any) {
       refOrders.push(...((batch ?? []) as typeof refOrders));
       if (!batch || batch.length < 1000) break;
     }
-    const qualifiedBuyers = new Set(
-      refOrders
-        .filter((o) => Number(o.net_amount ?? 0) >= minOrder && (o.email ?? "").toLowerCase() !== user.email)
-        .map((o) => (o.email ?? "").toLowerCase()),
-    );
+    const qualifiedBuyers = new Set(refOrders.filter(o => Number(o.net_amount ?? 0) >= minOrder && (o.email ?? "").toLowerCase() !== user.email).map(o => (o.email ?? "").toLowerCase()));
     const paidOrders = qualifiedBuyers.size;
     const payouts = Math.floor(paidOrders / bountyOrders);
     const baseUrl = process.env.BASE_URL || "https://vitumlab.com";
@@ -281,20 +276,25 @@ export default async function handler(req: any, res: any) {
   // Payment" on a manual transfer. Alert the payment inbox to verify + mark it
   // paid. Scoped to the customer's OWN pending manual order; idempotent. ───────
   if (route === "payment-sent") {
-    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
     const orderId = String((req.body as { orderId?: string })?.orderId ?? "").trim();
-    if (!orderId) { res.status(400).json({ error: "orderId is required" }); return; }
+    if (!orderId) {
+      res.status(400).json({ error: "orderId is required" });
+      return;
+    }
 
-    const { data: order } = await supabaseAdmin
-      .from("orders")
-      .select("id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, credit_applied, payment_method, shipping_address, status, emails_sent")
-      .eq("id", orderId)
-      .maybeSingle();
+    const { data: order } = await supabaseAdmin.from("orders").select("id, email, items, gross_amount, discount_amount, discount_code, net_amount, shipping_amount, credit_applied, payment_method, shipping_address, status, emails_sent").eq("id", orderId).maybeSingle();
     // Own order only (no cross-customer probing), pending + a manual method.
-    if (!order || (order.email ?? "").toLowerCase() !== user.email) { res.status(404).json({ error: "Order not found" }); return; }
+    if (!order || (order.email ?? "").toLowerCase() !== user.email) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
     const MANUAL = ["zelle", "cashapp", "venmo", "ach"];
     if (order.status === "pending" && MANUAL.includes(order.payment_method ?? "")) {
-      await sendOrderEvent(order as EmailOrder, "admin_payment_claimed").catch((err) => console.error("payment-claimed email failed:", err));
+      await sendOrderEvent(order as EmailOrder, "admin_payment_claimed").catch(err => console.error("payment-claimed email failed:", err));
     }
     res.status(200).json({ ok: true });
     return;
