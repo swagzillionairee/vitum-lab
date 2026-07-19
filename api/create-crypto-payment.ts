@@ -423,6 +423,13 @@ export default async function handler(req: any, res: any) {
       code: codeArg,
     });
     const affiliateId = discount?.kind === "affiliate" ? discount.affiliateId : null;
+    // POLICY (documented default — owner sign-off tracked in CLAUDE.md): affiliate
+    // commission is a % of the merchandise net regardless of tender, so an order
+    // settled partly/wholly with store credit still pays the affiliate in full —
+    // they drove the full sale value, and the credit itself was funded by earlier
+    // paid orders. The alternative basis is cashPaidBasis(net, shipping, credit)
+    // (what loyalty/referral use, for a different, anti-farming reason); if the
+    // policy ever changes, change it HERE only.
     const commissionAmount = discount?.kind === "affiliate" ? calcCommission(netAmount, discount.commissionPercent) : null;
 
     // Flat shipping fee on sub-$75 orders (free at $75+, pre-discount basis —
@@ -444,17 +451,20 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // The client sends the total it DISPLAYED at checkout. If the server-computed
-    // amount due differs (stale catalog cache, a sale that ended mid-checkout, a
-    // credit balance the client didn't see), refuse rather than charge an amount
-    // the customer never agreed to. Tolerance 1¢ for rounding; absent → legacy skip.
+    // The client sends the total it DISPLAYED at checkout. Refuse ONLY when the
+    // server-computed amount due is HIGHER than what the customer agreed to
+    // (stale catalog cache, a sale that ended mid-checkout, a credit balance the
+    // client didn't see) — never charge more than they saw. When the true total
+    // is LOWER (a sale started mid-session, credit landed), proceed and charge
+    // the lower amount: bouncing a price DROP back to "refresh and try again"
+    // only manufactures abandonment. Tolerance 1¢ for rounding.
     const displayedTotal = Number(total);
     if (!Number.isFinite(displayedTotal) || displayedTotal < 0) {
       await releaseDiscountRedemption(orderId);
       res.status(400).json({ error: "A valid checkout total is required." });
       return;
     }
-    if (Math.abs(displayedTotal - amountDue) > 0.01) {
+    if (amountDue - displayedTotal > 0.01) {
       await releaseDiscountRedemption(orderId);
       res.status(409).json({
         error: `Your order total is now $${amountDue.toFixed(2)} (it was $${displayedTotal.toFixed(2)} when the page loaded) — prices or your store credit changed. Please refresh and try again.`,

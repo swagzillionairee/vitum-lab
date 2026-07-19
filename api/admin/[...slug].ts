@@ -348,7 +348,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const p of payouts ?? []) {
       paidOutTally[p.affiliate_id] = (paidOutTally[p.affiliate_id] ?? 0) + num(p.amount);
     }
-    const round2 = (n: number) => Math.round(n * 100) / 100;
+    // (round2 comes from _lib/pricing — the EPSILON-nudged money rounder; a
+    // local copy here shadowed it and could drift a half-cent on owed totals.)
     const commissionsByAffiliate = [...new Set([...Object.keys(commTally), ...Object.keys(paidOutTally)])]
       .map(id => {
         const a = affById.get(id);

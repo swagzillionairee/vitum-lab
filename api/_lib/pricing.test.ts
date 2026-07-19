@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { round2, grossFromItems, commissionAmount, isFreeOrder, applyCredit, isPromoUsable, isSitewideActive, sitewideSalePrice, promoAlreadyRedeemed, promoRedemptionCount, quantityDiscountPercent, computeStackedDiscounts, shippingFee, orderCashDue, SHIPPING_FEE, FREE_SHIPPING_THRESHOLD } from "./pricing";
+import { round2, grossFromItems, commissionAmount, isFreeOrder, applyCredit, isPromoUsable, isSitewideActive, sitewideSalePrice, cashPaidBasis, promoRedemptionCount, quantityDiscountPercent, computeStackedDiscounts, shippingFee, orderCashDue, SHIPPING_FEE, FREE_SHIPPING_THRESHOLD } from "./pricing";
 
 describe("shippingFee", () => {
   it("charges the flat fee under the free-shipping threshold", () => {
@@ -259,23 +259,27 @@ describe("sitewideSalePrice", () => {
   });
 });
 
-describe("promoAlreadyRedeemed (one use per customer)", () => {
-  const orders = [
-    { email: "Buyer@Example.com", discount_code: "SPRING20" },
-    { email: "other@example.com", discount_code: "WELCOME10" },
-  ];
-  it("matches case-insensitively on email + code", () => {
-    expect(promoAlreadyRedeemed(orders, "buyer@example.com", "spring20")).toBe(true);
-    expect(promoAlreadyRedeemed(orders, "BUYER@EXAMPLE.COM", "SPRING20")).toBe(true);
+describe("cashPaidBasis (loyalty/referral reward basis)", () => {
+  it("attributes store credit to shipping first", () => {
+    // $100 net + $10 shipping, $105 credit → $95 of credit hits merchandise → $5 cash basis
+    expect(cashPaidBasis(100, 10, 105)).toBe(5);
+    // credit covers only shipping → full net stays the basis
+    expect(cashPaidBasis(100, 10, 10)).toBe(100);
+    // no credit → full net
+    expect(cashPaidBasis(100, 10, 0)).toBe(100);
   });
-  it("is false when this customer never used this code", () => {
-    expect(promoAlreadyRedeemed(orders, "buyer@example.com", "WELCOME10")).toBe(false);
-    expect(promoAlreadyRedeemed(orders, "new@example.com", "SPRING20")).toBe(false);
+  it("regression: credit equal to net no longer zeroes the basis when shipping was owed", () => {
+    // Old `net − credit` basis returned 0 here and denied loyalty + the referrer bounty
+    // even though the buyer paid $10 real cash (the shipping).
+    expect(cashPaidBasis(100, 10, 100)).toBe(10);
   });
-  it("is false for empty inputs", () => {
-    expect(promoAlreadyRedeemed([], "buyer@example.com", "SPRING20")).toBe(false);
-    expect(promoAlreadyRedeemed(orders, "", "SPRING20")).toBe(false);
-    expect(promoAlreadyRedeemed(orders, "buyer@example.com", "")).toBe(false);
+  it("is 0 when credit truly covers everything, and never negative", () => {
+    expect(cashPaidBasis(100, 10, 110)).toBe(0);
+    expect(cashPaidBasis(100, 0, 500)).toBe(0);
+  });
+  it("coerces junk and rounds to cents", () => {
+    expect(cashPaidBasis("100.005", null, undefined)).toBe(100.01);
+    expect(cashPaidBasis(NaN, NaN, NaN)).toBe(0);
   });
 });
 

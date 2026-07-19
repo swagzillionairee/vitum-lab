@@ -6,8 +6,9 @@
  * writes). All earns/redemptions/rewards are idempotent per (order_id, reason).
  */
 import { supabaseAdmin } from "./supabase-admin.js";
-
-const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+// round2 must be the pricing.ts EPSILON-nudged version — a divergent copy here
+// rounded true half-cents DOWN, letting ledger math drift from order math.
+import { round2, cashPaidBasis } from "./pricing.js";
 
 export interface RewardConfig {
   loyaltyPercent: number;
@@ -99,29 +100,34 @@ export async function releaseDiscountRedemption(orderId: string): Promise<void> 
   if (error) console.error("release_discount_redemption error:", error);
 }
 
-/** Earn loyalty on confirmation. Base = cash actually paid (net − credit applied). */
+/**
+ * Earn loyalty on confirmation. Base = cash actually paid, with store credit
+ * attributed to shipping FIRST (cashPaidBasis) — credit can legally exceed the
+ * merchandise net (it also covers shipping), and the old `net − credit` basis
+ * zeroed out and denied loyalty to buyers who paid real cash.
+ */
 export async function earnLoyalty(
-  order: { id: string; email: string; net_amount: number | string; credit_applied?: number | string | null },
+  order: { id: string; email: string; net_amount: number | string; shipping_amount?: number | string | null; credit_applied?: number | string | null },
   percent: number,
 ): Promise<void> {
   if (!(percent > 0)) return;
-  const cashPaid = round2((Number(order.net_amount) || 0) - (Number(order.credit_applied) || 0));
+  const cashPaid = cashPaidBasis(order.net_amount, order.shipping_amount, order.credit_applied);
   if (cashPaid <= 0) return;
   await addLedger({ email: order.email, amount: round2((cashPaid * percent) / 100), reason: "loyalty", orderId: order.id });
 }
 
 /** Grant the referrer their store credit on the referee's first paid order. */
 export async function grantReferralReward(
-  order: { id: string; email: string; referral_code?: string | null; net_amount?: number | string | null; credit_applied?: number | string | null },
+  order: { id: string; email: string; referral_code?: string | null; net_amount?: number | string | null; shipping_amount?: number | string | null; credit_applied?: number | string | null },
   amount: number,
 ): Promise<void> {
   if (!order.referral_code || !(amount > 0)) return;
   // Anti-abuse: reward the referrer only when the referee actually PAID cash on
-  // their first order (net − store credit applied > 0). A $0 / fully-credit-
-  // covered referee order earns the referrer nothing — this removes the zero-cost
-  // path for farming referrer credit with throwaway alt accounts. Same cash-paid
-  // basis as earnLoyalty.
-  const cashPaid = round2((Number(order.net_amount) || 0) - (Number(order.credit_applied) || 0));
+  // their first order. A $0 / fully-credit-covered referee order earns the
+  // referrer nothing — this removes the zero-cost path for farming referrer
+  // credit with throwaway alt accounts. Same cash-paid basis as earnLoyalty
+  // (store credit attributed to shipping first — see cashPaidBasis).
+  const cashPaid = cashPaidBasis(order.net_amount, order.shipping_amount, order.credit_applied);
   if (cashPaid <= 0) return;
   const { data: ref } = await supabaseAdmin.from("referral_codes").select("email").eq("code", order.referral_code).maybeSingle();
   const referrer = ref?.email;

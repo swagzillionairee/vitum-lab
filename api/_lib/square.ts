@@ -51,7 +51,7 @@ export async function chargeSquare(params: {
     },
     body: JSON.stringify({
       source_id: params.sourceId,
-      idempotency_key: params.orderId, // 20-digit order id — unique per order
+      idempotency_key: params.orderId, // order id (e.g. "KFD-837291") — unique per order
       amount_money: { amount: Math.round(params.amountDue * 100), currency: "USD" },
       location_id: process.env.SQUARE_LOCATION_ID,
       autocomplete: true, // capture immediately (not auth-only)

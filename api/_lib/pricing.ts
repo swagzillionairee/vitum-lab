@@ -56,6 +56,21 @@ export function orderCashDue(net: unknown, shipping: unknown, credit: unknown): 
 }
 
 /**
+ * Cash the customer actually paid toward MERCHANDISE — the reward basis for
+ * loyalty and the referrer bounty. Store credit is attributed to shipping
+ * FIRST: credit is valid tender for shipping (credit_applied may be as large
+ * as net + shipping per the DB invariant), so only the portion beyond the
+ * shipping fee reduces the merchandise cash basis. Without this, a buyer whose
+ * credit covered net-but-not-shipping computed `net − credit ≤ 0` and was
+ * silently denied loyalty — and their referrer the bounty — despite paying
+ * real cash.
+ */
+export function cashPaidBasis(net: unknown, shipping: unknown, credit: unknown): number {
+  const merchandiseCredit = Math.max(0, (Number(credit) || 0) - Math.max(0, Number(shipping) || 0));
+  return round2(Math.max(0, (Number(net) || 0) - merchandiseCredit));
+}
+
+/**
  * Per-unit price after a site-wide sale of `percentOff` is applied to `base`,
  * rounded UP to the nearest whole dollar (so the storefront shows clean prices
  * like $104 instead of $103.20). Used by /api/products to project the active
@@ -67,21 +82,12 @@ export function sitewideSalePrice(base: number, percentOff: number): number {
 }
 
 /**
- * Whether `email` has already redeemed promo `code` on a prior (paid) order —
- * promo codes are limited to one use per customer (affiliate codes are exempt
- * and never passed here). Comparison is case-insensitive on both fields.
- */
-export function promoAlreadyRedeemed(priorOrders: { email?: string | null; discount_code?: string | null }[], email: string, code: string): boolean {
-  const e = (email ?? "").trim().toLowerCase();
-  const c = (code ?? "").trim().toUpperCase();
-  if (!e || !c) return false;
-  return priorOrders.some(o => (o.email ?? "").trim().toLowerCase() === e && (o.discount_code ?? "").trim().toUpperCase() === c);
-}
-
-/**
  * How many times this customer has redeemed this code among the given orders —
- * used to enforce a promo's per-customer usage limit (a code allows up to
- * per_customer_limit uses per account; 1 = the classic one-use-per-customer).
+ * THE live per-customer promo guard (create-crypto-payment + validate-discount
+ * both enforce per_customer_limit through this count; 1 = the classic
+ * one-use-per-customer, backed atomically by reserve_discount_redemption).
+ * A predecessor boolean helper (promoAlreadyRedeemed) was retired once nothing
+ * but its own tests called it.
  */
 export function promoRedemptionCount(priorOrders: { email?: string | null; discount_code?: string | null }[], email: string, code: string): number {
   const e = (email ?? "").trim().toLowerCase();
