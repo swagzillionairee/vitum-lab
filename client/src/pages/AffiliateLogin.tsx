@@ -62,7 +62,7 @@ export default function AffiliateLogin() {
               placeholder="you@example.com"
               className="w-full border border-[oklch(0.88_0.004_260)] rounded-lg px-3 py-2.5 text-[0.875rem] focus:outline-none focus:ring-2 focus:ring-[oklch(0.40_0.16_260)] focus:border-transparent"
             />
-            {error && <p className="text-[0.75rem] text-red-500">{error}</p>}
+            {error && <p className="text-[0.75rem] text-red-600">{error}</p>}
             <button onClick={handleMagicLink} disabled={busy} className="w-full btn-primary py-2.5 text-[0.875rem] disabled:opacity-60">
               {busy ? "Sending…" : "Email me a magic link"}
             </button>

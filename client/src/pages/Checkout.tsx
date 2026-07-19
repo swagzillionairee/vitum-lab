@@ -604,7 +604,7 @@ export default function Checkout() {
                 </div>
               )}
               {promoApplied && <p className="mt-1.5 text-[0.75rem] text-[oklch(0.35_0.14_155)] flex items-center gap-1"><Check className="w-3 h-3" /> Promo code applied!</p>}
-              {promoError && <p className="mt-1.5 text-[0.75rem] text-red-500">{promoError}</p>}
+              {promoError && <p className="mt-1.5 text-[0.75rem] text-red-600">{promoError}</p>}
             </div>
 
             {/* Totals */}

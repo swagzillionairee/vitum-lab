@@ -133,7 +133,7 @@ export default function PaymentsTab() {
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save
         </button>
         {msg && <span className="text-[0.8125rem] text-[oklch(0.35_0.14_155)] flex items-center gap-1"><Check className="w-3.5 h-3.5" /> {msg}</span>}
-        {err && <span className="text-[0.8125rem] text-red-500">{err}</span>}
+        {err && <span className="text-[0.8125rem] text-red-600">{err}</span>}
       </div>
     </section>
   );

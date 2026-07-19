@@ -112,7 +112,7 @@ export default function SquareCardBox({ disabled, busy, onPay, onError, onUnavai
   const working = busy || tokenizing;
 
   if (initError) {
-    return <p className="text-[0.8125rem] text-red-500 py-2">{initError}</p>;
+    return <p className="text-[0.8125rem] text-red-600 py-2">{initError}</p>;
   }
 
   return (

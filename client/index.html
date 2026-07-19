@@ -10,6 +10,21 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#ffffff" />
+    <!-- Static social-unfurl fallbacks: SEO.tsx swaps these per page after
+         hydration, but link crawlers (Discord/Reddit/X/iMessage) don't run JS —
+         without these every shared link rendered NO preview card. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Vitum Lab" />
+    <meta property="og:title" content="Vitum Lab — Research Grade Peptides. Independently Tested." />
+    <meta property="og:description" content="Research-grade peptides independently verified for purity and identity. ≥99% purity, COA with every order. Research use only." />
+    <meta property="og:url" content="https://vitumlab.com/" />
+    <meta property="og:image" content="https://vitumlab.com/GLP3%2020mg%20vial%20only.webp" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Vitum Lab — Research Grade Peptides. Independently Tested." />
+    <meta name="twitter:description" content="Research-grade peptides independently verified for purity and identity. ≥99% purity, COA with every order. Research use only." />
+    <meta name="twitter:image" content="https://vitumlab.com/GLP3%2020mg%20vial%20only.webp" />
+    <!-- LCP: the home hero's centre vial -->
+    <link rel="preload" as="image" href="/GLP3%2020mg%20vial%20only.webp" fetchpriority="high" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />

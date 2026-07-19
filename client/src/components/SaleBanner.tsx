@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
+import { fetchSiteConfig } from "@/hooks/useSiteConfig";
 
 interface Sitewide {
   active: boolean;
@@ -29,9 +30,10 @@ export default function SaleBanner() {
 
   useEffect(() => {
     let stale = false;
-    fetch("/api/public/site")
-      .then((r) => r.json())
-      .then((d) => { if (!stale) setSale(d.sitewide ?? { active: false }); })
+    // Shared cached fetch — this banner mounts on every page, and per-page
+    // duplicate /api/public/site calls doubled serverless + DB reads.
+    fetchSiteConfig()
+      .then((d) => { if (!stale) setSale((d.sitewide as Sitewide | undefined) ?? { active: false }); })
       .catch(() => {});
     return () => { stale = true; };
   }, []);

@@ -104,7 +104,20 @@ export default function Navbar() {
       {/* ── Promotional marquee banner ────────────────────────────────── */}
       {/* Tap toggles pause (hover already pauses) — moving content needs a stop
           affordance on touch devices too (WCAG 2.2.2). */}
-      <div className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden" onClick={() => setMarqueePaused((p) => !p)}>
+      <div
+        className="bg-[oklch(0.35_0.15_260)] text-white overflow-hidden"
+        role="button"
+        tabIndex={0}
+        aria-pressed={marqueePaused}
+        aria-label={marqueePaused ? "Resume promotions banner" : "Pause promotions banner"}
+        onClick={() => setMarqueePaused((p) => !p)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setMarqueePaused((p) => !p);
+          }
+        }}
+      >
         <div className="flex items-center">
           {/* Scrolling marquee */}
           <div className="flex-1 overflow-hidden relative py-2">
@@ -185,7 +198,7 @@ export default function Navbar() {
             <button
               onClick={handleOpenCart}
               className="relative flex items-center justify-center w-11 h-11 md:w-9 md:h-9 rounded-full hover:bg-[oklch(0.96_0.003_260)] dark:hover:bg-[oklch(0.20_0.02_260)] transition-colors"
-              aria-label="Shopping cart"
+              aria-label={totalItems > 0 ? `Shopping cart, ${totalItems} item${totalItems === 1 ? "" : "s"}` : "Shopping cart"}
             >
               <ShoppingCart className="w-5 h-5 text-[oklch(0.40_0.01_260)] dark:text-[oklch(0.62_0.01_260)]" />
               {totalItems > 0 && (

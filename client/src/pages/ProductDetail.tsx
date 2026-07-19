@@ -63,7 +63,7 @@ function BackInStockForm({ cartCode }: { cartCode: string }) {
         </button>
       </div>
       {state === "error" && (
-        <p className="text-[0.75rem] text-red-500 mt-1.5">Please enter a valid email address.</p>
+        <p className="text-[0.75rem] text-red-600 mt-1.5">Please enter a valid email address.</p>
       )}
       <p className="text-[0.6875rem] text-[oklch(0.60_0.01_260)] mt-1.5">One email when this dose is restocked — nothing else.</p>
     </div>
@@ -159,9 +159,37 @@ export default function ProductDetail() {
       name: `${product.name} ${v.dose}`,
       price: (v.salePrice ?? v.price).toFixed(2),
       priceCurrency: "USD",
+      // Merchant-listing fields Search Console warns about when absent — their
+      // absence demotes free product-listing eligibility.
+      priceValidUntil: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
       availability: isAvailable(v.cartCode) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
       url: `https://vitumlab.com/shop/${product.slug}`,
+      shippingDetails: {
+        "@type": "OfferShippingDetails",
+        shippingRate: {
+          "@type": "MonetaryAmount",
+          value: (v.salePrice ?? v.price) >= 75 ? "0.00" : "10.00",
+          currency: "USD",
+        },
+        shippingDestination: { "@type": "DefinedRegion", addressCountry: "US" },
+        deliveryTime: {
+          "@type": "ShippingDeliveryTime",
+          handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
+          transitTime: { "@type": "QuantitativeValue", minValue: 2, maxValue: 5, unitCode: "DAY" },
+        },
+      },
     })),
+  };
+
+  // Readable SERP breadcrumb trail (a visual breadcrumb already exists on-page).
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://vitumlab.com/" },
+      { "@type": "ListItem", position: 2, name: "Shop", item: "https://vitumlab.com/shop" },
+      { "@type": "ListItem", position: 3, name: product.name, item: `https://vitumlab.com/shop/${product.slug}` },
+    ],
   };
 
   return (
@@ -172,7 +200,7 @@ export default function ProductDetail() {
         canonical={`https://vitumlab.com/shop/${product.slug}`}
         image={abs(selected.img)}
         ogType="product"
-        jsonLd={productJsonLd}
+        jsonLd={[productJsonLd, breadcrumbJsonLd]}
       />
 
       {/* ── Breadcrumb ───────────────────────────────────────────────── */}

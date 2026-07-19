@@ -19,6 +19,7 @@ import { useInventory } from "@/hooks/useInventory";
 import { useProducts } from "@/hooks/useProducts";
 import SEO from "@/components/SEO";
 import { coaLibraryHref } from "@/lib/products";
+import { fetchSiteConfig } from "@/hooks/useSiteConfig";
 
 // ─── Quality tabs ─────────────────────────────────────────────────────────────
 const qualityTabs = [
@@ -367,8 +368,9 @@ export default function Home() {
   const [featuredBanner, setFeaturedBanner] = useState<{ active: boolean; text?: string; color?: string }>({ active: false });
   useEffect(() => {
     let stale = false;
-    fetch("/api/public/site")
-      .then((r) => r.json())
+    // Shared cached fetch — SaleBanner already loads /api/public/site on every
+    // page; this reuses that response instead of firing a duplicate request.
+    fetchSiteConfig()
       .then((d) => { if (!stale) setFeaturedBanner(d.featured_banner ?? { active: false }); })
       .catch(() => {});
     return () => { stale = true; };

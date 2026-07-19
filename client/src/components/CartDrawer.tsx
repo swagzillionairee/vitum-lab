@@ -247,7 +247,7 @@ export default function CartDrawer() {
                               </span>
                               <button
                                 onClick={() => removeItem(item.id)}
-                                className="w-11 h-11 flex items-center justify-center rounded-full text-[oklch(0.70_0.01_260)] hover:text-red-500 hover:bg-red-50 transition-colors"
+                                className="w-11 h-11 flex items-center justify-center rounded-full text-[oklch(0.70_0.01_260)] hover:text-red-600 hover:bg-red-50 transition-colors"
                                 aria-label={`Remove ${item.name}`}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />

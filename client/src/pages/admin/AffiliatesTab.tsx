@@ -168,7 +168,7 @@ export default function AffiliatesTab({ onMutate }: { onMutate?: () => void }) {
                             <Pencil className="w-3 h-3" /> Edit %
                           </button>
                           <button onClick={() => deleteAffiliate(a)} disabled={affiliateBusy}
-                            className="flex items-center gap-1 text-[0.7rem] font-semibold text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50 disabled:opacity-50" title="Delete affiliate">
+                            className="flex items-center gap-1 text-[0.7rem] font-semibold text-red-600 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50 disabled:opacity-50" title="Delete affiliate">
                             <Trash2 className="w-3 h-3" /> Delete
                           </button>
                         </div>
