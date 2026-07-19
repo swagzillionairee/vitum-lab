@@ -20,7 +20,7 @@ npx --yes pnpm@10.34.4 install --frozen-lockfile
 npx --yes pnpm@10.34.4 dev
 ```
 
-The Vite development server runs on port 3000 and loads local environment values from `.env.local`. See `CLAUDE.md` for the current environment-variable inventory and architecture details. Never commit secrets or expose the Supabase service-role key through a `VITE_` variable.
+The Vite development server runs on port 3000 and loads local environment values from `.env.local`. See `AGENTS.md` for the current environment-variable inventory and architecture details. Never commit secrets or expose the Supabase service-role key through a `VITE_` variable.
 
 ## Validation
 
@@ -31,13 +31,13 @@ npx --yes pnpm@10.34.4 build
 npx --yes pnpm@10.34.4 audit --prod
 ```
 
-Playwright tests are available with `pnpm test:e2e` after installing Chromium. The `api/` directory is outside the main TypeScript project, so the Vercel preview build and API smoke tests are required release checks.
+Playwright tests are available with `pnpm test:e2e` after installing Chromium. `pnpm check` type-checks `api/` too (via `tsconfig.api.json`), and CI gates every PR on `pnpm check` + `pnpm test`; the Vercel preview build remains the final runtime check.
 
 ## Deployment
 
 Vercel deploys the `main` branch to production. The build writes the storefront to `dist/public`; API handlers live under `api/`. Do not add another root serverless function without consolidating an existing route because the project is at the Vercel Hobby function limit.
 
-Before promoting a release, verify the storefront, public APIs, checkout flow, migrations, sensitive RPC privileges, and runtime logs. Full operating guidance and known dashboard-only follow-ups live in `CLAUDE.md`.
+Before promoting a release, verify the storefront, public APIs, checkout flow, migrations, sensitive RPC privileges, and runtime logs. Full operating guidance and known dashboard-only follow-ups live in `AGENTS.md`.
 
 ## Security notes
 

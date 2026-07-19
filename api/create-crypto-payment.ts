@@ -447,7 +447,7 @@ export default async function handler(req: any, res: any) {
       code: codeArg,
     });
     const affiliateId = discount?.kind === "affiliate" ? discount.affiliateId : null;
-    // POLICY (documented default — owner sign-off tracked in CLAUDE.md): affiliate
+    // POLICY (documented default — owner sign-off tracked in AGENTS.md): affiliate
     // commission is a % of the merchandise net regardless of tender, so an order
     // settled partly/wholly with store credit still pays the affiliate in full —
     // they drove the full sale value, and the credit itself was funded by earlier
