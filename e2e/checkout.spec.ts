@@ -178,7 +178,7 @@ test("manual method (Venmo) shows the payment-instructions modal, not the empty 
   await expect(page.getByText("Complete your Venmo payment in 3 steps")).toBeVisible();
   await expect(page.getByText("@vitumlab-pay")).toBeVisible();
   await expect(page.getByText("12345678901234567890")).toBeVisible();
-  await expect(page.getByText(/Missing order ID = automatic refund/i)).toBeVisible();
+  await expect(page.getByText(/match your transfer to your order/i)).toBeVisible();
   await expect(page.getByRole("button", { name: /I've Sent the Payment/i })).toBeVisible();
   await expect(page.getByText("Your cart is empty")).toHaveCount(0);
 });

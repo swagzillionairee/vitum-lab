@@ -50,7 +50,12 @@ const FREE_BAC_WATER: Omit<CartItem, "quantity"> = {
 
 function loadCart(): CartItem[] {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    // localStorage, NOT sessionStorage: checkout requires sign-in, and the
+    // magic-link round-trip regularly lands in a fresh tab/session — with
+    // sessionStorage that wiped the cart at exactly that moment, sending
+    // first-time buyers back to an empty cart. The sessionStorage fallback
+    // migrates any in-flight cart from before this change.
+    const raw = localStorage.getItem(SESSION_KEY) ?? sessionStorage.getItem(SESSION_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     // Shape guard: valid JSON that isn't an item array (extension/stale writer)
     // would crash every page at items.reduce — treat it as an empty cart.
@@ -62,7 +67,8 @@ function loadCart(): CartItem[] {
 
 function saveCart(items: CartItem[]) {
   try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(items));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(items));
+    sessionStorage.removeItem(SESSION_KEY); // clear the pre-migration copy
   } catch {
     // ignore
   }

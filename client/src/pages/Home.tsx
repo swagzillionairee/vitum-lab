@@ -207,9 +207,12 @@ function DoseSelectorCard({ name, category, description, cardBg, variants, badge
                 )}
               </button>
             ) : (
-              <button disabled className="min-h-11 text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.55_0.01_260)] cursor-not-allowed">
-                Out of Stock
-              </button>
+              <Link
+                href={`${detailHref}#notify`}
+                className="min-h-11 inline-flex items-center text-[0.8125rem] py-2 px-4 rounded-full font-semibold border-2 border-[oklch(0.80_0.008_260)] text-[oklch(0.35_0.01_260)] hover:border-[oklch(0.40_0.16_260)] hover:text-[oklch(0.40_0.16_260)] transition-colors"
+              >
+                Notify me
+              </Link>
             )}
           </div>
         </div>
@@ -301,9 +304,12 @@ function StaticCard({ p, detailHref }: StaticCardProps) {
                 {added ? <span className="flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Added</span> : "Add to Cart"}
               </button>
             ) : (
-              <button disabled className="min-h-11 text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.55_0.01_260)] cursor-not-allowed">
-                Out of Stock
-              </button>
+              <Link
+                href={`${detailHref}#notify`}
+                className="min-h-11 inline-flex items-center text-[0.8125rem] py-2 px-4 rounded-full font-semibold border-2 border-[oklch(0.80_0.008_260)] text-[oklch(0.35_0.01_260)] hover:border-[oklch(0.40_0.16_260)] hover:text-[oklch(0.40_0.16_260)] transition-colors"
+              >
+                Notify me
+              </Link>
             )}
           </div>
         </div>

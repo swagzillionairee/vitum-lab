@@ -44,15 +44,14 @@ export default function Navbar() {
   const { session } = useAuth();
   const [scrolled, setScrolled] = useState(false);
 
-  // "Dose Calculator" is a customer-only tool — only surface it to signed-in users.
-  const navLinks = session
-    ? [
-        baseNavLinks[0],
-        baseNavLinks[1],
-        { label: "Dose Calculator", href: "/dose-calculator" },
-        ...baseNavLinks.slice(2),
-      ]
-    : baseNavLinks;
+  // The dose calculator is public — it's a top organic-search entry point for
+  // this niche and a buying aid; the RUO disclaimer lives inside the tool.
+  const navLinks = [
+    baseNavLinks[0],
+    baseNavLinks[1],
+    { label: "Dose Calculator", href: "/dose-calculator" },
+    ...baseNavLinks.slice(2),
+  ];
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
