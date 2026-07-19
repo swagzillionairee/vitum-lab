@@ -34,7 +34,7 @@ export default function AgeGate({ onVerified }: AgeGateProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center" role="dialog" aria-modal="true" aria-label="Age and research-use verification">
       {/* Background: hero image with dark overlay */}
       <div
         className="absolute inset-0 bg-cover bg-center"

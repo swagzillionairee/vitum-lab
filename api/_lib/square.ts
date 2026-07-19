@@ -12,6 +12,8 @@
  *   VITE_SQUARE_APPLICATION_ID, VITE_SQUARE_LOCATION_ID, VITE_SQUARE_ENVIRONMENT
  */
 
+import { deferEmail, notifyAdmin } from "./email.js";
+
 const SQUARE_VERSION = "2025-01-23";
 
 /** True only when the server has everything it needs to charge a card. */
@@ -51,7 +53,7 @@ export async function chargeSquare(params: {
     },
     body: JSON.stringify({
       source_id: params.sourceId,
-      idempotency_key: params.orderId, // 20-digit order id — unique per order
+      idempotency_key: params.orderId, // order id (e.g. "KFD-837291") — unique per order
       amount_money: { amount: Math.round(params.amountDue * 100), currency: "USD" },
       location_id: process.env.SQUARE_LOCATION_ID,
       autocomplete: true, // capture immediately (not auth-only)
@@ -79,6 +81,15 @@ export async function chargeSquare(params: {
   // autocomplete:true, but refuse it rather than ship an uncaptured hold.
   if (status === "COMPLETED") return { status: "succeeded", paymentId };
   console.warn(`Square payment ${paymentId} returned status ${status} (not COMPLETED) — not confirming.`);
+  // A non-COMPLETED success response is an anomaly a human must reconcile in
+  // the Square dashboard (possible dangling APPROVED hold on a real card).
+  deferEmail(
+    notifyAdmin(
+      "Square payment anomaly — manual review needed",
+      `Payment ${paymentId} for order ${params.orderId} returned status ${status} instead of COMPLETED. ` +
+        `The order was NOT confirmed. Check the payment in the Square dashboard — an APPROVED hold may need voiding or capturing.`,
+    ),
+  );
   return { status: "failed", error: "Your card couldn't be charged. Please try another card.", paymentId };
 }
 

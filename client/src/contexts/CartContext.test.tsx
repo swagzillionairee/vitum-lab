@@ -15,7 +15,9 @@ const item = (over: Partial<Parameters<ReturnType<typeof useCart>["addItem"]>[0]
   id: "retatrutide-10mg", name: "GLP-3 (R)", dose: "10 MG", price: 129, img: "", cartCode: "retatrutide-10mg", ...over,
 });
 
-beforeEach(() => sessionStorage.clear());
+// The cart persists to localStorage (sessionStorage is only read as a one-time
+// migration source) — clear both so no cart leaks between tests.
+beforeEach(() => { localStorage.clear(); sessionStorage.clear(); });
 afterEach(() => cleanup());
 
 describe("CartContext", () => {

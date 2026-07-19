@@ -641,7 +641,7 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       onClick={() => deleteProduct(p.id)}
-                      className="flex items-center gap-1 text-[0.75rem] font-semibold text-red-500 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50"
+                      className="flex items-center gap-1 text-[0.75rem] font-semibold text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Delete
                     </button>
@@ -939,7 +939,7 @@ export default function AdminDashboard() {
                                 )}
                                 {!isClosed && (
                                   <button onClick={() => handleCancel(o.id)} disabled={busy} title="Cancel order"
-                                    className="flex items-center gap-1 text-[0.7rem] font-semibold text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50 disabled:opacity-50">
+                                    className="flex items-center gap-1 text-[0.7rem] font-semibold text-red-600 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50 disabled:opacity-50">
                                     <Ban className="w-3 h-3" /> Cancel
                                   </button>
                                 )}

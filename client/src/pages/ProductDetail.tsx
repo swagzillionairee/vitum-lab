@@ -8,7 +8,6 @@ import { useState, useEffect } from "react";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, FileText, Check, ChevronDown, ChevronUp, ShieldCheck, Truck, FlaskConical, Bell, Loader2, Minus, Plus } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { useProducts } from "@/hooks/useProducts";
 import { useInventory } from "@/hooks/useInventory";
 import { quantityDiscountPercent, round2 } from "@/lib/discounts";
@@ -64,7 +63,7 @@ function BackInStockForm({ cartCode }: { cartCode: string }) {
         </button>
       </div>
       {state === "error" && (
-        <p className="text-[0.75rem] text-red-500 mt-1.5">Please enter a valid email address.</p>
+        <p className="text-[0.75rem] text-red-600 mt-1.5">Please enter a valid email address.</p>
       )}
       <p className="text-[0.6875rem] text-[oklch(0.60_0.01_260)] mt-1.5">One email when this dose is restocked — nothing else.</p>
     </div>
@@ -78,8 +77,16 @@ export default function ProductDetail() {
   const product = products.find((p) => p.slug === slug);
 
   const { addItem } = useCart();
-  const { session } = useAuth();
   const { isAvailable, stockDisplay } = useInventory();
+
+  // Scroll to the waitlist form when arriving via an out-of-stock card's
+  // "#notify" link (client-side navigation doesn't honor URL hashes itself).
+  useEffect(() => {
+    if (window.location.hash === "#notify") {
+      const t = setTimeout(() => document.getElementById("notify")?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+      return () => clearTimeout(t);
+    }
+  }, []);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [tiers, setTiers] = useState<{ min_qty: number; percent: number }[]>([]);
@@ -152,9 +159,37 @@ export default function ProductDetail() {
       name: `${product.name} ${v.dose}`,
       price: (v.salePrice ?? v.price).toFixed(2),
       priceCurrency: "USD",
+      // Merchant-listing fields Search Console warns about when absent — their
+      // absence demotes free product-listing eligibility.
+      priceValidUntil: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
       availability: isAvailable(v.cartCode) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
       url: `https://vitumlab.com/shop/${product.slug}`,
+      shippingDetails: {
+        "@type": "OfferShippingDetails",
+        shippingRate: {
+          "@type": "MonetaryAmount",
+          value: (v.salePrice ?? v.price) >= 75 ? "0.00" : "10.00",
+          currency: "USD",
+        },
+        shippingDestination: { "@type": "DefinedRegion", addressCountry: "US" },
+        deliveryTime: {
+          "@type": "ShippingDeliveryTime",
+          handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
+          transitTime: { "@type": "QuantitativeValue", minValue: 2, maxValue: 5, unitCode: "DAY" },
+        },
+      },
     })),
+  };
+
+  // Readable SERP breadcrumb trail (a visual breadcrumb already exists on-page).
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://vitumlab.com/" },
+      { "@type": "ListItem", position: 2, name: "Shop", item: "https://vitumlab.com/shop" },
+      { "@type": "ListItem", position: 3, name: product.name, item: `https://vitumlab.com/shop/${product.slug}` },
+    ],
   };
 
   return (
@@ -165,7 +200,7 @@ export default function ProductDetail() {
         canonical={`https://vitumlab.com/shop/${product.slug}`}
         image={abs(selected.img)}
         ogType="product"
-        jsonLd={productJsonLd}
+        jsonLd={[productJsonLd, breadcrumbJsonLd]}
       />
 
       {/* ── Breadcrumb ───────────────────────────────────────────────── */}
@@ -346,7 +381,10 @@ export default function ProductDetail() {
                 <p className="text-[0.8125rem] font-semibold text-[oklch(0.50_0.18_25)] mb-3">
                   This dose is currently out of stock.
                 </p>
-                <BackInStockForm key={selected.cartCode} cartCode={selected.cartCode} />
+                {/* #notify — the "Notify me" links on out-of-stock grid cards land here */}
+                <div id="notify" className="scroll-mt-44">
+                  <BackInStockForm key={selected.cartCode} cartCode={selected.cartCode} />
+                </div>
               </div>
             )}
             {available && !stockCount && <div className="mb-6" />}
@@ -472,7 +510,7 @@ export default function ProductDetail() {
       </div>
 
       {/* ── Dose Calculator (customer-only — signed-in users) ──────────── */}
-      {session && product.reconstitutionNote && (
+      {product.reconstitutionNote && (
         <section className="py-12 bg-[oklch(0.975_0.003_260)]">
           <div className="container max-w-3xl">
             <ReconstitutionCalculator

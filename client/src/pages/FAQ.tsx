@@ -142,7 +142,23 @@ export default function FAQ() {
 
   return (
     <div className="min-h-screen bg-page">
-      <SEO title="FAQ" description="Frequently asked questions about Vitum Lab peptides, ordering, shipping, reconstitution, and storage." />
+      <SEO
+        title="FAQ"
+        description="Frequently asked questions about Vitum Lab peptides, ordering, shipping, reconstitution, and storage."
+        jsonLd={{
+          // FAQPage schema — feeds rich results and AI answer engines from the
+          // same data the accordion renders (answers are plain strings).
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faqCategories.flatMap((c) =>
+            c.questions.map((f) => ({
+              "@type": "Question",
+              name: f.q,
+              acceptedAnswer: { "@type": "Answer", text: f.a },
+            })),
+          ),
+        }}
+      />
 
       {/* ── Page header ──────────────────────────────────────────────── */}
       <div className="bg-[oklch(0.14_0.03_260)] text-white">

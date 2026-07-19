@@ -13,7 +13,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { authedFetch } from "@/lib/api";
 import { getPromoCode, clearPromoCode } from "@/lib/promo";
-import { quantityDiscountPercent, round2, shippingFee, SHIPPING_PROTECTION_FEE, FREE_SHIPPING_THRESHOLD, type QuantityTier } from "@/lib/discounts";
+import { quantityDiscountPercent, round2, shippingFee, SHIPPING_PROTECTION_FEE, FREE_SHIPPING_THRESHOLD, FREE_GIFT_THRESHOLD, type QuantityTier } from "@/lib/discounts";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import SEO from "@/components/SEO";
 import SquareCardBox from "@/components/SquareCardBox";
@@ -168,27 +168,40 @@ export default function Checkout() {
   const [modalData, setModalData] = useState<ManualModalData | null>(null);
 
   // Quantity tiers (display only) + payment method config + site-wide sale.
+  // One auto-retry + a manual "Try again": a single failed fetch here used to
+  // strand checkout with no payment methods — a silent dead end on the one
+  // page that makes money.
+  const [siteLoadFailed, setSiteLoadFailed] = useState(false);
+  const [siteReloadKey, setSiteReloadKey] = useState(0);
   useEffect(() => {
     let stale = false;
-    fetch("/api/public/site")
-      .then((r) => r.json())
-      .then((d) => {
-        if (stale) return;
-        setTiers(d.quantity_tiers ?? []);
-        setSale(d.sitewide ?? { active: false });
-        const p = d.payments as PaymentsCfg | undefined;
-        if (p) {
-          setPayments(p);
-          // Default to the first enabled method (Square first, crypto last) —
-          // skipping Square when the client can't tokenize.
-          const first = (["square", "zelle", "cashapp", "venmo", "ach", "crypto"] as PayMethod[])
-            .find((m) => isMethodEnabled(p, m) && !(m === "square" && squareUnavailable));
-          if (first) setPayMethod(first);
-        }
-      })
-      .catch(() => {});
+    setSiteLoadFailed(false);
+    const attempt = (retriesLeft: number) => {
+      fetch("/api/public/site")
+        .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+        .then((d) => {
+          if (stale) return;
+          setTiers(d.quantity_tiers ?? []);
+          setSale(d.sitewide ?? { active: false });
+          const p = d.payments as PaymentsCfg | undefined;
+          if (p) {
+            setPayments(p);
+            // Default to the first enabled method (Square first, crypto last) —
+            // skipping Square when the client can't tokenize.
+            const first = (["square", "zelle", "cashapp", "venmo", "ach", "crypto"] as PayMethod[])
+              .find((m) => isMethodEnabled(p, m) && !(m === "square" && squareUnavailable));
+            if (first) setPayMethod(first);
+          }
+        })
+        .catch(() => {
+          if (stale) return;
+          if (retriesLeft > 0) setTimeout(() => { if (!stale) attempt(retriesLeft - 1); }, 1500);
+          else setSiteLoadFailed(true);
+        });
+    };
+    attempt(1);
     return () => { stale = true; };
-  }, []);
+  }, [siteReloadKey]);
 
   // Tick the sale countdown once a second while a sale with an end date runs.
   const saleEndsAt = sale?.ends_at ? new Date(sale.ends_at).getTime() : null;
@@ -392,8 +405,12 @@ export default function Checkout() {
             orderId: data.orderId,
             expiresAt: data.expiresAt,
           });
-        } else {
+        } else if (typeof data.invoiceUrl === "string" && data.invoiceUrl) {
           window.location.href = data.invoiceUrl; // NowPayments crypto redirect
+        } else {
+          // An OK response without an invoice URL must never navigate to
+          // literal "undefined" — surface a retryable error instead.
+          setError("We couldn't open the payment page. Please try again.");
         }
       }
     } catch {
@@ -530,17 +547,23 @@ export default function Checkout() {
               <button onClick={openCart} className="inline-flex min-h-11 items-center px-1 text-[0.75rem] font-semibold text-[oklch(0.40_0.16_260)] hover:underline">Edit cart</button>
             </div>
 
-            {/* Free-shipping progress — a little colour + a nudge toward $75 */}
+            {/* Two-stage nudge — free shipping at $75, then a free BAC Water at
+                $100 (same logic as the cart drawer, so the story stays
+                consistent at the highest-intent moment) */}
             {(() => {
-              const remaining = round2(FREE_SHIPPING_THRESHOLD - subtotal);
-              const pct = Math.min(100, Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100));
-              const unlocked = subtotal >= FREE_SHIPPING_THRESHOLD;
+              const freeShip = subtotal >= FREE_SHIPPING_THRESHOLD;
+              const gift = subtotal >= FREE_GIFT_THRESHOLD;
+              const target = freeShip ? FREE_GIFT_THRESHOLD : FREE_SHIPPING_THRESHOLD;
+              const remaining = round2(Math.max(0, target - subtotal));
+              const pct = Math.min(100, Math.round((subtotal / target) * 100));
               return (
                 <div className="rounded-xl border border-[oklch(0.90_0.05_155)] dark:border-[oklch(0.30_0.06_155)] bg-[oklch(0.97_0.03_155)] dark:bg-[oklch(0.20_0.05_155)] px-3.5 py-3">
                   <div className="flex items-center gap-1.5 text-[0.75rem] font-bold text-[oklch(0.42_0.13_155)] dark:text-[oklch(0.82_0.14_155)] mb-2">
-                    {unlocked
-                      ? (<><PartyPopper className="w-3.5 h-3.5" /> Free shipping unlocked!</>)
-                      : (<><Truck className="w-3.5 h-3.5" /> ${remaining.toFixed(2)} away from free shipping</>)}
+                    {gift
+                      ? (<><PartyPopper className="w-3.5 h-3.5" /> Free shipping + free BAC Water unlocked!</>)
+                      : freeShip
+                        ? (<><PartyPopper className="w-3.5 h-3.5" /> Free shipping unlocked — ${remaining.toFixed(2)} more adds a free BAC Water</>)
+                        : (<><Truck className="w-3.5 h-3.5" /> ${remaining.toFixed(2)} away from free shipping</>)}
                   </div>
                   <div className="h-1.5 rounded-full bg-[oklch(0.90_0.02_155)] dark:bg-[oklch(0.28_0.03_155)] overflow-hidden">
                     <div className="h-full rounded-full bg-[oklch(0.55_0.15_155)] transition-all duration-500" style={{ width: `${pct}%` }} />
@@ -581,7 +604,7 @@ export default function Checkout() {
                 </div>
               )}
               {promoApplied && <p className="mt-1.5 text-[0.75rem] text-[oklch(0.35_0.14_155)] flex items-center gap-1"><Check className="w-3 h-3" /> Promo code applied!</p>}
-              {promoError && <p className="mt-1.5 text-[0.75rem] text-red-500">{promoError}</p>}
+              {promoError && <p className="mt-1.5 text-[0.75rem] text-red-600">{promoError}</p>}
             </div>
 
             {/* Totals */}
@@ -651,8 +674,6 @@ export default function Checkout() {
               </span>
             </label>
 
-            {error && <p className="text-[0.75rem] text-red-500">{error}</p>}
-
             {/* Research-use / age attestation — required to place an order */}
             <label className="flex items-start gap-2.5 cursor-pointer">
               <input
@@ -672,11 +693,20 @@ export default function Checkout() {
                   {busy ? "Processing…" : (<>Place Order <ArrowRight className="w-4 h-4" /></>)}
                 </button>
                 {attestHint}
+                {error && <p role="alert" className="text-[0.8125rem] font-semibold text-red-600 dark:text-red-400">{error}</p>}
               </div>
             ) : enabledMethods.length === 0 ? (
-              <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)] text-center py-2">
-                No payment methods are available right now. Please contact <a href="mailto:hello@vitumlab.com" className="text-[oklch(0.40_0.16_260)] font-semibold hover:underline">hello@vitumlab.com</a>.
-              </p>
+              <div className="text-center py-2 space-y-2.5">
+                <p className="text-[0.8125rem] text-[oklch(0.52_0.01_260)]">
+                  {siteLoadFailed ? "We couldn't load the payment options — check your connection." : "No payment methods are available right now."}{" "}
+                  Need help? <a href="mailto:hello@vitumlab.com" className="text-[oklch(0.40_0.16_260)] font-semibold hover:underline">hello@vitumlab.com</a>
+                </p>
+                {siteLoadFailed && (
+                  <button onClick={() => setSiteReloadKey((k) => k + 1)} className="btn-secondary text-[0.8125rem] py-2 px-6">
+                    Try again
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="space-y-3">
                 {/* Site-wide sale — "prices locked in" reassurance + countdown */}
@@ -702,6 +732,7 @@ export default function Checkout() {
                         key={m}
                         type="button"
                         disabled={busy}
+                        aria-pressed={selected}
                         onClick={() => { setPayMethod(m); setError(""); }}
                         className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-3 px-1 min-h-[70px] text-[0.8125rem] font-semibold transition-colors disabled:opacity-60 ${
                           selected
@@ -772,6 +803,12 @@ export default function Checkout() {
                     {attestHint}
                   </>
                 )}
+
+                {/* Errors render HERE — directly under whichever pay button is
+                    visible. The old placement was far above the payment area,
+                    so a card decline scrolled out of view and buyers never
+                    learned why the charge failed (or that they could retry). */}
+                {error && <p role="alert" className="text-[0.8125rem] font-semibold text-red-600 dark:text-red-400">{error}</p>}
               </div>
             )}
             {/* Pastel trust chips */}

@@ -210,7 +210,7 @@ export default function Referral() {
                   </form>
                 </>
               )}
-              {signinErr && <p className="text-[0.8125rem] text-red-500 mt-3">{signinErr}</p>}
+              {signinErr && <p className="text-[0.8125rem] text-red-600 mt-3">{signinErr}</p>}
 
               <div className="flex flex-wrap gap-x-5 gap-y-2 mt-6">
                 {["Free forever", "No approval needed", "Saved to your account", `Gives buyers ${buyerDiscount}% off`].map((t) => (
@@ -224,7 +224,7 @@ export default function Referral() {
             <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-[oklch(0.52_0.01_260)]" /></div>
           ) : statsErr ? (
             <div className="text-center py-6">
-              <p className="text-[0.875rem] text-red-500 mb-3">{statsErr}</p>
+              <p className="text-[0.875rem] text-red-600 mb-3">{statsErr}</p>
               <button onClick={loadStats} className="btn-primary inline-flex">Try again</button>
             </div>
           ) : stats && !stats.active ? (

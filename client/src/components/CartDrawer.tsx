@@ -14,9 +14,22 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { FREE_SHIPPING_THRESHOLD, FREE_GIFT_THRESHOLD } from "@/lib/discounts";
+import { useInventory } from "@/hooks/useInventory";
+
+// BAC Water cross-sell: the near-mandatory diluent for every peptide. Static
+// catalog values — reconcileCartPrices re-syncs to the live catalog after add.
+const BAC_CROSS_SELL = {
+  id: "bacwater-10ml",
+  name: "BAC Water",
+  dose: "10 ML",
+  price: 15,
+  img: "/BAC%20WATER%2010ML%20PRODUCT%20PIC.webp",
+  cartCode: "bac-water-10ml",
+};
 
 export default function CartDrawer() {
-  const { items, isOpen, closeCart, removeItem, updateQuantity, subtotal, totalItems } = useCart();
+  const { items, isOpen, closeCart, removeItem, updateQuantity, addItem, subtotal, totalItems } = useCart();
+  const { getStock } = useInventory();
   const { session } = useAuth();
   const [, navigate] = useLocation();
 
@@ -124,6 +137,32 @@ export default function CartDrawer() {
               </div>
             </div>
 
+            {/* ── BAC Water cross-sell — one-tap add of the diluent every
+                   peptide needs (hidden once it's in the cart, or once the
+                   free-gift threshold supplies one anyway) ─────────────── */}
+            {items.length > 0 &&
+              !items.some((i) => i.cartCode === "bac-water-10ml" || i.isFreeGift) &&
+              subtotal < FREE_GIFT_THRESHOLD &&
+              // Explicit positive stock only (isAvailable fails OPEN on missing
+              // data) — never upsell an item we can't confirm is in stock.
+              (getStock("bac-water-10ml") ?? 0) > 0 && (
+                <div className="px-6 py-3 border-b border-[oklch(0.91_0.004_260)] flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-lg overflow-hidden flex-shrink-0" style={{ backgroundColor: "#f0f0f0" }}>
+                    <img src={BAC_CROSS_SELL.img} alt="BAC Water 10 ML" loading="lazy" decoding="async" className="w-full h-full object-cover object-top" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[0.8125rem] font-bold text-[oklch(0.13_0.01_260)] leading-tight">Add BAC Water — ${BAC_CROSS_SELL.price}</p>
+                    <p className="text-[0.6875rem] text-[oklch(0.52_0.01_260)] mt-0.5">Needed to reconstitute lyophilized peptides</p>
+                  </div>
+                  <button
+                    onClick={() => addItem(BAC_CROSS_SELL)}
+                    className="flex-shrink-0 min-h-9 text-[0.75rem] font-bold py-1.5 px-3.5 rounded-full border-2 border-[oklch(0.40_0.16_260)] text-[oklch(0.40_0.16_260)] hover:bg-[oklch(0.40_0.16_260)] hover:text-white transition-colors"
+                  >
+                    + Add
+                  </button>
+                </div>
+              )}
+
             {/* ── Items list (scrollable) ────────────────────────────── */}
             <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
               {items.length === 0 ? (
@@ -208,7 +247,7 @@ export default function CartDrawer() {
                               </span>
                               <button
                                 onClick={() => removeItem(item.id)}
-                                className="w-11 h-11 flex items-center justify-center rounded-full text-[oklch(0.70_0.01_260)] hover:text-red-500 hover:bg-red-50 transition-colors"
+                                className="w-11 h-11 flex items-center justify-center rounded-full text-[oklch(0.70_0.01_260)] hover:text-red-600 hover:bg-red-50 transition-colors"
                                 aria-label={`Remove ${item.name}`}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />

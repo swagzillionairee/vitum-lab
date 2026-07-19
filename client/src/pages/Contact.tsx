@@ -89,7 +89,7 @@ export default function Contact() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-[0.8125rem] font-semibold text-[oklch(0.40_0.01_260)] mb-1.5">
-                      Your Name <span className="text-red-500">*</span>
+                      Your Name <span className="text-red-600">*</span>
                     </label>
                     <input
                       type="text"
@@ -103,7 +103,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <label className="block text-[0.8125rem] font-semibold text-[oklch(0.40_0.01_260)] mb-1.5">
-                      Email Address <span className="text-red-500">*</span>
+                      Email Address <span className="text-red-600">*</span>
                     </label>
                     <input
                       type="email"
@@ -139,7 +139,7 @@ export default function Contact() {
 
                 <div>
                   <label className="block text-[0.8125rem] font-semibold text-[oklch(0.40_0.01_260)] mb-1.5">
-                    Message <span className="text-red-500">*</span>
+                    Message <span className="text-red-600">*</span>
                   </label>
                   <textarea
                     name="message"

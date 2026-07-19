@@ -71,7 +71,7 @@ function QuantityDiscountsCard() {
               <Field label="% Off">
                 <input type="number" min={1} max={100} value={t.percent || ""} onChange={(e) => update(i, { percent: Number(e.target.value) })} placeholder="10" className="input-sm w-20" />
               </Field>
-              <button onClick={() => remove(i)} className="ml-auto flex items-center gap-1 text-[0.7rem] font-semibold text-red-500 border border-red-200 px-2 py-1.5 rounded-lg hover:bg-red-50">
+              <button onClick={() => remove(i)} className="ml-auto flex items-center gap-1 text-[0.7rem] font-semibold text-red-600 border border-red-200 px-2 py-1.5 rounded-lg hover:bg-red-50">
                 <Trash2 className="w-3 h-3" /> Remove
               </button>
             </div>
@@ -90,7 +90,7 @@ function QuantityDiscountsCard() {
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save
         </button>
       </div>
-      {err && <p className="text-[0.8125rem] text-red-500 mt-3">{err}</p>}
+      {err && <p className="text-[0.8125rem] text-red-600 mt-3">{err}</p>}
       {msg && <p className="text-[0.8125rem] text-[oklch(0.35_0.14_155)] mt-3 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> {msg}</p>}
     </section>
   );
@@ -203,7 +203,7 @@ function SiteWideSaleCard() {
               {saving === "on" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Update
             </button>
             <button onClick={() => save(false)} disabled={saving !== null}
-              className="flex items-center gap-1.5 text-[0.875rem] font-semibold text-red-500 border border-red-200 py-2 px-4 rounded-lg hover:bg-red-50 disabled:opacity-60">
+              className="flex items-center gap-1.5 text-[0.875rem] font-semibold text-red-600 border border-red-200 py-2 px-4 rounded-lg hover:bg-red-50 disabled:opacity-60">
               {saving === "off" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />} Turn off
             </button>
           </>
@@ -214,7 +214,7 @@ function SiteWideSaleCard() {
           </button>
         )}
       </div>
-      {err && <p className="text-[0.8125rem] text-red-500 mt-3">{err}</p>}
+      {err && <p className="text-[0.8125rem] text-red-600 mt-3">{err}</p>}
       {msg && <p className="text-[0.8125rem] text-[oklch(0.35_0.14_155)] mt-3 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> {msg}</p>}
     </section>
   );
@@ -306,7 +306,7 @@ function FeaturedBannerCard() {
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Update
             </button>
             <button onClick={() => save(false)} disabled={saving}
-              className="flex items-center gap-1.5 text-[0.875rem] font-semibold text-red-500 border border-red-200 py-2 px-4 rounded-lg hover:bg-red-50 disabled:opacity-60">
+              className="flex items-center gap-1.5 text-[0.875rem] font-semibold text-red-600 border border-red-200 py-2 px-4 rounded-lg hover:bg-red-50 disabled:opacity-60">
               <Power className="w-4 h-4" /> Turn off
             </button>
           </>
@@ -317,7 +317,7 @@ function FeaturedBannerCard() {
           </button>
         )}
       </div>
-      {err && <p className="text-[0.8125rem] text-red-500 mt-3">{err}</p>}
+      {err && <p className="text-[0.8125rem] text-red-600 mt-3">{err}</p>}
       {msg && <p className="text-[0.8125rem] text-[oklch(0.35_0.14_155)] mt-3 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> {msg}</p>}
     </section>
   );
@@ -419,7 +419,7 @@ function ReferralProgramCard() {
                 <button onClick={() => save(true)} disabled={saving} className="flex items-center gap-1.5 btn-primary text-[0.875rem] py-2 px-4 disabled:opacity-60">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Update
                 </button>
-                <button onClick={() => save(false)} disabled={saving} className="flex items-center gap-1.5 text-[0.875rem] font-semibold text-red-500 border border-red-200 py-2 px-4 rounded-lg hover:bg-red-50 disabled:opacity-60">
+                <button onClick={() => save(false)} disabled={saving} className="flex items-center gap-1.5 text-[0.875rem] font-semibold text-red-600 border border-red-200 py-2 px-4 rounded-lg hover:bg-red-50 disabled:opacity-60">
                   <Power className="w-4 h-4" /> Turn off
                 </button>
               </>
@@ -437,7 +437,7 @@ function ReferralProgramCard() {
           </p>
         </>
       )}
-      {err && <p className="text-[0.8125rem] text-red-500 mt-3">{err}</p>}
+      {err && <p className="text-[0.8125rem] text-red-600 mt-3">{err}</p>}
       {msg && <p className="text-[0.8125rem] text-[oklch(0.35_0.14_155)] mt-3 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> {msg}</p>}
     </section>
   );
@@ -553,7 +553,7 @@ export default function PromosTab() {
             {promoSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add Code
           </button>
         </div>
-        {promoFormError && <p className="text-[0.8125rem] text-red-500 -mt-3 mb-4">{promoFormError}</p>}
+        {promoFormError && <p className="text-[0.8125rem] text-red-600 -mt-3 mb-4">{promoFormError}</p>}
 
         {promos === null ? (
           <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-[oklch(0.52_0.01_260)]" /></div>
@@ -604,7 +604,7 @@ export default function PromosTab() {
                             {p.is_active ? "Disable" : "Enable"}
                           </button>
                           <button onClick={() => deletePromo(p)}
-                            className="flex items-center gap-1 text-[0.7rem] font-semibold text-red-500 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50">
+                            className="flex items-center gap-1 text-[0.7rem] font-semibold text-red-600 border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50">
                             <Trash2 className="w-3 h-3" /> Delete
                           </button>
                         </div>

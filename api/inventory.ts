@@ -90,7 +90,9 @@ export default async function handler(req: any, res: any) {
 
     const inventory: Record<string, number> = {};
     for (const row of data ?? []) {
-      inventory[row.cart_code] = row.stock;
+      // Cap the public figure at 50 — the storefront already displays "50+",
+      // and exact counts let anyone diff snapshots to read sales velocity.
+      inventory[row.cart_code] = Math.min(Number(row.stock) || 0, 50);
     }
 
     res.setHeader("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");

@@ -1,7 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { requireEnv } from "./env.js";
 
-const url = process.env.SUPABASE_URL!;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const url = requireEnv("SUPABASE_URL", "all database access");
+const key = requireEnv("SUPABASE_SERVICE_ROLE_KEY", "all database access");
 
 // Vercel's per-function type pass currently resolves SupabaseAuthClient through
 // a narrowed conditional export that omits getUser/admin. Keep the database

@@ -53,7 +53,7 @@ export default function ManualPaymentModal({ data, onSent, onClose }: {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6 overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6 overflow-y-auto" role="dialog" aria-modal="true" aria-label="Send your payment" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md my-auto" onClick={(e) => e.stopPropagation()}>
         <div className="relative p-5 pt-12 sm:p-8">
           <button onClick={onClose} aria-label="Close" className="absolute top-2 right-2 flex h-11 w-11 items-center justify-center rounded-full text-[oklch(0.60_0.01_260)] hover:bg-[oklch(0.96_0.003_260)] hover:text-[oklch(0.30_0.01_260)]">
@@ -90,8 +90,11 @@ export default function ManualPaymentModal({ data, onSent, onClose }: {
               <p className="text-[0.6875rem] font-bold tracking-wider uppercase text-[oklch(0.55_0.01_260)]">{ui.noteLabel}</p>
               <p className="text-[1.125rem] font-bold font-mono text-[oklch(0.13_0.01_260)] break-all">{data.orderId}</p>
               <CopyBtn text={data.orderId} which="order" label="Copy order ID" />
-              <p className="flex items-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.55_0.15_45)] mt-2">
-                ⚠️ Missing order ID = automatic refund
+              {/* Supportive, accurate framing — the old "Missing order ID =
+                  automatic refund" threat suppressed completion at the exact
+                  send-money step (and wasn't even how the flow works). */}
+              <p className="flex items-center gap-1.5 text-[0.8125rem] font-semibold text-[oklch(0.42_0.10_45)] mt-2">
+                This ID is how we match your transfer to your order — pop it in the memo and you're set.
               </p>
             </Step>
 

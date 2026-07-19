@@ -161,9 +161,14 @@ function ProductCard({ product }: { product: Product }) {
                 )}
               </button>
             ) : (
-              <span className="inline-flex min-h-11 items-center text-[0.8125rem] py-2 px-4 rounded-full font-semibold bg-[oklch(0.93_0.003_260)] text-[oklch(0.52_0.01_260)]">
-                Out of Stock
-              </span>
+              // Warm restock lead instead of a dead pill — lands on the PDP
+              // waitlist form (the 0→stock email flow already exists).
+              <Link
+                href={`/shop/${product.slug}#notify`}
+                className="inline-flex min-h-11 items-center text-[0.8125rem] py-2 px-4 rounded-full font-semibold border-2 border-[oklch(0.80_0.008_260)] text-[oklch(0.35_0.01_260)] hover:border-[oklch(0.40_0.16_260)] hover:text-[oklch(0.40_0.16_260)] transition-colors"
+              >
+                Notify me
+              </Link>
             )}
           </div>
         </div>

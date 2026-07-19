@@ -119,7 +119,7 @@ function ImageUploadButton({ onUploaded, currentUrl }: { onUploaded: (url: strin
           <span className="text-[0.6875rem] text-[oklch(0.60_0.01_260)] truncate max-w-[200px]">{currentUrl.split("/").pop()}</span>
         </div>
       )}
-      {error && <p className="text-[0.75rem] text-red-500 mt-1">{error}</p>}
+      {error && <p className="text-[0.75rem] text-red-600 mt-1">{error}</p>}
     </div>
   );
 }
@@ -254,7 +254,7 @@ export function ProductModal({
             <VariantEditor variants={form.variants} onChange={(v) => set({ variants: v })} />
           </div>
 
-          {error && <p className="text-[0.875rem] text-red-500">{error}</p>}
+          {error && <p className="text-[0.875rem] text-red-600">{error}</p>}
         </div>
 
         <div className="p-6 border-t border-[oklch(0.91_0.004_260)] flex justify-end gap-3">

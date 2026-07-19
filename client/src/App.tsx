@@ -139,8 +139,15 @@ function AppLayout() {
         <AgeGate onVerified={() => setVerified(true)} />
       )}
       <div className={gated ? "pointer-events-none select-none blur-sm" : ""}>
+        {/* Keyboard users skip the marquee + nav stack straight to content */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[10000] focus:bg-white focus:text-[oklch(0.13_0.01_260)] focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg text-sm font-semibold"
+        >
+          Skip to main content
+        </a>
         <Navbar />
-        <main>
+        <main id="main">
           <Suspense fallback={<RouteFallback />}>
             <Router />
           </Suspense>

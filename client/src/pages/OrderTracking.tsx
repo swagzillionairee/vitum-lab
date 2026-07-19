@@ -88,7 +88,7 @@ export default function OrderTracking() {
             {state === "loading" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             {state === "loading" ? "Looking up…" : "Track order"}
           </button>
-          {state === "error" && <p className="text-[0.8125rem] text-red-500">{error}</p>}
+          {state === "error" && <p className="text-[0.8125rem] text-red-600">{error}</p>}
         </form>
 
         {state === "done" && order && (

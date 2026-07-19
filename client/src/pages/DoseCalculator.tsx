@@ -1,33 +1,16 @@
-import { useEffect } from "react";
-import { useLocation } from "wouter";
 import ReconstitutionCalculator from "@/components/ReconstitutionCalculator";
 import SEO from "@/components/SEO";
-import { useAuth } from "@/contexts/AuthContext";
 
+// Public (no sign-in): reconstitution calculators are a top organic-search
+// entry point in this niche, and the tool doubles as a PDP conversion aid.
+// The RUO disclaimer lives inside the calculator itself.
 export default function DoseCalculator() {
-  const { session, loading } = useAuth();
-  const [, navigate] = useLocation();
-
-  // Customer-only tool: send anonymous visitors to sign in first.
-  useEffect(() => {
-    if (!loading && !session) {
-      navigate("/login?redirect=/dose-calculator");
-    }
-  }, [loading, session, navigate]);
-
-  if (loading || !session) {
-    return (
-      <div className="min-h-screen bg-page flex items-center justify-center">
-        <p className="text-[oklch(0.52_0.01_260)] text-sm">Sign in to access this tool…</p>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-page">
       <SEO
-        title="Dose Calculator"
-        description="Reconstitution calculator for research peptides. Calculate concentration, volume per dose, and doses per vial."
+        title="Peptide Reconstitution & Dose Calculator"
+        description="Free peptide reconstitution calculator — enter vial size, BAC water volume, and desired dose to get concentration, volume per dose, and doses per vial. For laboratory research use only."
+        canonical="https://vitumlab.com/dose-calculator"
       />
 
       <div className="border-b border-[oklch(0.93_0.004_260)]">

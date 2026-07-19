@@ -127,12 +127,47 @@ export function deferEmail(p: Promise<unknown>) {
   }
 }
 
+// ─── Operational alerts ──────────────────────────────────────────────────────
+// Email a human about an anomaly they must see (charge anomalies, reconciliation
+// surprises). Never throws — an alert failure must not break the flow it
+// observes. Callers on a request path should wrap in deferEmail().
+export async function notifyAdmin(subject: string, body: string): Promise<void> {
+  try {
+    await send(ordersInbox(), `[Vitum Ops] ${subject}`, layout(heading(subject, body)));
+  } catch (err) {
+    console.error("notifyAdmin failed:", err);
+  }
+}
+
 // ─── Idempotency (orders.emails_sent JSONB) ──────────────────────────────────
 // Atomic JSONB merge in SQL: the old read-merge-write here lost a stamp when two
 // different events raced (re-arming a duplicate email later).
 async function stampEmail(orderId: string, event: string) {
   const { error } = await supabaseAdmin.rpc("stamp_email", { p_order_id: orderId, p_event: event });
   if (error) console.error(`stamp_email(${orderId}, ${event}) failed:`, error.message);
+}
+
+// Claim-BEFORE-send: checking the in-memory row and stamping after the send was
+// a TOCTOU — two concurrent confirmations (NowPayments firing confirmed+finished
+// IPNs in parallel, or a webhook racing an admin Re-check) both passed the stale
+// check and double-sent. claim_email flips the emails_sent key only when absent,
+// so exactly one caller wins and sends. Fails OPEN on an RPC error: a transient
+// glitch must never black-hole a confirmation email — worst case reverts to the
+// old behavior (a rare duplicate), never a missing email.
+async function claimEmail(orderId: string, event: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.rpc("claim_email", { p_order_id: orderId, p_event: event });
+  if (error) {
+    console.error(`claim_email(${orderId}, ${event}) failed:`, error.message);
+    return true;
+  }
+  return data === true;
+}
+
+// Roll a claim back when the SMTP send fails, so a retry / admin resend can
+// still deliver instead of the event being marked sent-but-never-delivered.
+async function releaseEmailClaim(orderId: string, event: string): Promise<void> {
+  const { error } = await supabaseAdmin.rpc("release_email_claim", { p_order_id: orderId, p_event: event });
+  if (error) console.error(`release_email_claim(${orderId}, ${event}) failed:`, error.message);
 }
 
 // ─── Shared layout + fragments ───────────────────────────────────────────────
@@ -464,17 +499,25 @@ export async function sendOrderEvent(
   event: OrderEmailEvent,
   opts?: { force?: boolean; invoiceUrl?: string; wasPending?: boolean },
 ): Promise<boolean> {
-  if (!opts?.force && order.emails_sent?.[event]) return false;
   if (!order.email) return false;
+  if (!opts?.force) {
+    if (order.emails_sent?.[event]) return false; // cheap pre-check; the claim below is the real gate
+    if (!(await claimEmail(order.id, event))) return false; // another caller already sent this one
+  }
   const images = await productImageMap().catch(() => ({}));
   // Manual-transfer "order received" email carries the send-to instructions.
   let manual: { label: string; handle: string; instructions: string } | undefined;
   if (event === "order_created" && order.payment_method && order.payment_method in MANUAL_EMAIL_METHODS) {
     manual = (await manualHandle(order.payment_method).catch(() => null)) ?? undefined;
   }
-  const { to, subject, html } = buildOrderEmail(order, event, { ...opts, manual }, images);
-  await send(to, subject, html);
-  await stampEmail(order.id, event);
+  try {
+    const { to, subject, html } = buildOrderEmail(order, event, { ...opts, manual }, images);
+    await send(to, subject, html);
+  } catch (err) {
+    if (!opts?.force) await releaseEmailClaim(order.id, event).catch(() => {});
+    throw err;
+  }
+  if (opts?.force) await stampEmail(order.id, event); // resend: refresh the stamp timestamp
   return true;
 }
 
@@ -517,18 +560,23 @@ export async function sendAffiliateCommission(
   order: EmailOrder,
   affiliate: { email: string; code: string; commission: number },
 ): Promise<boolean> {
-  if (order.emails_sent?.["affiliate_commission"]) return false;
   if (!affiliate.email || affiliate.commission <= 0) return false;
-  await send(
-    affiliate.email,
-    `You earned ${money(affiliate.commission)} in commission`,
-    layout(
-      pill("Commission Earned", "#edfaf3", "#1a7a4a") +
-      heading(`You earned ${money(affiliate.commission)}`, `A customer just completed an order using your code <b>${affiliate.code}</b>. Your commission on order ${formatOrderId(order.id)} is <b>${money(affiliate.commission)}</b>.`) +
-      button("Open Affiliate Dashboard", `${baseUrl()}/affiliate/dashboard`),
-    ),
-  );
-  await stampEmail(order.id, "affiliate_commission");
+  if (order.emails_sent?.["affiliate_commission"]) return false; // cheap pre-check; the claim is the real gate
+  if (!(await claimEmail(order.id, "affiliate_commission"))) return false;
+  try {
+    await send(
+      affiliate.email,
+      `You earned ${money(affiliate.commission)} in commission`,
+      layout(
+        pill("Commission Earned", "#edfaf3", "#1a7a4a") +
+        heading(`You earned ${money(affiliate.commission)}`, `A customer just completed an order using your code <b>${affiliate.code}</b>. Your commission on order ${formatOrderId(order.id)} is <b>${money(affiliate.commission)}</b>.`) +
+        button("Open Affiliate Dashboard", `${baseUrl()}/affiliate/dashboard`),
+      ),
+    );
+  } catch (err) {
+    await releaseEmailClaim(order.id, "affiliate_commission").catch(() => {});
+    throw err;
+  }
   return true;
 }
 

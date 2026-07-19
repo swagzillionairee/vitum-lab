@@ -9,6 +9,7 @@ import { chargeSquare, squareConfigured } from "./_lib/square.js";
 import { confirmPaidOrder, sendConfirmationEmails, recordLatePayment, ORDER_COLS } from "./_lib/fulfillment.js";
 import { normalizeShippingAddress } from "./_lib/address.js";
 import { buildPaymentOffer, isManualPaymentMethod, isPaymentMethod, paymentMethodEnabled, type PaymentMethod } from "./_lib/paymentConfig.js";
+import { clientIp } from "./_lib/clientIp.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 
@@ -218,6 +219,29 @@ export default async function handler(req: any, res: any) {
       res.status(400).json({ error: "A valid contiguous-US shipping address is required." });
       return;
     }
+
+    // Ship-to-state blocklist — owner-configurable via store_settings.
+    // payment_config.blocked_states (e.g. ["MS"]). Some jurisdictions restrict
+    // specific research compounds; enforced HERE (before any reservation) so a
+    // stale or tampered client can't bypass it. Checked early: nothing to
+    // release on rejection.
+    const { data: shipCfg } = await supabaseAdmin.from("store_settings").select("payment_config").maybeSingle();
+    const blockedStatesRaw = (shipCfg?.payment_config as { blocked_states?: unknown } | null)?.blocked_states;
+    const blockedStates = (Array.isArray(blockedStatesRaw) ? blockedStatesRaw : []).map(s => String(s).trim().toUpperCase());
+    if (blockedStates.includes(normalizedShipping.state)) {
+      res.status(400).json({ error: `We currently can't ship orders to ${normalizedShipping.state} addresses.` });
+      return;
+    }
+
+    // Durable proof of the 21+/research-use attestation, bound to the order —
+    // the checkout checkbox alone is ephemeral client state. Persisted to
+    // orders.attestation for the store's compliance record.
+    const attestationRecord = {
+      accepted: true,
+      at: new Date().toISOString(),
+      ip: clientIp(req),
+      version: "research-use-21plus-v1",
+    };
     const rawMethod = String(paymentMethod ?? "")
       .trim()
       .toLowerCase();
@@ -423,6 +447,13 @@ export default async function handler(req: any, res: any) {
       code: codeArg,
     });
     const affiliateId = discount?.kind === "affiliate" ? discount.affiliateId : null;
+    // POLICY (documented default — owner sign-off tracked in CLAUDE.md): affiliate
+    // commission is a % of the merchandise net regardless of tender, so an order
+    // settled partly/wholly with store credit still pays the affiliate in full —
+    // they drove the full sale value, and the credit itself was funded by earlier
+    // paid orders. The alternative basis is cashPaidBasis(net, shipping, credit)
+    // (what loyalty/referral use, for a different, anti-farming reason); if the
+    // policy ever changes, change it HERE only.
     const commissionAmount = discount?.kind === "affiliate" ? calcCommission(netAmount, discount.commissionPercent) : null;
 
     // Flat shipping fee on sub-$75 orders (free at $75+, pre-discount basis —
@@ -444,17 +475,20 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // The client sends the total it DISPLAYED at checkout. If the server-computed
-    // amount due differs (stale catalog cache, a sale that ended mid-checkout, a
-    // credit balance the client didn't see), refuse rather than charge an amount
-    // the customer never agreed to. Tolerance 1¢ for rounding; absent → legacy skip.
+    // The client sends the total it DISPLAYED at checkout. Refuse ONLY when the
+    // server-computed amount due is HIGHER than what the customer agreed to
+    // (stale catalog cache, a sale that ended mid-checkout, a credit balance the
+    // client didn't see) — never charge more than they saw. When the true total
+    // is LOWER (a sale started mid-session, credit landed), proceed and charge
+    // the lower amount: bouncing a price DROP back to "refresh and try again"
+    // only manufactures abandonment. Tolerance 1¢ for rounding.
     const displayedTotal = Number(total);
     if (!Number.isFinite(displayedTotal) || displayedTotal < 0) {
       await releaseDiscountRedemption(orderId);
       res.status(400).json({ error: "A valid checkout total is required." });
       return;
     }
-    if (Math.abs(displayedTotal - amountDue) > 0.01) {
+    if (amountDue - displayedTotal > 0.01) {
       await releaseDiscountRedemption(orderId);
       res.status(409).json({
         error: `Your order total is now $${amountDue.toFixed(2)} (it was $${displayedTotal.toFixed(2)} when the page loaded) — prices or your store credit changed. Please refresh and try again.`,
@@ -485,6 +519,7 @@ export default async function handler(req: any, res: any) {
         affiliate_id: affiliateId,
         commission_amount: commissionAmount,
         shipping_address: normalizedShipping,
+        attestation: attestationRecord,
         pay_amount: 0,
       });
       if (insertError) {
@@ -579,6 +614,7 @@ export default async function handler(req: any, res: any) {
       affiliate_id: affiliateId,
       commission_amount: commissionAmount,
       shipping_address: normalizedShipping,
+      attestation: attestationRecord,
     });
     if (insertError) {
       console.error("Order insert failed:", insertError);
