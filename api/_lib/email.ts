@@ -127,6 +127,18 @@ export function deferEmail(p: Promise<unknown>) {
   }
 }
 
+// ─── Operational alerts ──────────────────────────────────────────────────────
+// Email a human about an anomaly they must see (charge anomalies, reconciliation
+// surprises). Never throws — an alert failure must not break the flow it
+// observes. Callers on a request path should wrap in deferEmail().
+export async function notifyAdmin(subject: string, body: string): Promise<void> {
+  try {
+    await send(ordersInbox(), `[Vitum Ops] ${subject}`, layout(heading(subject, body)));
+  } catch (err) {
+    console.error("notifyAdmin failed:", err);
+  }
+}
+
 // ─── Idempotency (orders.emails_sent JSONB) ──────────────────────────────────
 // Atomic JSONB merge in SQL: the old read-merge-write here lost a stamp when two
 // different events raced (re-arming a duplicate email later).
