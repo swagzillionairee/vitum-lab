@@ -91,6 +91,38 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
+  // ── GET /api/account/data-export — the customer's data, self-serve ──────────
+  // Fulfils the privacy policy's access right: everything the store holds keyed
+  // to this verified email, as a downloadable JSON document.
+  if (route === "data-export") {
+    if (req.method !== "GET") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+    const [{ data: orders }, { data: ledger }, { data: refCode }, { data: userData }] = await Promise.all([
+      supabaseAdmin
+        .from("orders")
+        .select(
+          "id, items, gross_amount, discount_amount, net_amount, shipping_amount, credit_applied, discount_code, referral_code, payment_method, status, fulfillment_status, tracking_number, carrier, created_at, confirmed_at, shipped_at, delivered_at, cancelled_at, cancel_reason, shipping_address",
+        )
+        .eq("email", user.email)
+        .order("created_at", { ascending: false }),
+      supabaseAdmin.from("store_credit_ledger").select("amount, reason, order_id, created_at").eq("email", user.email).order("created_at", { ascending: false }),
+      supabaseAdmin.from("referral_codes").select("code, created_at").eq("email", user.email).maybeSingle(),
+      supabaseAdmin.auth.admin.getUserById(user.id),
+    ]);
+    res.setHeader("Content-Disposition", 'attachment; filename="vitumlab-data-export.json"');
+    res.status(200).json({
+      exported_at: new Date().toISOString(),
+      email: user.email,
+      profile: { shipping_address: (userData?.user?.user_metadata as Record<string, unknown> | undefined)?.shipping_address ?? null },
+      orders: orders ?? [],
+      store_credit_ledger: ledger ?? [],
+      referral_code: refCode ?? null,
+    });
+    return;
+  }
+
   // ── GET /api/account/referral — the customer's referral code + share link ───
   if (route === "referral") {
     if (req.method !== "GET") {

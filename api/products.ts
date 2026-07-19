@@ -7,7 +7,9 @@ type ProductRow = { variants?: Variant[]; [k: string]: unknown };
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   const [{ data, error }, { data: settings }] = await Promise.all([
-    supabaseAdmin.from("products").select("*").order("display_order", { ascending: true }),
+    // Public endpoint: only live products. Without the filter, marking a row
+    // inactive in Admin → Products still exposed its pricing/imagery here.
+    supabaseAdmin.from("products").select("*").eq("is_active", true).order("display_order", { ascending: true }),
     supabaseAdmin.from("store_settings").select("*").maybeSingle(),
   ]);
 

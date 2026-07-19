@@ -37,11 +37,11 @@ export function buildPaymentOffer(raw: unknown): PaymentOffer {
     const item = cfg[key] ?? {};
     const handle = typeof item.handle === "string" ? item.handle.trim() : "";
     const instructions = typeof item.instructions === "string" ? item.instructions.trim() : "";
-    return {
-      enabled: item.enabled === true && handle.length > 0,
-      handle,
-      instructions,
-    };
+    const enabled = item.enabled === true && handle.length > 0;
+    // A DISABLED method's handle/instructions stay server-side: /api/public/site
+    // is unauthenticated, and emitting a switched-off Zelle/Venmo/Cash App
+    // handle leaks a personal payment identifier the owner chose to withdraw.
+    return enabled ? { enabled, handle, instructions } : { enabled: false, handle: "", instructions: "" };
   };
 
   return {

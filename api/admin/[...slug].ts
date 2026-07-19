@@ -528,7 +528,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "PATCH") {
       const body = req.body as {
         id?: string;
-        action?: "cancel" | "ship" | "buy_label" | "deliver" | "recheck" | "notes" | "resend_email" | "mark_paid";
+        action?: "cancel" | "ship" | "buy_label" | "deliver" | "recheck" | "notes" | "resend_email" | "mark_paid" | "redact";
         reason?: string;
         tracking_number?: string;
         carrier?: string;
@@ -700,6 +700,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         await sendConfirmationEmails(full);
         const { data } = await supabaseAdmin.from("orders").select(orderSelect).eq("id", id).single();
+        return res.json(data);
+      }
+
+      // Privacy-request fulfilment: strip the order's PII while preserving the
+      // anonymized financial row (the ledger/affiliate math must stay provable).
+      // Refused while the order still needs its address (pending payment, or
+      // paid but not yet delivered).
+      if (action === "redact") {
+        const inFlight = PAID.includes(order.status) && order.fulfillment_status !== "delivered";
+        if (order.status === "pending" || inFlight) {
+          return res.status(409).json({
+            error: "Only a completed, cancelled, or failed order can be redacted — this one still needs its shipping details",
+          });
+        }
+        const { data, error } = await supabaseAdmin
+          .from("orders")
+          .update({
+            email: `redacted+${id}@vitumlab.invalid`,
+            shipping_address: null,
+            admin_notes: [order.admin_notes, `PII redacted ${new Date().toISOString()} (privacy request)`].filter(Boolean).join("\n\n"),
+          })
+          .eq("id", id)
+          .select(orderSelect)
+          .maybeSingle();
+        if (error || !data) return res.status(500).json({ error: "Failed to redact order" });
         return res.json(data);
       }
 

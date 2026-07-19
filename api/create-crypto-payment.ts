@@ -9,6 +9,7 @@ import { chargeSquare, squareConfigured } from "./_lib/square.js";
 import { confirmPaidOrder, sendConfirmationEmails, recordLatePayment, ORDER_COLS } from "./_lib/fulfillment.js";
 import { normalizeShippingAddress } from "./_lib/address.js";
 import { buildPaymentOffer, isManualPaymentMethod, isPaymentMethod, paymentMethodEnabled, type PaymentMethod } from "./_lib/paymentConfig.js";
+import { clientIp } from "./_lib/clientIp.js";
 
 const NOWPAYMENTS_API = "https://api.nowpayments.io/v1";
 
@@ -218,6 +219,29 @@ export default async function handler(req: any, res: any) {
       res.status(400).json({ error: "A valid contiguous-US shipping address is required." });
       return;
     }
+
+    // Ship-to-state blocklist — owner-configurable via store_settings.
+    // payment_config.blocked_states (e.g. ["MS"]). Some jurisdictions restrict
+    // specific research compounds; enforced HERE (before any reservation) so a
+    // stale or tampered client can't bypass it. Checked early: nothing to
+    // release on rejection.
+    const { data: shipCfg } = await supabaseAdmin.from("store_settings").select("payment_config").maybeSingle();
+    const blockedStatesRaw = (shipCfg?.payment_config as { blocked_states?: unknown } | null)?.blocked_states;
+    const blockedStates = (Array.isArray(blockedStatesRaw) ? blockedStatesRaw : []).map(s => String(s).trim().toUpperCase());
+    if (blockedStates.includes(normalizedShipping.state)) {
+      res.status(400).json({ error: `We currently can't ship orders to ${normalizedShipping.state} addresses.` });
+      return;
+    }
+
+    // Durable proof of the 21+/research-use attestation, bound to the order —
+    // the checkout checkbox alone is ephemeral client state. Persisted to
+    // orders.attestation for the store's compliance record.
+    const attestationRecord = {
+      accepted: true,
+      at: new Date().toISOString(),
+      ip: clientIp(req),
+      version: "research-use-21plus-v1",
+    };
     const rawMethod = String(paymentMethod ?? "")
       .trim()
       .toLowerCase();
@@ -495,6 +519,7 @@ export default async function handler(req: any, res: any) {
         affiliate_id: affiliateId,
         commission_amount: commissionAmount,
         shipping_address: normalizedShipping,
+        attestation: attestationRecord,
         pay_amount: 0,
       });
       if (insertError) {
@@ -589,6 +614,7 @@ export default async function handler(req: any, res: any) {
       affiliate_id: affiliateId,
       commission_amount: commissionAmount,
       shipping_address: normalizedShipping,
+      attestation: attestationRecord,
     });
     if (insertError) {
       console.error("Order insert failed:", insertError);
