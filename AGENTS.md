@@ -181,12 +181,12 @@ NOWPAYMENTS_API_KEY= / NOWPAYMENTS_IPN_SECRET=
 # Square (live card processing) — server charge + VITE_ client tokenization (envs must match)
 SQUARE_ACCESS_TOKEN=                # server access token (production or sandbox)
 SQUARE_LOCATION_ID=                 # location the payment is attributed to
-SQUARE_ENVIRONMENT=sandbox          # "production" | "sandbox" (default sandbox)
+SQUARE_ENVIRONMENT=production       # "production" | "sandbox" — production in the current Vercel deployment
 VITE_SQUARE_APPLICATION_ID=         # Web Payments SDK app id (in-browser card tokenization)
 VITE_SQUARE_LOCATION_ID=            # client location id
-VITE_SQUARE_ENVIRONMENT=sandbox     # "production" | "sandbox" — must match SQUARE_ENVIRONMENT; VITE_ → redeploy
-PAYMENT_EMAIL=                      # OPTIONAL — inbox for "I've Sent the Payment" alerts. Falls back to
-                                    # ORDERS_EMAIL → GMAIL_USER. Leave UNSET unless a payment@ mailbox is provisioned.
+VITE_SQUARE_ENVIRONMENT=production  # "production" | "sandbox" — currently matches SQUARE_ENVIRONMENT; VITE_ → redeploy
+PAYMENT_EMAIL=                      # OPTIONAL override for "I've Sent the Payment" alerts. Falls back to
+                                    # ORDERS_EMAIL → GMAIL_USER. No dedicated payments mailbox is planned.
 # Manual P2P handles (Zelle/Cash App/Venmo/ACH) are NOT env vars — they live in store_settings.payment_config
 #   (Admin → Payments); a method shows at checkout only when enabled AND it has a handle.
 GMAIL_USER=hello@vitumlab.com / GMAIL_APP_PASSWORD=
@@ -195,7 +195,7 @@ ORDERS_EMAIL=orders@vitumlab.com    # admin new-paid-order + ops alerts (falls b
 INVENTORY_EMAIL=inventory@vitumlab.com   # low-stock digest
 DELIVERED_EMAIL=delivered@vitumlab.com   # admin delivered alerts
 CRON_SECRET=                        # /api/cron shared secret (checked constant-time, header-only)
-SHIPPO_API_KEY=                     # ShippoToken; test vs live is key-determined (no code change)
+SHIPPO_API_KEY=                     # ShippoToken; currently demo/test. Keep non-live until real postage is authorized.
 SHIP_FROM_NAME/STREET1/CITY/STATE/ZIP/PHONE   # return address (PHONE required by USPS). STREET2/EMAIL/COUNTRY optional.
 
 # Browser (VITE_ prefix; set manually in Vercel)
@@ -283,7 +283,7 @@ Customer login is the single entry point (admins land on `/admin` automatically 
 
 ## Open / Outstanding
 
-**Payments go-live (owner dashboard actions):** set live `SQUARE_ACCESS_TOKEN` + `SQUARE_LOCATION_ID` + `SQUARE_ENVIRONMENT=production` and the matching `VITE_SQUARE_*` (redeploy), then enable Square in Admin → Payments. Add each manual handle (Zelle/Cash App/Venmo/ACH) in Admin → Payments to expose it. Optionally provision a `payment@vitumlab.com` mailbox + set `PAYMENT_EMAIL`. Swap `SHIPPO_API_KEY` to live for real postage.
+**Payments — current status / remaining owner actions:** Square is live: the server credentials use `SQUARE_ENVIRONMENT=production`, the matching `VITE_SQUARE_*` variables are deployed, and Square is enabled in Admin → Payments. Add each manual handle (Zelle/Cash App/Venmo/ACH) in Admin → Payments to expose it. `SHIPPO_API_KEY` intentionally remains on the demo/test key for now; do not switch it to live until real postage is authorized.
 
 **Security — outstanding owner actions (dashboards, not code):** (1) Supabase Auth → confirm "Confirm email" ON + enable leaked-password protection; (2) Google Cloud → restrict `VITE_GOOGLE_MAPS_API_KEY` by HTTP referrer; (3) assess the Supabase `pg_net` extension warning during a maintenance window.
 
